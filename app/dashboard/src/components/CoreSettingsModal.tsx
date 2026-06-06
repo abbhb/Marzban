@@ -188,7 +188,7 @@ const CoreSettingModalContent: FC = () => {
           </Box>
         </FormControl>
         <FormControl
-          className={cn("transition-all transform-gpu ease-in-out grow max-h-1/3 flex flex-col gap-1", {
+          className={cn("transition-all transform-gpu ease-in-out grow max-h-1/3 flex flex-col gap-2", {
             "h-0!": isFullHeightConfig,
             "h-full ": !isFullHeightConfig,
           })}

@@ -106,9 +106,11 @@ export const NodeLogs = () => {
   const handleLog = (id: string, title: string) => {
     if (id === selectedNode) return;
     else if (id === "host") {
+      logsTmp = [];
       setNode("");
       setLogs([]);
     } else {
+      logsTmp = [];
       setNode(id);
       setLogs([]);
     }
@@ -147,12 +149,15 @@ export const NodeLogs = () => {
               bg={disabled ? "gray.100" : "transparent"}
               _dark={{
                 bg: disabled ? "gray.600" : "transparent",
+                borderColor: "gray.500",
               }}
               sx={{
                 option: {
                   backgroundColor: colorMode === "dark" ? "#222C3B" : "white",
                 },
               }}
+              borderColor="gray.300"
+              rounded="md"
               onChange={(v) => handleLog(v.currentTarget.value, v.currentTarget.selectedOptions[0].text)}
             >
               <option key={"host"} value={"host"} defaultChecked>
@@ -168,9 +173,9 @@ export const NodeLogs = () => {
                 })}
             </Select>
           )}
-          <FormLabel className="w-au">{t("core.logs")}</FormLabel>
+          <FormLabel className="w-auto m-0!">{t("core.logs")}</FormLabel>
         </HStack>
-        <Text as={FormLabel} mr="0">
+        <Text as={FormLabel} m={0}>
           {t(`core.socket.${status}`)}
         </Text>
       </HStack>
