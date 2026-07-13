@@ -1,0 +1,35 @@
+[Unit]
+Description=Marzban portal blacklist nftables synchronizer
+Documentation=https://github.com/abbhb/Marzban
+After=local-fs.target nftables.service firewalld.service
+
+[Service]
+Type=simple
+Environment=DATABASE_PATH=/root/marzban/data/db.sqlite3
+Environment=PANEL_PORT=443
+Environment=SYNC_INTERVAL=15
+EnvironmentFile=-/etc/default/marzban-portal-ip-guard
+ExecStart=/usr/bin/python3 /usr/local/libexec/marzban-portal-ip-guard --database ${DATABASE_PATH} --port ${PANEL_PORT} --interval ${SYNC_INTERVAL}
+Restart=on-failure
+RestartSec=5s
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+PrivateTmp=true
+PrivateDevices=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
