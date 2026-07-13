@@ -5,6 +5,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -81,6 +82,13 @@ class User(Base):
     sub_revoked_at = Column(DateTime, nullable=True, default=None)
     sub_updated_at = Column(DateTime, nullable=True, default=None)
     sub_last_user_agent = Column(String(512), nullable=True, default=None)
+    # MGMA subscription access tokens are deliberately stored as keyed digests.
+    # The clear-text token is returned once by the issuance endpoint and must
+    # never be persisted.
+    sub_access_token_digest = Column(String(64), nullable=True, unique=True, index=True)
+    sub_access_issued_at = Column(DateTime, nullable=True, default=None)
+    sub_access_expires_at = Column(DateTime, nullable=True, default=None)
+    sub_access_consumed_at = Column(DateTime, nullable=True, default=None)
     created_at = Column(DateTime, default=datetime.utcnow)
     note = Column(String(500), nullable=True, default=None)
     online_at = Column(DateTime, nullable=True, default=None)
@@ -272,6 +280,40 @@ class System(Base):
     id = Column(Integer, primary_key=True)
     uplink = Column(BigInteger, default=0)
     downlink = Column(BigInteger, default=0)
+
+
+class MgmaSettings(Base):
+    """Singleton settings for temporary subscription access."""
+
+    __tablename__ = "mgma_settings"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_mgma_settings_singleton"),
+        CheckConstraint(
+            "mode IN ('legacy', 'dual', 'ephemeral')",
+            name="ck_mgma_settings_mode",
+        ),
+        CheckConstraint(
+            "ttl_seconds BETWEEN 30 AND 900",
+            name="ck_mgma_settings_ttl_seconds",
+        ),
+        CheckConstraint(
+            "source_mode IN ('any', 'china', 'custom', 'china_or_custom')",
+            name="ck_mgma_settings_source_mode",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, default=1)
+    mode = Column(String(16), nullable=False, default="legacy", server_default="legacy")
+    ttl_seconds = Column(Integer, nullable=False, default=180, server_default="180")
+    single_use = Column(Boolean, nullable=False, default=False, server_default="0")
+    source_mode = Column(String(32), nullable=False, default="any", server_default="any")
+    custom_cidrs = Column(JSON, nullable=False, default=list)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
 
 
 class JWT(Base):

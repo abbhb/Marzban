@@ -1,0 +1,38 @@
+{
+  "format_version": 1,
+  "notice": "APNIC cc=CN represents the allocation organization's economy; it does not necessarily equal the IP address's current physical location.",
+  "output": {
+    "file": "cn.cidr",
+    "sha256": "7b8bb77937e04c3f56b5825a10e4fe2715ba52c8dd9f4a8c3609faa7b6f72d7f"
+  },
+  "records": {
+    "cidrs": 7500,
+    "cn_allocated_records": 11268,
+    "cn_assigned_records": 159,
+    "ipv4_cidrs": 5488,
+    "ipv4_cidrs_before_collapse": 8786,
+    "ipv6_cidrs": 2012,
+    "ipv6_cidrs_before_collapse": 2040,
+    "latest_cn_record_date": "20260708",
+    "parsed_source_records": 88552
+  },
+  "selection": {
+    "country_code": "CN",
+    "statuses": [
+      "allocated",
+      "assigned"
+    ]
+  },
+  "source": {
+    "data_end_date": "20260710",
+    "data_start_date": "19830613",
+    "declared_record_count": 88552,
+    "fetched_at": "2026-07-12T08:48:36.776844Z",
+    "format_version": "2",
+    "registry": "apnic",
+    "serial": "20260712",
+    "sha256": "50e143e2e694d1acce6c61b770c683af7fc122a924fb52c7f16641cee2a81a9d",
+    "url": "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest",
+    "utc_offset": "+1000"
+  }
+}

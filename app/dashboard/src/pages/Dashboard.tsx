@@ -5,12 +5,13 @@ import { Filters } from "components/Filters";
 import { Footer } from "components/Footer";
 import { Header } from "components/Header";
 import { HostsDialog } from "components/HostsDialog";
+import { MgmaLinkModal } from "components/MgmaLinkModal";
 import { NodesDialog } from "components/NodesModal";
 import { NodesUsage } from "components/NodesUsage";
-import { QRCodeDialog } from "components/QRCodeDialog";
 import { ResetAllUsageModal } from "components/ResetAllUsageModal";
 import { ResetUserUsageModal } from "components/ResetUserUsageModal";
 import { RevokeSubscriptionModal } from "components/RevokeSubscriptionModal";
+import { SubscriptionSecurityModal } from "components/SubscriptionSecurityModal";
 import { UserDialog } from "components/UserDialog";
 import { UsersTable } from "components/UsersTable";
 import { fetchInbounds, useDashboard } from "contexts/DashboardContext";
@@ -31,7 +32,7 @@ export const Dashboard: FC = () => {
         <UsersTable />
         <UserDialog />
         <DeleteUserModal />
-        <QRCodeDialog />
+        <MgmaLinkModal />
         <HostsDialog />
         <ResetUserUsageModal />
         <RevokeSubscriptionModal />
@@ -39,6 +40,7 @@ export const Dashboard: FC = () => {
         <NodesUsage />
         <ResetAllUsageModal />
         <CoreSettingsModal />
+        <SubscriptionSecurityModal />
       </Box>
       <Footer />
     </VStack>

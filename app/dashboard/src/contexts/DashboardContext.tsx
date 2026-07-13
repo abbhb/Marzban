@@ -41,8 +41,6 @@ type DashboardStateType = {
   inbounds: Inbounds;
   loading: boolean;
   filters: FilterType;
-  subscribeUrl: string | null;
-  QRcodeLinks: string[] | null;
   isEditingHosts: boolean;
   isEditingNodes: boolean;
   isShowingNodesUsage: boolean;
@@ -61,8 +59,6 @@ type DashboardStateType = {
   createUser: (user: UserCreate) => Promise<void>;
   editUser: (user: UserCreate) => Promise<void>;
   fetchUserUsage: (user: User, query: FilterUsageType) => Promise<void>;
-  setQRCode: (links: string[] | null) => void;
-  setSubLink: (subscribeURL: string | null) => void;
   onEditingHosts: (isEditingHosts: boolean) => void;
   onEditingNodes: (isEditingHosts: boolean) => void;
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
@@ -103,8 +99,6 @@ export const useDashboard = create(
     editingUser: null,
     deletingUser: null,
     isCreatingNewUser: false,
-    QRcodeLinks: null,
-    subscribeUrl: null,
     users: {
       users: [],
       total: 0,
@@ -149,9 +143,6 @@ export const useDashboard = create(
       });
       get().refetchUsers();
     },
-    setQRCode: (QRcodeLinks) => {
-      set({ QRcodeLinks });
-    },
     deleteUser: (user: User) => {
       set({ editingUser: null });
       return fetch(`/user/${user.username}`, { method: "DELETE" }).then(() => {
@@ -190,9 +181,6 @@ export const useDashboard = create(
     },
     onShowingNodesUsage: (isShowingNodesUsage: boolean) => {
       set({ isShowingNodesUsage });
-    },
-    setSubLink: (subscribeUrl) => {
-      set({ subscribeUrl });
     },
     resetDataUsage: (user) => {
       return fetch(`/user/${user.username}/reset`, { method: "POST" }).then(

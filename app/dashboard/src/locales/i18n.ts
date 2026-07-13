@@ -9,6 +9,7 @@ import LanguageDetector from "i18next-browser-languagedetector";
 import HttpApi from "i18next-http-backend";
 import { registerLocale } from "react-datepicker";
 import { initReactI18next } from "react-i18next";
+import dashboardPackage from "../../package.json";
 
 declare module "i18next" {
     interface CustomTypeOptions {
@@ -40,6 +41,16 @@ i18n
                     import.meta.env.BASE_URL,
                     `statics/locales/{{lng}}.json`,
                 ]),
+                // Locale files live under public/ and therefore keep stable
+                // filenames across dashboard builds.  A versioned query and
+                // no-store fetch prevent a newly deployed UI from reusing an
+                // older translation catalog from the browser HTTP cache.
+                queryStringParams: {
+                    v: dashboardPackage.version,
+                },
+                requestOptions: {
+                    cache: "no-store",
+                },
             },
         },
         function (err, t) {

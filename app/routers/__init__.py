@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from . import (
     admin, 
     core, 
+    mgma,
     node, 
     subscription, 
     system, 
@@ -13,6 +14,9 @@ from . import (
 api_router = APIRouter()
 
 routers = [
+    # Exact MGMA public paths must be registered before the legacy
+    # ``/{token}`` subscription catch-all.
+    mgma.router,
     admin.router,
     core.router,
     node.router,

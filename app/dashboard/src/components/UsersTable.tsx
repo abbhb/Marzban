@@ -27,20 +27,17 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import {
-  CheckIcon,
   ChevronDownIcon,
-  ClipboardIcon,
-  LinkIcon,
+  FireIcon,
   PencilIcon,
-  QrCodeIcon,
 } from "@heroicons/react/24/outline";
 import { ReactComponent as AddFileIcon } from "assets/add_file.svg";
 import classNames from "classnames";
 import { resetStrategy, statusColors } from "constants/UserSettings";
 import { useDashboard } from "contexts/DashboardContext";
+import { useMgma } from "contexts/MgmaContext";
 import { t } from "i18next";
 import { FC, Fragment, useEffect, useState } from "react";
-import CopyToClipboard from "react-copy-to-clipboard";
 import { useTranslation } from "react-i18next";
 import { User } from "types/User";
 import { formatBytes } from "utils/formatByte";
@@ -63,11 +60,8 @@ const iconProps = {
     },
   },
 };
-const CopyIcon = chakra(ClipboardIcon, iconProps);
 const AccordionArrowIcon = chakra(ChevronDownIcon, iconProps);
-const CopiedIcon = chakra(CheckIcon, iconProps);
-const SubscriptionLinkIcon = chakra(LinkIcon, iconProps);
-const QRIcon = chakra(QrCodeIcon, iconProps);
+const MgmaIcon = chakra(FireIcon, iconProps);
 const EditIcon = chakra(PencilIcon, iconProps);
 const SortIcon = chakra(ChevronDownIcon, {
   baseStyle: {
@@ -637,18 +631,8 @@ type ActionButtonsProps = {
 };
 
 const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
-  const { setQRCode, setSubLink } = useDashboard();
-
-  const proxyLinks = user.links.join("\r\n");
-
-  const [copied, setCopied] = useState([-1, false]);
-  useEffect(() => {
-    if (copied[1]) {
-      setTimeout(() => {
-        setCopied([-1, false]);
-      }, 1000);
-    }
-  }, [copied]);
+  const openMgma = useMgma((state) => state.open);
+  const canIssueMgma = user.status === "active" || user.status === "on_hold";
   return (
     <HStack
       justifyContent="flex-end"
@@ -657,87 +641,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
         e.stopPropagation();
       }}
     >
-      <CopyToClipboard
-        text={
-          user.subscription_url.startsWith("/")
-            ? window.location.origin + user.subscription_url
-            : user.subscription_url
-        }
-        onCopy={() => {
-          setCopied([0, true]);
-        }}
+      <Tooltip
+        label={t(
+          canIssueMgma ? "usersTable.mgma" : "mgma.unavailableForStatus"
+        )}
+        placement="top"
       >
-        <div>
-          <Tooltip
-            label={
-              copied[0] == 0 && copied[1]
-                ? t("usersTable.copied")
-                : t("usersTable.copyLink")
-            }
-            placement="top"
-          >
-            <IconButton
-              p="0 !important"
-              aria-label="copy subscription link"
-              bg="transparent"
-              _dark={{
-                _hover: {
-                  bg: "gray.700",
-                },
-              }}
-              size={{
-                base: "sm",
-                md: "md",
-              }}
-            >
-              {copied[0] == 0 && copied[1] ? (
-                <CopiedIcon />
-              ) : (
-                <SubscriptionLinkIcon />
-              )}
-            </IconButton>
-          </Tooltip>
-        </div>
-      </CopyToClipboard>
-      <CopyToClipboard
-        text={proxyLinks}
-        onCopy={() => {
-          setCopied([1, true]);
-        }}
-      >
-        <div>
-          <Tooltip
-            label={
-              copied[0] == 1 && copied[1]
-                ? t("usersTable.copied")
-                : t("usersTable.copyConfigs")
-            }
-            placement="top"
-          >
-            <IconButton
-              p="0 !important"
-              aria-label="copy configs"
-              bg="transparent"
-              _dark={{
-                _hover: {
-                  bg: "gray.700",
-                },
-              }}
-              size={{
-                base: "sm",
-                md: "md",
-              }}
-            >
-              {copied[0] == 1 && copied[1] ? <CopiedIcon /> : <CopyIcon />}
-            </IconButton>
-          </Tooltip>
-        </div>
-      </CopyToClipboard>
-      <Tooltip label="QR Code" placement="top">
         <IconButton
           p="0 !important"
-          aria-label="qr code"
+          aria-label="MGMA temporary subscription link"
           bg="transparent"
+          color="orange.400"
           _dark={{
             _hover: {
               bg: "gray.700",
@@ -747,12 +661,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
             base: "sm",
             md: "md",
           }}
-          onClick={() => {
-            setQRCode(user.links);
-            setSubLink(user.subscription_url);
-          }}
+          isDisabled={!canIssueMgma}
+          onClick={() => void openMgma(user)}
         >
-          <QRIcon />
+          <MgmaIcon />
         </IconButton>
       </Tooltip>
     </HStack>

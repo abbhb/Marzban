@@ -3,9 +3,11 @@ from app.models.admin import AdminInDB, AdminValidationResult, Admin
 from app.models.user import UserResponse, UserStatus
 from app.db import Session, crud, get_db
 from config import SUDOERS
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from datetime import datetime, timezone, timedelta
 from app.utils.jwt import get_subscription_payload
+from app.models.mgma import MgmaAccessMode
+from app.services.mgma import get_real_client_ip, get_settings, source_allowed
 
 
 def validate_admin(db: Session, username: str, password: str) -> Optional[AdminValidationResult]:
@@ -66,8 +68,16 @@ def get_user_template(template_id: int, db: Session = Depends(get_db)):
 
 def get_validated_sub(
         token: str,
+        request: Request,
         db: Session = Depends(get_db)
 ) -> UserResponse:
+    settings = get_settings(db)
+    if (
+        settings.mode == MgmaAccessMode.ephemeral.value
+        or not source_allowed(get_real_client_ip(request), settings)
+    ):
+        raise HTTPException(status_code=404, detail="Not Found")
+
     sub = get_subscription_payload(token)
     if not sub:
         raise HTTPException(status_code=404, detail="Not Found")
