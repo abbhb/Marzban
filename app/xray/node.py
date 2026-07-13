@@ -38,6 +38,11 @@ class NodeAPIError(Exception):
     def __init__(self, status_code, detail):
         self.status_code = status_code
         self.detail = detail
+        super().__init__(f"node API error {status_code}: {detail}")
+
+
+class NodeSessionError(NodeAPIError):
+    """Raised when the panel has no control session for a remote node."""
 
 
 class ReSTXRayNode:
@@ -116,17 +121,23 @@ class ReSTXRayNode:
 
     @property
     def connected(self):
-        if not self._session_id:
-            return False
         try:
-            self.make_request("/ping", timeout=3)
-            return True
+            return self.check_connection(timeout=3)
         except NodeAPIError:
             return False
 
+    def check_connection(self, timeout: int = 3):
+        if not self._session_id:
+            raise NodeSessionError(0, "node control session is not established")
+        self.make_request("/ping", timeout=timeout)
+        return True
+
     @property
     def started(self):
-        res = self.make_request("/", timeout=3)
+        return self.check_started(timeout=3)
+
+    def check_started(self, timeout: int = 3):
+        res = self.make_request("/", timeout=timeout)
         return res.get('started', False)
 
     @property
@@ -361,6 +372,12 @@ class RPyCXRayNode:
         except (AttributeError, EOFError, TimeoutError):
             self.disconnect()
             return False
+
+    def check_connection(self, timeout: int = None):
+        return self.connected
+
+    def check_started(self, timeout: int = None):
+        return self.started
 
     @property
     def remote(self):

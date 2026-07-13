@@ -1,7 +1,7 @@
 {
   "name": "marzban-dashboard",
   "private": true,
-  "version": "0.8.4-mgma.6",
+  "version": "0.8.4-mgma.7",
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc && vite build",

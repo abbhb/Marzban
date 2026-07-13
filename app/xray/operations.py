@@ -1,4 +1,5 @@
 from functools import lru_cache
+from threading import Lock
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -217,10 +218,12 @@ def _change_node_status(node_id: int, status: NodeStatus, message: str = None, v
 
 global _connecting_nodes
 _connecting_nodes = {}
+_restarting_nodes = set()
+_restarting_nodes_lock = Lock()
 
 
 @threaded_function
-def connect_node(node_id, config=None):
+def connect_node(node_id, config=None, reason: str = None):
     global _connecting_nodes
 
     if _connecting_nodes.get(node_id):
@@ -242,7 +245,11 @@ def connect_node(node_id, config=None):
         _connecting_nodes[node_id] = True
 
         _change_node_status(node_id, NodeStatus.connecting)
-        logger.info(f"Connecting to \"{dbnode.name}\" node")
+        logger.info(
+            'Connecting to "%s" node; reason=%s',
+            dbnode.name,
+            reason or "requested by control plane",
+        )
 
         if config is None:
             config = xray.config.include_db_users()
@@ -250,11 +257,21 @@ def connect_node(node_id, config=None):
         node.start(config)
         version = node.get_version()
         _change_node_status(node_id, NodeStatus.connected, version=version)
-        logger.info(f"Connected to \"{dbnode.name}\" node, xray run on v{version}")
+        logger.info(
+            'Connected to "%s" node, xray run on v%s; reason=%s',
+            dbnode.name,
+            version,
+            reason or "requested by control plane",
+        )
 
     except Exception as e:
         _change_node_status(node_id, NodeStatus.error, message=str(e))
-        logger.info(f"Unable to connect to \"{dbnode.name}\" node")
+        logger.error(
+            'Unable to connect to "%s" node; reason=%s; error=%s',
+            dbnode.name,
+            reason or "requested by control plane",
+            e,
+        )
 
     finally:
         try:
@@ -264,36 +281,69 @@ def connect_node(node_id, config=None):
 
 
 @threaded_function
-def restart_node(node_id, config=None):
-    with GetDB() as db:
-        dbnode = crud.get_node_by_id(db, node_id)
-
-    if not dbnode:
-        return
-
-    try:
-        node = xray.nodes[dbnode.id]
-    except KeyError:
-        node = xray.operations.add_node(dbnode)
-
-    if not node.connected:
-        return connect_node(node_id, config)
+def restart_node(node_id, config=None, reason: str = None):
+    with _restarting_nodes_lock:
+        if node_id in _restarting_nodes:
+            logger.warning(
+                "Skipping duplicate node restart while another restart is in progress: "
+                "node_id=%s reason=%s",
+                node_id,
+                reason or "requested by control plane",
+            )
+            return
+        _restarting_nodes.add(node_id)
 
     try:
-        logger.info(f"Restarting Xray core of \"{dbnode.name}\" node")
+        with GetDB() as db:
+            dbnode = crud.get_node_by_id(db, node_id)
 
-        if config is None:
-            config = xray.config.include_db_users()
+        if not dbnode:
+            return
 
-        node.restart(config)
-        logger.info(f"Xray core of \"{dbnode.name}\" node restarted")
-    except Exception as e:
-        _change_node_status(node_id, NodeStatus.error, message=str(e))
-        logger.info(f"Unable to restart node {node_id}")
         try:
-            node.disconnect()
-        except Exception:
-            pass
+            node = xray.nodes[dbnode.id]
+        except KeyError:
+            node = xray.operations.add_node(dbnode)
+
+        if not node.connected:
+            logger.warning(
+                'Node is not connected; reconnecting instead of restarting: node="%s" reason=%s',
+                dbnode.name,
+                reason or "requested by control plane",
+            )
+            return connect_node(node_id, config, reason=reason)
+
+        try:
+            logger.warning(
+                'Restarting Xray core of "%s" node; reason=%s',
+                dbnode.name,
+                reason or "requested by control plane",
+            )
+
+            if config is None:
+                config = xray.config.include_db_users()
+
+            node.restart(config)
+            logger.info(
+                'Xray core of "%s" node restarted; reason=%s',
+                dbnode.name,
+                reason or "requested by control plane",
+            )
+        except Exception as e:
+            _change_node_status(node_id, NodeStatus.error, message=str(e))
+            logger.error(
+                'Unable to restart node "%s"; reason=%s; error=%s',
+                dbnode.name,
+                reason or "requested by control plane",
+                e,
+            )
+            try:
+                node.disconnect()
+            except Exception:
+                pass
+    finally:
+        with _restarting_nodes_lock:
+            _restarting_nodes.discard(node_id)
 
 
 __all__ = [
