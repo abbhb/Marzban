@@ -12,6 +12,7 @@ import {
 } from "@chakra-ui/react";
 import {
   ArrowLeftOnRectangleIcon,
+  BanknotesIcon,
   Bars3Icon,
   ChartPieIcon,
   Cog6ToothIcon,
@@ -57,6 +58,7 @@ const NodesIcon = chakra(SquaresPlusIcon, iconProps);
 const NodesUsageIcon = chakra(ChartPieIcon, iconProps);
 const ResetUsageIcon = chakra(DocumentMinusIcon, iconProps);
 const SubscriptionSecurityIcon = chakra(ShieldCheckIcon, iconProps);
+const CommerceIcon = chakra(BanknotesIcon, iconProps);
 const NotificationCircle = chakra(Box, {
   baseStyle: {
     bg: "yellow.500",
@@ -189,6 +191,15 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                   >
                     {t("header.subscriptionSecurity")}
                   </MenuItem>
+                  <Link to="/commerce">
+                    <MenuItem
+                      maxW="230px"
+                      fontSize="sm"
+                      icon={<CommerceIcon />}
+                    >
+                      {t("header.commerce")}
+                    </MenuItem>
+                  </Link>
                 </>
               )}
               <Link to={DONATION_URL} target="_blank">

@@ -3,11 +3,20 @@ from app.models.admin import AdminInDB, AdminValidationResult, Admin
 from app.models.user import UserResponse, UserStatus
 from app.db import Session, crud, get_db
 from config import SUDOERS
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timezone, timedelta
-from app.utils.jwt import get_subscription_payload
+from app.utils.jwt import get_portal_payload, get_subscription_payload
 from app.models.mgma import MgmaAccessMode
 from app.services.mgma import get_real_client_ip, get_settings, source_allowed
+from app.db.models import PortalAccount
+from app.services import commerce
+
+
+portal_oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/portal/token",
+    auto_error=False,
+)
 
 
 def validate_admin(db: Session, username: str, password: str) -> Optional[AdminValidationResult]:
@@ -64,6 +73,37 @@ def get_user_template(template_id: int, db: Session = Depends(get_db)):
     if not dbuser_template:
         raise HTTPException(status_code=404, detail="User Template not found")
     return dbuser_template
+
+
+def get_current_portal_account(
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(portal_oauth2_scheme),
+) -> PortalAccount:
+    """Authenticate a self-service account without accepting admin JWTs."""
+
+    payload = get_portal_payload(token or "")
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate portal credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    account = commerce.get_account(db, payload["account_id"])
+    if (
+        not account
+        or not account.is_active
+        or account.username != payload["username"]
+        or (
+            account.password_reset_at
+            and account.password_reset_at > payload["created_at"]
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate portal credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return account
 
 
 def get_validated_sub(

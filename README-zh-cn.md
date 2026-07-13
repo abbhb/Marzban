@@ -9,7 +9,7 @@
 
 <h1 align="center"/>Marzban</h1>
 
-> 本 fork 增加了 MGMA 180 秒临时订阅、最新 token 覆盖和 China/自定义 CIDR 来源策略。部署与安全边界见 [MGMA 临时订阅访问](docs/MGMA.zh-CN.md)。
+> 本 fork 增加了 MGMA 180 秒临时订阅、最新 token 覆盖、China/自定义 CIDR 来源策略，以及注册、钱包、唯一可见套餐、流量展示和自助 MGMA 的用户门户。部署与安全边界见 [MGMA 临时订阅访问](docs/MGMA.zh-CN.md)，数据与事务契约见 [用户门户、钱包与套餐设计](docs/PORTAL-COMMERCE.zh-CN.md)。
 
 <p align="center">
     Unified GUI Censorship Resistant Solution Powered by <a href="https://github.com/XTLS/Xray-core">Xray</a>
@@ -104,6 +104,7 @@ Marzban 是一个用户友好、功能丰富且可靠的工具。它让您可以
 - **TLS** 支持
 - 集成的 **Telegram Bot**
 - **多管理员**支持（WIP）
+- 自助**用户门户**、不可变钱包流水和 sudo 管理的 VLESS 套餐
 
 
 # 安装指南

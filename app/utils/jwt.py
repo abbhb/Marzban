@@ -44,6 +44,45 @@ def get_admin_payload(token: str) -> Union[dict, None]:
         return
 
 
+def create_portal_token(account_id: int, username: str) -> str:
+    """Issue a token that is valid only for self-service portal endpoints."""
+
+    data = {
+        "sub": str(account_id),
+        "username": username,
+        "access": "portal",
+        "iat": datetime.utcnow(),
+    }
+    # Portal sessions are public-facing: cap them at 24 hours and never inherit
+    # an unlimited admin-token setting.
+    portal_expire_minutes = min(JWT_ACCESS_TOKEN_EXPIRE_MINUTES, 24 * 60)
+    if portal_expire_minutes <= 0:
+        portal_expire_minutes = 24 * 60
+    data["exp"] = datetime.utcnow() + timedelta(minutes=portal_expire_minutes)
+    return jwt.encode(data, get_secret_key(), algorithm="HS256")
+
+
+def get_portal_payload(token: str) -> Union[dict, None]:
+    """Decode a portal token without accepting admin or subscription JWTs."""
+
+    try:
+        payload = jwt.decode(token, get_secret_key(), algorithms=["HS256"])
+        if payload.get("access") != "portal":
+            return
+        account_id = int(payload.get("sub"))
+        username = payload.get("username")
+        if account_id <= 0 or not username:
+            return
+        created_at = datetime.utcfromtimestamp(payload["iat"])
+        return {
+            "account_id": account_id,
+            "username": username,
+            "created_at": created_at,
+        }
+    except (KeyError, TypeError, ValueError, jwt.exceptions.PyJWTError):
+        return
+
+
 def create_subscription_token(username: str) -> str:
     data = username + ',' + str(ceil(time.time()))
     data_b64_str = b64encode(data.encode('utf-8'), altchars=b'-_').decode('utf-8').rstrip('=')

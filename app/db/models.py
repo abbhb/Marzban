@@ -316,6 +316,192 @@ class MgmaSettings(Base):
     )
 
 
+class SubscriptionPlan(Base):
+    """A purchasable VLESS plan exposed to at most one account at a time."""
+
+    __tablename__ = "subscription_plans"
+    __table_args__ = (
+        CheckConstraint("price_minor >= 0", name="ck_subscription_plans_price"),
+        CheckConstraint("duration_days > 0", name="ck_subscription_plans_duration"),
+        CheckConstraint("data_limit >= 0", name="ck_subscription_plans_data_limit"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128), nullable=False, unique=True)
+    description = Column(String(1000), nullable=False, default="", server_default="")
+    price_minor = Column(BigInteger, nullable=False)
+    currency = Column(String(3), nullable=False, default="CNY", server_default="CNY")
+    duration_days = Column(Integer, nullable=False)
+    data_limit = Column(BigInteger, nullable=False, default=0, server_default="0")
+    inbound_tags = Column(JSON, nullable=False, default=list)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    is_default = Column(Boolean, nullable=False, default=False, server_default="0")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    assigned_accounts = relationship("PortalAccount", back_populates="assigned_plan")
+    subscriptions = relationship("PortalSubscription", back_populates="plan")
+    purchases = relationship("PortalPurchase", back_populates="plan")
+
+
+class PortalAccount(Base):
+    """A self-service login, kept separate from privileged administrators."""
+
+    __tablename__ = "portal_accounts"
+    __table_args__ = (
+        CheckConstraint("wallet_balance_minor >= 0", name="ck_portal_accounts_balance"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(34, collation="NOCASE"), nullable=False, unique=True, index=True)
+    hashed_password = Column(String(128), nullable=False)
+    wallet_balance_minor = Column(BigInteger, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    assigned_plan_id = Column(
+        Integer,
+        ForeignKey("subscription_plans.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    password_reset_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    assigned_plan = relationship("SubscriptionPlan", back_populates="assigned_accounts")
+    proxy_user = relationship("User", foreign_keys=[user_id])
+    subscription = relationship(
+        "PortalSubscription",
+        uselist=False,
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+    purchases = relationship("PortalPurchase", back_populates="account")
+    wallet_transactions = relationship("WalletTransaction", back_populates="account")
+
+
+class PortalPurchase(Base):
+    """Immutable purchase/grant/renewal history and idempotency record."""
+
+    __tablename__ = "portal_purchases"
+    __table_args__ = (
+        UniqueConstraint("account_id", "idempotency_key", name="uq_portal_purchase_idempotency"),
+        CheckConstraint("amount_minor >= 0", name="ck_portal_purchases_amount"),
+        CheckConstraint(
+            "kind IN ('self_purchase', 'admin_grant', 'admin_renewal')",
+            name="ck_portal_purchases_kind",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer, ForeignKey("portal_accounts.id"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    kind = Column(String(24), nullable=False)
+    idempotency_key = Column(String(128), nullable=True)
+    actor_admin = Column(String(34), nullable=True)
+    plan_name = Column(String(128), nullable=False)
+    amount_minor = Column(BigInteger, nullable=False)
+    currency = Column(String(3), nullable=False)
+    duration_days = Column(Integer, nullable=False)
+    data_limit = Column(BigInteger, nullable=False)
+    inbound_tags = Column(JSON, nullable=False)
+    balance_before_minor = Column(BigInteger, nullable=False)
+    balance_after_minor = Column(BigInteger, nullable=False)
+    effective_expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    account = relationship("PortalAccount", back_populates="purchases")
+    plan = relationship("SubscriptionPlan", back_populates="purchases")
+
+
+class PortalSubscription(Base):
+    """The single current subscription snapshot for a portal account."""
+
+    __tablename__ = "portal_subscriptions"
+    __table_args__ = (
+        CheckConstraint("data_limit >= 0", name="ck_portal_subscriptions_data_limit"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    account_id = Column(
+        Integer,
+        ForeignKey("portal_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    plan_name = Column(String(128), nullable=False)
+    price_paid_minor = Column(BigInteger, nullable=False)
+    currency = Column(String(3), nullable=False)
+    duration_days = Column(Integer, nullable=False)
+    data_limit = Column(BigInteger, nullable=False)
+    inbound_tags = Column(JSON, nullable=False)
+    starts_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    purchased_at = Column(DateTime, nullable=False)
+    disabled_at = Column(DateTime, nullable=True)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    account = relationship("PortalAccount", back_populates="subscription")
+    plan = relationship("SubscriptionPlan", back_populates="subscriptions")
+
+
+class WalletTransaction(Base):
+    """Append-only wallet ledger. Amounts are signed integer minor units."""
+
+    __tablename__ = "wallet_transactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "kind",
+            "idempotency_key",
+            name="uq_wallet_transaction_idempotency",
+        ),
+        CheckConstraint("amount_minor != 0", name="ck_wallet_transactions_amount"),
+        CheckConstraint("balance_after_minor >= 0", name="ck_wallet_transactions_balance"),
+        CheckConstraint(
+            "kind IN ('admin_credit', 'purchase_debit')",
+            name="ck_wallet_transactions_kind",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    account_id = Column(Integer, ForeignKey("portal_accounts.id"), nullable=False, index=True)
+    amount_minor = Column(BigInteger, nullable=False)
+    balance_after_minor = Column(BigInteger, nullable=False)
+    kind = Column(String(24), nullable=False)
+    idempotency_key = Column(String(128), nullable=True)
+    actor_admin = Column(String(34), nullable=True)
+    purchase_id = Column(Integer, ForeignKey("portal_purchases.id"), nullable=True, index=True)
+    note = Column(String(500), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    account = relationship("PortalAccount", back_populates="wallet_transactions")
+    purchase = relationship("PortalPurchase")
+
+
 class JWT(Base):
     __tablename__ = "jwt"
 

@@ -8,6 +8,7 @@ import {
   FormControl,
   FormLabel,
   HStack,
+  Link,
   Text,
   VStack,
 } from "@chakra-ui/react";
@@ -16,6 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { FC, useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { z } from "zod";
 import { Footer } from "components/Footer";
 import { Input } from "components/Input";
@@ -106,6 +108,7 @@ export const Login: FC = () => {
                     <Input
                       w="full"
                       placeholder={t("username")}
+                      autoComplete="username"
                       {...register("username")}
                       error={t(errors?.username?.message as string)}
                     />
@@ -115,6 +118,7 @@ export const Login: FC = () => {
                       w="full"
                       type="password"
                       placeholder={t("password")}
+                      autoComplete="current-password"
                       {...register("password")}
                       error={t(errors?.password?.message as string)}
                     />
@@ -136,6 +140,11 @@ export const Login: FC = () => {
                   </Button>
                 </VStack>
               </form>
+              <Text textAlign="center" mt="4" fontSize="sm">
+                <Link as={RouterLink} to="/portal/login" color="primary.500">
+                  {t("portal.userLogin")}
+                </Link>
+              </Text>
             </Box>
           </Box>
         </HStack>

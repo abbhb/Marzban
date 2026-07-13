@@ -145,6 +145,33 @@ def update_user(dbuser: "DBUser"):
                 _remove_user_from_inbound(node.api, inbound_tag, email)
 
 
+def add_user_by_id(user_id: int):
+    """Load a fresh attached ORM user for a FastAPI background task."""
+
+    with GetDB() as db:
+        dbuser = crud.get_user_by_id(db, user_id)
+        if dbuser:
+            add_user(dbuser)
+
+
+def update_user_by_id(user_id: int):
+    """Load a fresh attached ORM user for a FastAPI background task."""
+
+    with GetDB() as db:
+        dbuser = crud.get_user_by_id(db, user_id)
+        if dbuser:
+            update_user(dbuser)
+
+
+def remove_user_by_id(user_id: int):
+    """Load a fresh attached ORM user for a FastAPI background task."""
+
+    with GetDB() as db:
+        dbuser = crud.get_user_by_id(db, user_id)
+        if dbuser:
+            remove_user(dbuser)
+
+
 def remove_node(node_id: int):
     if node_id in xray.nodes:
         try:

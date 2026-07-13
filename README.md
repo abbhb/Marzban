@@ -9,7 +9,7 @@
 
 <h1 align="center"/>Marzban</h1>
 
-> This fork adds MGMA short-lived subscription URLs, latest-token-only invalidation, and China/custom CIDR source policies. See the [Chinese MGMA deployment and security guide](docs/MGMA.zh-CN.md).
+> This fork adds MGMA short-lived subscription URLs, latest-token-only invalidation, China/custom CIDR source policies, and a self-service portal with registration, wallet balance, one assigned plan, traffic visibility, and MGMA issuance. See the [Chinese MGMA deployment and security guide](docs/MGMA.zh-CN.md) and [portal commerce design](docs/PORTAL-COMMERCE.zh-CN.md).
 
 <p align="center">
     Unified GUI Censorship Resistant Solution Powered by <a href="https://github.com/XTLS/Xray-core">Xray</a>
@@ -107,6 +107,7 @@ Marzban is user-friendly, feature-rich and reliable. It lets you to create diffe
 - Integrated **Command Line Interface (CLI)**
 - **Multi-language**
 - **Multi-admin** support (WIP)
+- Self-service **user portal**, audited wallet ledger, and sudo-managed VLESS plans
 
 # Installation guide
 
