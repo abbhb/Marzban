@@ -5,6 +5,12 @@ from rich.console import Console
 
 from app.db import GetDB
 from app.models.user import UserResponse
+from app.services.mgma import (
+    MgmaConfigurationError,
+    MgmaUserIneligible,
+    build_public_subscription_url,
+    issue_token,
+)
 from app.subscription.share import generate_subscription
 
 from . import utils
@@ -23,14 +29,18 @@ def get_link(
     username: str = typer.Option(..., *utils.FLAGS["username"], prompt=True)
 ):
     """
-    Prints the given user's subscription link.
+    Prints a newly issued MGMA temporary subscription link.
 
     NOTE: This command needs `XRAY_SUBSCRIPTION_URL_PREFIX` environment variable to be set
       in order to work correctly.
     """
     with GetDB() as db:
-        user: UserResponse = UserResponse.model_validate(utils.get_user(db, username))
-        print(user.subscription_url)
+        dbuser = utils.get_user(db, username)
+        try:
+            issued = issue_token(db, dbuser)
+            print(build_public_subscription_url(issued.token))
+        except (MgmaConfigurationError, MgmaUserIneligible) as exc:
+            utils.error(str(exc))
 
 
 @app.command(name="get-config")

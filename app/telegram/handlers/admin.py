@@ -17,6 +17,7 @@ from telebot.util import extract_arguments, user_link
 from app import xray
 from app.db import GetDB, crud
 from app.models.proxy import ProxyTypes
+from app.models.mgma import MgmaAccessMode
 from app.models.user import (
     UserCreate,
     UserModify,
@@ -25,6 +26,7 @@ from app.models.user import (
     UserStatusModify
 )
 from app.models.user_template import UserTemplateResponse
+from app.services.mgma import get_settings
 from app.telegram import bot
 from app.telegram.utils.custom_filters import cb_query_equals, cb_query_startswith
 from app.telegram.utils.keyboard import BotKeyboard
@@ -675,8 +677,15 @@ def links_command(call: types.CallbackQuery):
             return bot.answer_callback_query(call.id, "User not found!", show_alert=True)
 
         user = UserResponse.model_validate(db_user)
+        settings = get_settings(db)
+        if settings.mode != MgmaAccessMode.legacy.value:
+            return bot.answer_callback_query(
+                call.id,
+                "Use the web dashboard to issue an MGMA temporary URL.",
+                show_alert=True,
+            )
 
-    text = f"<code>{user.subscription_url}</code>\n\n\n"
+    text = ""
     for link in user.links:
         if len(text) > 4056:
             text += '\n\n<b>...</b>'
@@ -703,63 +712,41 @@ def genqr_command(call: types.CallbackQuery):
             return bot.answer_callback_query(call.id, "User not found!", show_alert=True)
 
         user = UserResponse.model_validate(db_user)
+        settings = get_settings(db)
+
+        if qr_select != 'configs':
+            return bot.answer_callback_query(
+                call.id,
+                "Use the web dashboard to issue an MGMA temporary URL.",
+                show_alert=True,
+            )
+        if settings.mode != MgmaAccessMode.legacy.value:
+            return bot.answer_callback_query(
+                call.id,
+                "Raw config QR codes are disabled in secure subscription mode.",
+                show_alert=True,
+            )
 
         bot.answer_callback_query(call.id, "Generating QR code...")
 
-        if qr_select == 'configs':
-            for link in user.links:
-                f = io.BytesIO()
-                qr = qrcode.QRCode(border=6)
-                qr.add_data(link)
-                qr.make_image().save(f)
-                f.seek(0)
-                bot.send_photo(
-                    call.message.chat.id,
-                    photo=f,
-                    caption=f"<code>{link}</code>",
-                    parse_mode="HTML"
-                )
-        else:
-            data_limit = readable_size(user.data_limit) if user.data_limit else "Unlimited"
-            used_traffic = readable_size(user.used_traffic) if user.used_traffic else "-"
-            data_left = readable_size(user.data_limit - user.used_traffic) if user.data_limit else "-"
-            on_hold_timeout = user.on_hold_timeout.strftime("%Y-%m-%d") if user.on_hold_timeout else "-"
-            on_hold_duration = user.on_hold_expire_duration // (24 * 60 * 60) if user.on_hold_expire_duration else None
-            expiry_date = datetime.fromtimestamp(user.expire).date() if user.expire else "Never"
-            time_left = time_to_string(datetime.fromtimestamp(user.expire)) if user.expire else "-"
-            if user.status == UserStatus.on_hold:
-                expiry_text = f"⏰ <b>On Hold Duration:</b> <code>{on_hold_duration} days</code> (auto start at <code>{
-                    on_hold_timeout}</code>)"
-            else:
-                expiry_text = f"📅 <b>Expiry Date:</b> <code>{expiry_date}</code> ({time_left})"
-            text = f"""\
-{statuses[user.status]} <b>Status:</b> <code>{user.status.title()}</code>
-
-🔤 <b>Username:</b> <code>{user.username}</code>
-
-🔋 <b>Data limit:</b> <code>{data_limit}</code>
-📶 <b>Data Used:</b> <code>{used_traffic}</code> (<code>{data_left}</code> left)
-{expiry_text}
-🚀 <b><a href="{user.subscription_url}">Subscription</a>:</b> <code>{user.subscription_url}</code>"""
-
-            with io.BytesIO() as f:
-                qr = qrcode.QRCode(border=6)
-                qr.add_data(user.subscription_url)
-                qr.make_image().save(f)
-                f.seek(0)
-                return bot.send_photo(
-                    call.message.chat.id,
-                    photo=f,
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=BotKeyboard.subscription_page(user.subscription_url)
-                )
+        for link in user.links:
+            f = io.BytesIO()
+            qr = qrcode.QRCode(border=6)
+            qr.add_data(link)
+            qr.make_image().save(f)
+            f.seek(0)
+            bot.send_photo(
+                call.message.chat.id,
+                photo=f,
+                caption=f"<code>{link}</code>",
+                parse_mode="HTML"
+            )
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except ApiTelegramException:
         pass
 
-    text = f"<code>{user.subscription_url}</code>\n\n\n"
+    text = ""
     for link in user.links:
         if len(text) > 4056:
             text += '\n\n<b>...</b>'

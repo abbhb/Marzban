@@ -614,6 +614,13 @@ def revoke_user_sub(db: Session, dbuser: User) -> User:
         User: The updated user object.
     """
     dbuser.sub_revoked_at = datetime.utcnow()
+    # Revoking a subscription must also revoke the latest short-lived MGMA
+    # bearer.  These fields flush in the same transaction as the rotated proxy
+    # credentials below, so an old temporary URL cannot fetch the new secrets.
+    dbuser.sub_access_token_digest = None
+    dbuser.sub_access_issued_at = None
+    dbuser.sub_access_expires_at = None
+    dbuser.sub_access_consumed_at = None
 
     user = UserResponse.model_validate(dbuser)
     for proxy_type, settings in user.proxies.copy().items():

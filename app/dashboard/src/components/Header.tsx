@@ -19,11 +19,13 @@ import {
   DocumentMinusIcon,
   LinkIcon,
   MoonIcon,
+  ShieldCheckIcon,
   SquaresPlusIcon,
   SunIcon,
 } from "@heroicons/react/24/outline";
 import { DONATION_URL, REPO_URL } from "constants/Project";
 import { useDashboard } from "contexts/DashboardContext";
+import { useSubscriptionSecurity } from "contexts/SubscriptionSecurityContext";
 import differenceInDays from "date-fns/differenceInDays";
 import isValid from "date-fns/isValid";
 import { FC, ReactNode, useState } from "react";
@@ -54,6 +56,7 @@ const HostsIcon = chakra(LinkIcon, iconProps);
 const NodesIcon = chakra(SquaresPlusIcon, iconProps);
 const NodesUsageIcon = chakra(ChartPieIcon, iconProps);
 const ResetUsageIcon = chakra(DocumentMinusIcon, iconProps);
+const SubscriptionSecurityIcon = chakra(ShieldCheckIcon, iconProps);
 const NotificationCircle = chakra(Box, {
   baseStyle: {
     bg: "yellow.500",
@@ -97,6 +100,9 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
     onEditingNodes,
     onShowingNodesUsage,
   } = useDashboard();
+  const openSubscriptionSecurity = useSubscriptionSecurity(
+    (state) => state.open
+  );
   const { t } = useTranslation();
   const { colorMode, toggleColorMode } = useColorMode();
   const [showDonationNotif, setShowDonationNotif] = useState(
@@ -174,6 +180,14 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                     onClick={onResetAllUsage.bind(null, true)}
                   >
                     {t("resetAllUsage")}
+                  </MenuItem>
+                  <MenuItem
+                    maxW="230px"
+                    fontSize="sm"
+                    icon={<SubscriptionSecurityIcon />}
+                    onClick={openSubscriptionSecurity}
+                  >
+                    {t("header.subscriptionSecurity")}
                   </MenuItem>
                 </>
               )}

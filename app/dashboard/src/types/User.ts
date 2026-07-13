@@ -46,7 +46,7 @@ export type User = {
   used_traffic: number;
   status: Status;
   links: string[];
-  subscription_url: string;
+  subscription_url?: string | null;
   inbounds: UserInbounds;
   note: string;
   online_at: string;

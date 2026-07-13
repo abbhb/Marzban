@@ -9,6 +9,8 @@
 
 <h1 align="center"/>Marzban</h1>
 
+> This fork adds MGMA short-lived subscription URLs, latest-token-only invalidation, and China/custom CIDR source policies. See the [Chinese MGMA deployment and security guide](docs/MGMA.zh-CN.md).
+
 <p align="center">
     Unified GUI Censorship Resistant Solution Powered by <a href="https://github.com/XTLS/Xray-core">Xray</a>
 </p>

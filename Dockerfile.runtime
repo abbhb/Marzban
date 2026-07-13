@@ -1,0 +1,27 @@
+ARG BASE_IMAGE=gozargah/marzban@sha256:8e422c21997e5d2e3fa231eeff73c0a19193c20fc02fa4958e9368abb9623b8d
+FROM ${BASE_IMAGE}
+
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.source="https://github.com/abbhb/Marzban" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.version="v0.8.4-mgma.1"
+
+WORKDIR /code
+
+# This derivative image intentionally reuses the pinned v0.8.4 Python runtime
+# and Xray binary.  The build is valid only while requirements.txt is unchanged;
+# it performs no apt, curl, pip, npm, or other network operation.
+RUN rm -rf /code/app /code/cli /code/xray_api /code/scripts
+
+COPY --chown=root:root app /code/app
+COPY --chown=root:root cli /code/cli
+COPY --chown=root:root xray_api /code/xray_api
+COPY --chown=root:root scripts /code/scripts
+COPY --chown=root:root config.py main.py marzban-cli.py alembic.ini xray_config.json requirements.txt /code/
+
+RUN chmod +x /code/marzban-cli.py \
+    && test -x /usr/local/bin/xray \
+    && test -s /code/app/dashboard/build/index.html \
+    && python -m compileall -q /code/app /code/cli /code/xray_api
+
+CMD ["bash", "-c", "alembic upgrade head && exec python main.py"]
