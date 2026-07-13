@@ -4,7 +4,7 @@ FROM ${BASE_IMAGE}
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.source="https://github.com/abbhb/Marzban" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.version="v0.8.4-mgma.1"
+      org.opencontainers.image.version="v0.8.4-mgma.2"
 
 WORKDIR /code
 
