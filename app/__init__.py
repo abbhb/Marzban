@@ -10,7 +10,7 @@ from fastapi.routing import APIRoute
 
 from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
 
-__version__ = "0.8.4-mgma.3"
+__version__ = "0.8.4-mgma.4"
 
 app = FastAPI(
     title="MarzbanAPI",
@@ -25,6 +25,10 @@ scheduler = BackgroundScheduler(
 )
 logger = logging.getLogger("uvicorn.error")
 
+# Import after ``scheduler`` exists because database models import ``app.xray``
+# and utilities in that path reference the application scheduler.
+from app.middleware.portal_security import PortalSecurityMiddleware  # noqa: E402
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -32,6 +36,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(PortalSecurityMiddleware)
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
 

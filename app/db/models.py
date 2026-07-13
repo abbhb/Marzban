@@ -396,6 +396,130 @@ class PortalAccount(Base):
     wallet_transactions = relationship("WalletTransaction", back_populates="account")
 
 
+class PortalInvitationCode(Base):
+    """Hashed invitation capability; plaintext is returned only at creation."""
+
+    __tablename__ = "portal_invitation_codes"
+    __table_args__ = (
+        CheckConstraint("max_uses IS NULL OR max_uses > 0", name="ck_portal_invites_max_uses"),
+        CheckConstraint("use_count >= 0", name="ck_portal_invites_use_count"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    code_digest = Column(String(64), nullable=False, unique=True, index=True)
+    code_prefix = Column(String(16), nullable=False)
+    note = Column(String(500), nullable=False, default="", server_default="")
+    valid_from = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    max_uses = Column(Integer, nullable=True)
+    use_count = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    created_by = Column(String(34), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+    last_used_at = Column(DateTime, nullable=True)
+
+    uses = relationship("PortalInvitationUse", back_populates="invitation")
+
+
+class PortalInvitationUse(Base):
+    """Immutable audit record linking an invitation to the created account."""
+
+    __tablename__ = "portal_invitation_uses"
+
+    id = Column(Integer, primary_key=True)
+    invitation_id = Column(
+        Integer,
+        ForeignKey("portal_invitation_codes.id"),
+        nullable=False,
+        index=True,
+    )
+    account_id = Column(
+        Integer,
+        ForeignKey("portal_accounts.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    source_ip = Column(String(45), nullable=False)
+    used_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    invitation = relationship("PortalInvitationCode", back_populates="uses")
+    account = relationship("PortalAccount")
+
+
+class PortalIPBlock(Base):
+    """Persistent exact-IP or CIDR deny entry with an operator-readable reason."""
+
+    __tablename__ = "portal_ip_blocks"
+
+    id = Column(Integer, primary_key=True)
+    network = Column(String(64), nullable=False, unique=True, index=True)
+    reason = Column(String(500), nullable=False)
+    source = Column(String(32), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    expires_at = Column(DateTime, nullable=True)
+    created_by = Column(String(34), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+    revoked_at = Column(DateTime, nullable=True)
+    revoked_by = Column(String(34), nullable=True)
+
+
+class PortalSecurityAttempt(Base):
+    """Bounded persistent failure counter for one source IP and auth flow."""
+
+    __tablename__ = "portal_security_attempts"
+    __table_args__ = (
+        UniqueConstraint("source_ip", "kind", name="uq_portal_security_attempt_ip_kind"),
+        CheckConstraint("failure_count > 0", name="ck_portal_security_attempt_count"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    source_ip = Column(String(45), nullable=False, index=True)
+    kind = Column(String(32), nullable=False)
+    failure_count = Column(Integer, nullable=False, default=1, server_default="1")
+    window_started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_failed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PortalSecuritySettings(Base):
+    """Singleton policy for automatic IP blocking."""
+
+    __tablename__ = "portal_security_settings"
+    __table_args__ = (
+        CheckConstraint("login_failure_limit BETWEEN 2 AND 100", name="ck_portal_security_login_limit"),
+        CheckConstraint("registration_failure_limit BETWEEN 2 AND 100", name="ck_portal_security_register_limit"),
+        CheckConstraint("login_window_seconds BETWEEN 60 AND 86400", name="ck_portal_security_login_window"),
+        CheckConstraint("registration_window_seconds BETWEEN 60 AND 86400", name="ck_portal_security_register_window"),
+        CheckConstraint("auto_block_seconds BETWEEN 0 AND 2592000", name="ck_portal_security_block_seconds"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    auto_block_enabled = Column(Boolean, nullable=False, default=True, server_default="1")
+    login_failure_limit = Column(Integer, nullable=False, default=8, server_default="8")
+    login_window_seconds = Column(Integer, nullable=False, default=900, server_default="900")
+    registration_failure_limit = Column(Integer, nullable=False, default=5, server_default="5")
+    registration_window_seconds = Column(Integer, nullable=False, default=600, server_default="600")
+    auto_block_seconds = Column(Integer, nullable=False, default=86400, server_default="86400")
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 class PortalPurchase(Base):
     """Immutable purchase/grant/renewal history and idempotency record."""
 

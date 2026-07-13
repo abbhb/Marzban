@@ -8,6 +8,7 @@ from app import xray
 from app.db import Session, crud, get_db
 from app.dependencies import get_admin_by_username, validate_admin
 from app.models.admin import Admin, AdminCreate, AdminModify, Token
+from app.services.mgma import get_real_client_ip
 from app.utils import report, responses
 from app.utils.jwt import create_admin_token
 from config import LOGIN_NOTIFY_WHITE_LIST
@@ -16,13 +17,8 @@ router = APIRouter(tags=["Admin"], prefix="/api", responses={401: responses._401
 
 
 def get_client_ip(request: Request) -> str:
-    """Extract the client's IP address from the request headers or client."""
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    if request.client:
-        return request.client.host
-    return "Unknown"
+    """Use the same non-spoofable client-IP boundary as MGMA and the portal."""
+    return get_real_client_ip(request) or "Unknown"
 
 
 @router.post("/admin/token", response_model=Token)

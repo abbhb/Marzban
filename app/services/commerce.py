@@ -35,6 +35,7 @@ from app.models.commerce import (
 )
 from app.models.proxy import ProxyTypes, VLESSSettings
 from app.models.user import UserDataLimitResetStrategy, UserStatus
+from app.services import portal_security
 
 
 class CommerceError(Exception):
@@ -101,11 +102,30 @@ def get_account_by_username(db: Session, username: str) -> Optional[PortalAccoun
     return account_query(db).filter(PortalAccount.username == username).first()
 
 
-def register_account(db: Session, values: PortalRegister) -> PortalAccount:
+def register_account(
+    db: Session,
+    values: PortalRegister,
+    *,
+    source_ip: str,
+    now: Optional[datetime] = None,
+) -> PortalAccount:
+    now = utc_now(now)
+    portal_security.ensure_invitation_available(
+        db,
+        values.invitation_code,
+        now=now,
+    )
+
     if get_account_by_username(db, values.username) or db.query(User.id).filter(
         User.username == values.username
     ).first():
         raise AccountExists
+
+    invitation = portal_security.consume_invitation(
+        db,
+        values.invitation_code,
+        now=now,
+    )
 
     default_plan = (
         db.query(SubscriptionPlan)
@@ -121,6 +141,14 @@ def register_account(db: Session, values: PortalRegister) -> PortalAccount:
     )
     db.add(account)
     try:
+        db.flush()
+        portal_security.add_invitation_use(
+            db,
+            invitation_id=invitation.id,
+            account_id=account.id,
+            source_ip=source_ip,
+            now=now,
+        )
         db.commit()
     except IntegrityError as exc:
         db.rollback()

@@ -15,6 +15,11 @@ from app.models.commerce import (
     AdminGrantPlanRequest,
     AdminRenewSubscriptionRequest,
     AssignPlanRequest,
+    IPBlockCreate,
+    IPBlockResponse,
+    InvitationCreate,
+    InvitationCreatedResponse,
+    InvitationResponse,
     PortalAccountAdminResponse,
     PortalAccountResponse,
     PortalMeResponse,
@@ -22,6 +27,8 @@ from app.models.commerce import (
     PortalPurchaseResponse,
     PortalRegister,
     PortalToken,
+    PortalSecuritySettingsResponse,
+    PortalSecuritySettingsUpdate,
     SubscriptionPlanCreate,
     SubscriptionPlanResponse,
     SubscriptionPlanUpdate,
@@ -30,7 +37,7 @@ from app.models.commerce import (
 )
 from app.models.mgma import MgmaIssueResponse
 from app.models.user import UserStatus
-from app.services import commerce
+from app.services import commerce, portal_security
 from app.services.mgma import (
     MgmaConfigurationError,
     MgmaUserIneligible,
@@ -96,6 +103,20 @@ def _get_plan_or_404(db: Session, plan_id: int) -> SubscriptionPlan:
     return plan
 
 
+def _get_invitation_or_404(db: Session, invitation_id: int):
+    invitation = portal_security.get_invitation(db, invitation_id)
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    return invitation
+
+
+def _get_block_or_404(db: Session, block_id: int):
+    block = portal_security.get_block(db, block_id)
+    if not block:
+        raise HTTPException(status_code=404, detail="Blacklist entry not found")
+    return block
+
+
 def _sync_proxy(bg: BackgroundTasks, result: commerce.PlanApplication) -> None:
     if result.replayed:
         return
@@ -130,13 +151,17 @@ def portal_register(
     values: PortalRegister,
     db: Session = Depends(get_db),
 ):
+    client_key = _client_key(request)
     _rate_limit(
-        f"portal-register:{_client_key(request)}",
+        f"portal-register:{client_key}",
         limit=5,
         window_seconds=60,
     )
     try:
-        return commerce.register_account(db, values)
+        return commerce.register_account(db, values, source_ip=client_key)
+    except portal_security.InvitationUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="portal.registrationUnavailable") from None
     except commerce.AccountExists:
         raise HTTPException(status_code=409, detail="Username is unavailable") from None
 
@@ -306,6 +331,132 @@ def admin_update_plan(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Plan name already exists") from None
+
+
+@router.get(
+    "/api/commerce/admin/invitations",
+    response_model=List[InvitationResponse],
+)
+def admin_list_invitations(
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return portal_security.list_invitations(db)
+
+
+@router.post(
+    "/api/commerce/admin/invitations",
+    response_model=InvitationCreatedResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def admin_create_invitation(
+    values: InvitationCreate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    try:
+        invitation, code = portal_security.create_invitation(
+            db,
+            created_by=admin.username,
+            note=values.note,
+            valid_from=values.valid_from,
+            expires_at=values.expires_at,
+            max_uses=values.max_uses,
+        )
+    except portal_security.InvitationConfigurationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    data = InvitationResponse.model_validate(invitation).model_dump()
+    return InvitationCreatedResponse(**data, code=code)
+
+
+@router.post(
+    "/api/commerce/admin/invitations/{invitation_id}/disable",
+    response_model=InvitationResponse,
+)
+def admin_disable_invitation(
+    invitation_id: int,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return portal_security.disable_invitation(
+        db,
+        _get_invitation_or_404(db, invitation_id),
+    )
+
+
+@router.get(
+    "/api/commerce/admin/security/blocks",
+    response_model=List[IPBlockResponse],
+)
+def admin_list_ip_blocks(
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return portal_security.list_blocks(db)
+
+
+@router.post(
+    "/api/commerce/admin/security/blocks",
+    response_model=IPBlockResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def admin_create_ip_block(
+    values: IPBlockCreate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    try:
+        return portal_security.add_block(
+            db,
+            network=values.network,
+            reason=values.reason,
+            source="manual",
+            created_by=admin.username,
+            expires_at=values.expires_at,
+        )
+    except portal_security.IPBlockConfigurationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+@router.post(
+    "/api/commerce/admin/security/blocks/{block_id}/revoke",
+    response_model=IPBlockResponse,
+)
+def admin_revoke_ip_block(
+    block_id: int,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return portal_security.revoke_block(
+        db,
+        _get_block_or_404(db, block_id),
+        revoked_by=admin.username,
+    )
+
+
+@router.get(
+    "/api/commerce/admin/security/settings",
+    response_model=PortalSecuritySettingsResponse,
+)
+def admin_get_portal_security_settings(
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return portal_security.get_security_settings(db)
+
+
+@router.put(
+    "/api/commerce/admin/security/settings",
+    response_model=PortalSecuritySettingsResponse,
+)
+def admin_update_portal_security_settings(
+    values: PortalSecuritySettingsUpdate,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return portal_security.update_security_settings(db, values.model_dump())
 
 
 @router.get(

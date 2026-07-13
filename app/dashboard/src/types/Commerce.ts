@@ -74,3 +74,47 @@ export type MgmaIssue = {
   expires_at: string;
   ttl_seconds: number;
 };
+
+export type Invitation = {
+  id: number;
+  code_prefix: string;
+  note: string;
+  valid_from?: string | null;
+  expires_at?: string | null;
+  max_uses?: number | null;
+  use_count: number;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  last_used_at?: string | null;
+};
+
+export type CreatedInvitation = Invitation & {
+  code: string;
+};
+
+export type IPBlock = {
+  id: number;
+  network: string;
+  reason: string;
+  source: "manual" | "portal_login" | "admin_login" | "portal_registration";
+  is_active: boolean;
+  expires_at?: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  revoked_at?: string | null;
+  revoked_by?: string | null;
+};
+
+export type PortalSecuritySettings = {
+  id: number;
+  auto_block_enabled: boolean;
+  login_failure_limit: number;
+  login_window_seconds: number;
+  registration_failure_limit: number;
+  registration_window_seconds: number;
+  auto_block_seconds: number;
+  updated_at: string;
+};

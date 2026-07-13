@@ -23,6 +23,7 @@ import { LogoIcon } from "./Login";
 
 const schema = z
   .object({
+    invitationCode: z.string().min(20, "portal.invitationRequired").max(128, "portal.invitationRequired"),
     username: z.string().min(3, "portal.usernameLength").max(32, "portal.usernameLength"),
     password: z.string().min(10, "portal.passwordLength").max(128, "portal.passwordLength"),
     confirmPassword: z.string(),
@@ -48,7 +49,11 @@ export const PortalRegister = () => {
     setLoading(true);
     portalFetch("/portal/register", {
       method: "POST",
-      body: { username: values.username, password: values.password },
+      body: {
+        username: values.username,
+        password: values.password,
+        invitation_code: values.invitationCode.trim(),
+      },
     })
       .then(() => navigate("/portal/login", { state: { registered: true } }))
       .catch((err: any) =>
@@ -67,6 +72,7 @@ export const PortalRegister = () => {
           <Text color="gray.500">{t("portal.registerSubtitle")}</Text>
           <Box as="form" w="full" onSubmit={handleSubmit(submit)}>
             <VStack spacing="3">
+              <Input autoComplete="off" placeholder={t("portal.invitationCode")} {...register("invitationCode")} error={t(errors.invitationCode?.message as string)} />
               <Input autoComplete="username" placeholder={t("username")} {...register("username")} error={t(errors.username?.message as string)} />
               <Input autoComplete="new-password" type="password" placeholder={t("password")} {...register("password")} error={t(errors.password?.message as string)} />
               <Input autoComplete="new-password" type="password" placeholder={t("portal.confirmPassword")} {...register("confirmPassword")} error={t(errors.confirmPassword?.message as string)} />

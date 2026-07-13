@@ -11,6 +11,7 @@ from app.models.user import USERNAME_REGEXP, UserStatus
 class PortalRegister(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=10, max_length=128)
+    invitation_code: str = Field(min_length=20, max_length=128)
 
     @field_validator("username")
     @classmethod
@@ -174,3 +175,66 @@ class PortalAccountAdminResponse(PortalAccountResponse):
     assigned_plan: Optional[SubscriptionPlanResponse] = None
     subscription: Optional[PortalSubscriptionResponse] = None
     usage: PortalUsageResponse
+
+
+class InvitationCreate(BaseModel):
+    note: str = Field(default="", max_length=500)
+    valid_from: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    max_uses: Optional[int] = Field(default=1, ge=1, le=1_000_000)
+
+
+class InvitationResponse(BaseModel):
+    id: int
+    code_prefix: str
+    note: str
+    valid_from: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    max_uses: Optional[int] = None
+    use_count: int
+    is_active: bool
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+    last_used_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InvitationCreatedResponse(InvitationResponse):
+    code: str
+
+
+class IPBlockCreate(BaseModel):
+    network: str = Field(min_length=2, max_length=64)
+    reason: str = Field(min_length=1, max_length=500)
+    expires_at: Optional[datetime] = None
+
+
+class IPBlockResponse(BaseModel):
+    id: int
+    network: str
+    reason: str
+    source: str
+    is_active: bool
+    expires_at: Optional[datetime] = None
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+    revoked_at: Optional[datetime] = None
+    revoked_by: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PortalSecuritySettingsUpdate(BaseModel):
+    auto_block_enabled: bool = True
+    login_failure_limit: int = Field(ge=2, le=100)
+    login_window_seconds: int = Field(ge=60, le=86400)
+    registration_failure_limit: int = Field(ge=2, le=100)
+    registration_window_seconds: int = Field(ge=60, le=86400)
+    auto_block_seconds: int = Field(ge=0, le=2_592_000)
+
+
+class PortalSecuritySettingsResponse(PortalSecuritySettingsUpdate):
+    id: int
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)

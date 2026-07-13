@@ -16,7 +16,11 @@ from fastapi import HTTPException
 from app.db.base import Base
 from app.db.models import (
     PortalAccount,
+    PortalIPBlock,
+    PortalInvitationCode,
+    PortalInvitationUse,
     PortalPurchase,
+    PortalSecurityAttempt,
     SubscriptionPlan,
     WalletTransaction,
 )
@@ -24,7 +28,7 @@ from app.models.commerce import PortalRegister, SubscriptionPlanCreate
 from app.models.proxy import ProxyTypes
 from app.models.user import UserStatus
 from app.dependencies import get_current_portal_account
-from app.services import commerce
+from app.services import commerce, portal_security
 from app.services.rate_limit import SlidingWindowLimiter
 from app.utils.jwt import create_admin_token, create_portal_token, get_portal_payload
 
@@ -100,9 +104,20 @@ class CommerceDatabaseTestCase(unittest.TestCase):
         )
 
     def register(self, username: str = "alice") -> PortalAccount:
+        _invitation, code = portal_security.create_invitation(
+            self.db,
+            created_by="root",
+            note=f"test invite for {username}",
+            max_uses=1,
+        )
         return commerce.register_account(
             self.db,
-            PortalRegister(username=username, password="correct-horse-battery"),
+            PortalRegister(
+                username=username,
+                password="correct-horse-battery",
+                invitation_code=code,
+            ),
+            source_ip="198.51.100.10",
         )
 
 
@@ -136,6 +151,160 @@ class AccountAndPlanTests(CommerceDatabaseTestCase):
         self.db.commit()
         with self.assertRaises(commerce.AccountExists):
             self.register()
+
+
+class InvitationSecurityTests(CommerceDatabaseTestCase):
+    def register_with_code(
+        self,
+        username: str,
+        code: str,
+        *,
+        now: datetime | None = None,
+    ) -> PortalAccount:
+        return commerce.register_account(
+            self.db,
+            PortalRegister(
+                username=username,
+                password="correct-horse-battery",
+                invitation_code=code,
+            ),
+            source_ip="198.51.100.20",
+            now=now,
+        )
+
+    def test_one_time_invitation_is_hashed_consumed_once_and_audited(self) -> None:
+        invitation, code = portal_security.create_invitation(
+            self.db,
+            created_by="root",
+            note="one time",
+            max_uses=1,
+        )
+
+        self.assertNotEqual(code, invitation.code_digest)
+        self.assertNotIn(code, repr(invitation.__dict__))
+        account = self.register_with_code("alice", code)
+        with self.assertRaises(portal_security.InvitationUnavailable):
+            self.register_with_code("bob", code)
+        self.db.rollback()
+
+        self.db.refresh(invitation)
+        self.assertEqual(1, invitation.use_count)
+        use = self.db.query(PortalInvitationUse).one()
+        self.assertEqual(account.id, use.account_id)
+        self.assertEqual("198.51.100.20", use.source_ip)
+
+    def test_scheduled_n_use_and_permanent_unlimited_invitations(self) -> None:
+        start = datetime(2026, 7, 14, 1, 0, 0)
+        invitation, code = portal_security.create_invitation(
+            self.db,
+            created_by="root",
+            valid_from=start,
+            expires_at=start + timedelta(hours=1),
+            max_uses=2,
+        )
+        with self.assertRaises(portal_security.InvitationUnavailable):
+            self.register_with_code("early", code, now=start - timedelta(seconds=1))
+        self.db.rollback()
+        self.register_with_code("alice", code, now=start)
+        self.register_with_code("bob", code, now=start + timedelta(minutes=30))
+        with self.assertRaises(portal_security.InvitationUnavailable):
+            self.register_with_code("charlie", code, now=start + timedelta(minutes=31))
+        self.db.rollback()
+        self.db.refresh(invitation)
+        self.assertEqual(2, invitation.use_count)
+
+        _unlimited, permanent_code = portal_security.create_invitation(
+            self.db,
+            created_by="root",
+            max_uses=None,
+            expires_at=None,
+        )
+        self.register_with_code("dora", permanent_code, now=start)
+        self.register_with_code("eve", permanent_code, now=start + timedelta(days=3650))
+
+    def test_duplicate_username_does_not_consume_the_invitation(self) -> None:
+        self.register("alice")
+        invitation, code = portal_security.create_invitation(
+            self.db,
+            created_by="root",
+            max_uses=1,
+        )
+        with self.assertRaises(commerce.AccountExists):
+            self.register_with_code("alice", code)
+        self.db.refresh(invitation)
+        self.assertEqual(0, invitation.use_count)
+
+    def test_automatic_block_has_reason_expiry_and_can_be_revoked(self) -> None:
+        portal_security.update_security_settings(
+            self.db,
+            {
+                "auto_block_enabled": True,
+                "login_failure_limit": 3,
+                "login_window_seconds": 300,
+                "registration_failure_limit": 4,
+                "registration_window_seconds": 600,
+                "auto_block_seconds": 3600,
+            },
+        )
+        now = datetime(2026, 7, 14, 2, 0, 0)
+        for offset in range(2):
+            self.assertIsNone(
+                portal_security.record_failure(
+                    self.db,
+                    source_ip="203.0.113.8",
+                    kind="portal_login",
+                    now=now + timedelta(seconds=offset),
+                )
+            )
+        block = portal_security.record_failure(
+            self.db,
+            source_ip="203.0.113.8",
+            kind="portal_login",
+            now=now + timedelta(seconds=2),
+        )
+
+        self.assertIsNotNone(block)
+        self.assertEqual("203.0.113.8/32", block.network)
+        self.assertIn("3 failed portal login", block.reason)
+        self.assertEqual(now + timedelta(seconds=3602), block.expires_at)
+        self.assertEqual(block.id, portal_security.find_active_block(self.db, "203.0.113.8", now=now).id)
+        self.assertIsNone(
+            portal_security.find_active_block(
+                self.db,
+                "203.0.113.8",
+                now=now + timedelta(hours=2),
+            )
+        )
+
+        portal_security.revoke_block(self.db, block, revoked_by="root", now=now)
+        self.assertFalse(block.is_active)
+        self.assertEqual(0, self.db.query(PortalSecurityAttempt).count())
+
+    def test_manual_cidr_block_matches_addresses_and_preserves_reason(self) -> None:
+        block = portal_security.add_block(
+            self.db,
+            network="198.51.100.7/24",
+            reason="credential stuffing source range",
+            source="manual",
+            created_by="root",
+        )
+        self.assertEqual("198.51.100.0/24", block.network)
+        self.assertEqual("credential stuffing source range", block.reason)
+        self.assertIsNotNone(portal_security.find_active_block(self.db, "198.51.100.99"))
+        self.assertIsNone(portal_security.find_active_block(self.db, "203.0.113.99"))
+
+    def test_persistent_failure_counter_cardinality_is_bounded(self) -> None:
+        now = datetime(2026, 7, 14, 3, 0, 0)
+        with patch.object(portal_security, "MAX_ATTEMPT_ROWS", 2):
+            for index in range(3):
+                portal_security.record_failure(
+                    self.db,
+                    source_ip=f"203.0.113.{index + 1}",
+                    kind="portal_login",
+                    now=now + timedelta(seconds=index),
+                )
+        rows = self.db.query(PortalSecurityAttempt).order_by(PortalSecurityAttempt.source_ip).all()
+        self.assertEqual(["203.0.113.2", "203.0.113.3"], [row.source_ip for row in rows])
 
 
 class WalletAndPurchaseTests(CommerceDatabaseTestCase):
