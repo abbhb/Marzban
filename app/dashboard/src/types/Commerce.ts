@@ -7,8 +7,7 @@ export type SubscriptionPlan = {
   duration_days: number;
   data_limit: number;
   inbound_tags: string[];
-  is_active: boolean;
-  is_default: boolean;
+  is_visible: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -41,10 +40,8 @@ export type PortalAccount = {
   username: string;
   wallet_balance_minor: number;
   is_active: boolean;
-  assigned_plan_id?: number | null;
   user_id?: number | null;
   created_at: string;
-  assigned_plan?: SubscriptionPlan | null;
   subscription?: PortalSubscription | null;
   usage: PortalUsage;
 };

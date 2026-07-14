@@ -1,6 +1,6 @@
 # 宿主机 nftables 黑名单同步
 
-`v0.8.4-mgma.5` 在应用层黑名单之外提供一个独立的宿主机 systemd 服务。应用仍负责识别失败登录/注册、生成原因、期限和审计；宿主机进程只读 SQLite，把当前有效的 `portal_ip_blocks` 定时同步到 nftables。
+`v0.8.4-mgma.5` 及后续版本在应用层黑名单之外提供一个独立的宿主机 systemd 服务。应用仍负责识别失败登录/注册、生成原因、期限和审计；宿主机进程只读 SQLite，把当前有效的 `portal_ip_blocks` 定时同步到 nftables。
 
 ## 1. 数据与执行边界
 

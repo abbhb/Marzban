@@ -34,7 +34,7 @@ import {
 import { Footer } from "components/Footer";
 import { Language } from "components/Language";
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { fetch } from "service/http";
@@ -56,8 +56,7 @@ type Draft = {
   durationDays: string;
   dataLimitGb: string;
   inboundTags: string[];
-  isActive: boolean;
-  isDefault: boolean;
+  isVisible: boolean;
 };
 
 type InvitationDraft = {
@@ -82,8 +81,7 @@ const emptyDraft: Draft = {
   durationDays: "30",
   dataLimitGb: "100",
   inboundTags: [],
-  isActive: true,
-  isDefault: false,
+  isVisible: true,
 };
 
 const emptyInvitationDraft: InvitationDraft = {
@@ -117,6 +115,7 @@ export const CommerceAdmin = () => {
   const [saving, setSaving] = useState(false);
   const [recharges, setRecharges] = useState<Record<number, string>>({});
   const [renewDays, setRenewDays] = useState<Record<number, string>>({});
+  const [grantPlans, setGrantPlans] = useState<Record<number, string>>({});
   const [invitationDraft, setInvitationDraft] = useState<InvitationDraft>(emptyInvitationDraft);
   const [blockDraft, setBlockDraft] = useState<BlockDraft>(emptyBlockDraft);
   const [createdCode, setCreatedCode] = useState("");
@@ -149,8 +148,6 @@ export const CommerceAdmin = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const planById = useMemo(() => new Map(plans.map((plan) => [plan.id, plan])), [plans]);
-
   const edit = (plan: SubscriptionPlan) => {
     setEditingId(plan.id);
     setDraft({
@@ -160,8 +157,7 @@ export const CommerceAdmin = () => {
       durationDays: String(plan.duration_days),
       dataLimitGb: String(plan.data_limit / 1024 ** 3),
       inboundTags: plan.inbound_tags,
-      isActive: plan.is_active,
-      isDefault: plan.is_default,
+      isVisible: plan.is_visible,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -184,8 +180,7 @@ export const CommerceAdmin = () => {
         duration_days: durationDays,
         data_limit: dataLimit,
         inbound_tags: draft.inboundTags,
-        is_active: draft.isActive,
-        is_default: draft.isDefault,
+        is_visible: draft.isVisible,
       };
       await fetch(editingId ? `/commerce/admin/plans/${editingId}` : "/commerce/admin/plans", {
         method: editingId ? "PUT" : "POST",
@@ -221,10 +216,10 @@ export const CommerceAdmin = () => {
     }
   };
 
-  const assign = (accountId: number, value: string) =>
-    action(`/commerce/admin/accounts/${accountId}/assigned-plan`, "PUT", {
-      plan_id: value ? Number(value) : null,
-    });
+  const grant = (accountId: number, planId: string) =>
+    action(`/commerce/admin/accounts/${accountId}/subscription/grant`, "POST", {
+      plan_id: Number(planId),
+    }, true);
 
   const recharge = (accountId: number) => {
     const amount = Math.round(Number(recharges[accountId]) * 100);
@@ -350,14 +345,14 @@ export const CommerceAdmin = () => {
                     <FormControl><FormLabel>{t("commerce.dataLimitGb")}</FormLabel><Input type="number" min="0" value={draft.dataLimitGb} onChange={(e) => setDraft({ ...draft, dataLimitGb: e.target.value })} /></FormControl>
                     <FormControl gridColumn={{ md: "1 / -1" }}><FormLabel>{t("commerce.description")}</FormLabel><Textarea value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></FormControl>
                     <FormControl gridColumn={{ md: "1 / -1" }}><FormLabel>{t("commerce.allowedNodes")}</FormLabel><SimpleGrid columns={{ base: 1, md: 2 }} spacing="2">{inbounds.map((inbound) => <Checkbox key={inbound.tag} isChecked={draft.inboundTags.includes(inbound.tag)} onChange={(e) => setDraft({ ...draft, inboundTags: e.target.checked ? [...draft.inboundTags, inbound.tag] : draft.inboundTags.filter((tag) => tag !== inbound.tag) })}>{inbound.tag}</Checkbox>)}</SimpleGrid></FormControl>
-                    <HStack><Checkbox isChecked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })}>{t("commerce.active")}</Checkbox><Checkbox isChecked={draft.isDefault} onChange={(e) => setDraft({ ...draft, isDefault: e.target.checked })}>{t("commerce.defaultForRegistration")}</Checkbox></HStack>
+                    <HStack><Checkbox isChecked={draft.isVisible} onChange={(e) => setDraft({ ...draft, isVisible: e.target.checked })}>{t("commerce.visibleToUsers")}</Checkbox></HStack>
                     <HStack justify={{ md: "end" }}><Button variant="ghost" onClick={() => { setDraft(emptyDraft); setEditingId(null); }}>{t("commerce.clear")}</Button><Button colorScheme="primary" onClick={savePlan} isLoading={saving}>{t("commerce.savePlan")}</Button></HStack>
                   </SimpleGrid>
                 </CardBody>
               </Card>
 
               <SimpleGrid columns={{ base: 1, lg: 2 }} spacing="4">
-                {plans.map((plan) => <Card key={plan.id}><CardBody><HStack justify="space-between" align="start"><Box><HStack><Heading size="sm">{plan.name}</Heading>{plan.is_default && <Badge colorScheme="purple">{t("commerce.default")}</Badge>}{!plan.is_active && <Badge>{t("commerce.offShelf")}</Badge>}</HStack><Text mt="2" color="gray.500" fontSize="sm">{plan.description}</Text><Text mt="3" fontWeight="bold">{money(plan.price_minor)} · {plan.duration_days} {t("portal.days")} · {plan.data_limit ? formatBytes(plan.data_limit) : t("portal.unlimited")}</Text><Text fontSize="xs" mt="2" color="gray.500">{plan.inbound_tags.join(" · ")}</Text></Box><Button size="sm" onClick={() => edit(plan)}>{t("commerce.edit")}</Button></HStack></CardBody></Card>)}
+                {plans.map((plan) => <Card key={plan.id}><CardBody><HStack justify="space-between" align="start"><Box><HStack><Heading size="sm">{plan.name}</Heading>{!plan.is_visible && <Badge>{t("commerce.hidden")}</Badge>}</HStack><Text mt="2" color="gray.500" fontSize="sm">{plan.description}</Text><Text mt="3" fontWeight="bold">{money(plan.price_minor)} · {plan.duration_days} {t("portal.days")} · {plan.data_limit ? formatBytes(plan.data_limit) : t("portal.unlimited")}</Text><Text fontSize="xs" mt="2" color="gray.500">{plan.inbound_tags.join(" · ")}</Text></Box><Button size="sm" onClick={() => edit(plan)}>{t("commerce.edit")}</Button></HStack></CardBody></Card>)}
               </SimpleGrid>
             </TabPanel>
 
@@ -365,10 +360,10 @@ export const CommerceAdmin = () => {
               {!accounts.length && <Alert status="info"><AlertIcon /><AlertDescription>{t("commerce.noAccounts")}</AlertDescription></Alert>}
               <VStack align="stretch" spacing="4">
                 {accounts.map((account) => {
-                  const assigned = account.assigned_plan_id ? planById.get(account.assigned_plan_id) : null;
+                  const selectedPlanId = grantPlans[account.id] || String(account.subscription?.plan_id || "");
                   return <Card key={account.id}><CardBody><Grid templateColumns={{ base: "1fr", xl: "1.2fr 1fr 1.5fr" }} gap="5">
                     <Box><HStack><Heading size="sm">{account.username}</Heading><Badge colorScheme={account.usage.status === "active" ? "green" : "gray"}>{account.usage.status ? t(`status.${account.usage.status}`) : t("portal.notActivated")}</Badge></HStack><Text mt="2">{t("portal.walletBalance")}: <b>{money(account.wallet_balance_minor)}</b></Text><Text fontSize="sm" color="gray.500">{t("portal.trafficUsage")}: {formatBytes(account.usage.used_traffic)} / {account.usage.data_limit ? formatBytes(account.usage.data_limit) : "-"}</Text>{account.subscription && <Text fontSize="sm" color="gray.500">{account.subscription.plan_name} · {dayjs(account.subscription.expires_at).format("YYYY-MM-DD")}</Text>}</Box>
-                    <VStack align="stretch"><FormControl><FormLabel>{t("commerce.visiblePlan")}</FormLabel><Select value={account.assigned_plan_id || ""} onChange={(e) => assign(account.id, e.target.value)}><option value="">{t("commerce.noPlanAssigned")}</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}{!plan.is_active ? ` (${t("commerce.offShelf")})` : ""}</option>)}</Select></FormControl><Button size="sm" colorScheme="primary" isDisabled={!assigned} onClick={() => action(`/commerce/admin/accounts/${account.id}/subscription/grant`, "POST", {}, true)}>{t("commerce.grantOverwrite")}</Button></VStack>
+                    <VStack align="stretch"><FormControl><FormLabel>{t("commerce.grantPlan")}</FormLabel><Select value={selectedPlanId} onChange={(e) => setGrantPlans({ ...grantPlans, [account.id]: e.target.value })}><option value="">{t("commerce.selectPlan")}</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}{!plan.is_visible ? ` (${t("commerce.hidden")})` : ""}</option>)}</Select></FormControl><Button size="sm" colorScheme="primary" isDisabled={!selectedPlanId} onClick={() => grant(account.id, selectedPlanId)}>{t("commerce.grantOverwrite")}</Button></VStack>
                     <VStack align="stretch"><HStack><Input type="number" min="0.01" step="0.01" placeholder={t("commerce.rechargeCny")} value={recharges[account.id] || ""} onChange={(e) => setRecharges({ ...recharges, [account.id]: e.target.value })} /><Button onClick={() => recharge(account.id)}>{t("commerce.recharge")}</Button></HStack><HStack><Input type="number" min="1" placeholder="30" value={renewDays[account.id] || ""} onChange={(e) => setRenewDays({ ...renewDays, [account.id]: e.target.value })} /><Button isDisabled={!account.subscription} onClick={() => renew(account.id)}>{t("commerce.renewDays")}</Button></HStack><Button size="sm" variant="outline" colorScheme="red" isDisabled={!account.subscription || !!account.subscription.disabled_at} onClick={() => action(`/commerce/admin/accounts/${account.id}/subscription/disable`, "POST")}>{t("commerce.disableSubscription")}</Button></VStack>
                   </Grid></CardBody></Card>;
                 })}

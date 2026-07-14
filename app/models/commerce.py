@@ -36,8 +36,7 @@ class SubscriptionPlanBase(BaseModel):
     duration_days: int = Field(ge=1, le=3650)
     data_limit: int = Field(ge=0, le=10**18)
     inbound_tags: List[str] = Field(min_length=1, max_length=64)
-    is_active: bool = True
-    is_default: bool = False
+    is_visible: bool = True
 
     @field_validator("name", "description")
     @classmethod
@@ -66,8 +65,7 @@ class SubscriptionPlanUpdate(BaseModel):
     duration_days: Optional[int] = Field(default=None, ge=1, le=3650)
     data_limit: Optional[int] = Field(default=None, ge=0, le=10**18)
     inbound_tags: Optional[List[str]] = Field(default=None, min_length=1, max_length=64)
-    is_active: Optional[bool] = None
-    is_default: Optional[bool] = None
+    is_visible: Optional[bool] = None
 
     @field_validator("name", "description")
     @classmethod
@@ -118,14 +116,12 @@ class PortalAccountResponse(BaseModel):
     username: str
     wallet_balance_minor: int
     is_active: bool
-    assigned_plan_id: Optional[int] = None
     user_id: Optional[int] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
 class PortalMeResponse(PortalAccountResponse):
-    assigned_plan: Optional[SubscriptionPlanResponse] = None
     subscription: Optional[PortalSubscriptionResponse] = None
     usage: PortalUsageResponse
 
@@ -154,17 +150,13 @@ class PortalPurchaseResponse(BaseModel):
     usage: PortalUsageResponse
 
 
-class AssignPlanRequest(BaseModel):
-    plan_id: Optional[int] = Field(default=None, gt=0)
-
-
 class WalletRechargeRequest(BaseModel):
     amount_minor: int = Field(gt=0, le=10**12)
     note: Optional[str] = Field(default=None, max_length=500)
 
 
 class AdminGrantPlanRequest(BaseModel):
-    plan_id: Optional[int] = Field(default=None, gt=0)
+    plan_id: int = Field(gt=0)
 
 
 class AdminRenewSubscriptionRequest(BaseModel):
@@ -172,7 +164,6 @@ class AdminRenewSubscriptionRequest(BaseModel):
 
 
 class PortalAccountAdminResponse(PortalAccountResponse):
-    assigned_plan: Optional[SubscriptionPlanResponse] = None
     subscription: Optional[PortalSubscriptionResponse] = None
     usage: PortalUsageResponse
 

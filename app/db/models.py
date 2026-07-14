@@ -317,7 +317,7 @@ class MgmaSettings(Base):
 
 
 class SubscriptionPlan(Base):
-    """A purchasable VLESS plan exposed to at most one account at a time."""
+    """A VLESS plan globally visible to portal accounts when enabled."""
 
     __tablename__ = "subscription_plans"
     __table_args__ = (
@@ -334,8 +334,7 @@ class SubscriptionPlan(Base):
     duration_days = Column(Integer, nullable=False)
     data_limit = Column(BigInteger, nullable=False, default=0, server_default="0")
     inbound_tags = Column(JSON, nullable=False, default=list)
-    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
-    is_default = Column(Boolean, nullable=False, default=False, server_default="0")
+    is_visible = Column(Boolean, nullable=False, default=True, server_default="1")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime,
@@ -344,7 +343,6 @@ class SubscriptionPlan(Base):
         onupdate=datetime.utcnow,
     )
 
-    assigned_accounts = relationship("PortalAccount", back_populates="assigned_plan")
     subscriptions = relationship("PortalSubscription", back_populates="plan")
     purchases = relationship("PortalPurchase", back_populates="plan")
 
@@ -362,12 +360,6 @@ class PortalAccount(Base):
     hashed_password = Column(String(128), nullable=False)
     wallet_balance_minor = Column(BigInteger, nullable=False, default=0, server_default="0")
     is_active = Column(Boolean, nullable=False, default=True, server_default="1")
-    assigned_plan_id = Column(
-        Integer,
-        ForeignKey("subscription_plans.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
     user_id = Column(
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -384,7 +376,6 @@ class PortalAccount(Base):
         onupdate=datetime.utcnow,
     )
 
-    assigned_plan = relationship("SubscriptionPlan", back_populates="assigned_accounts")
     proxy_user = relationship("User", foreign_keys=[user_id])
     subscription = relationship(
         "PortalSubscription",

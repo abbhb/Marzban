@@ -14,7 +14,6 @@ from app.models.admin import Admin
 from app.models.commerce import (
     AdminGrantPlanRequest,
     AdminRenewSubscriptionRequest,
-    AssignPlanRequest,
     IPBlockCreate,
     IPBlockResponse,
     InvitationCreate,
@@ -195,8 +194,11 @@ def portal_me(account: PortalAccount = Depends(get_current_portal_account)):
 
 
 @router.get("/api/portal/plans", response_model=List[SubscriptionPlanResponse])
-def portal_plans(account: PortalAccount = Depends(get_current_portal_account)):
-    return commerce.visible_plans(account)
+def portal_plans(
+    db: Session = Depends(get_db),
+    _account: PortalAccount = Depends(get_current_portal_account),
+):
+    return commerce.visible_plans(db)
 
 
 @router.get(
@@ -470,21 +472,6 @@ def admin_list_accounts(
     return [commerce.admin_account_response(account) for account in commerce.list_accounts(db)]
 
 
-@router.put(
-    "/api/commerce/admin/accounts/{account_id}/assigned-plan",
-    response_model=PortalAccountAdminResponse,
-)
-def admin_assign_plan(
-    account_id: int,
-    values: AssignPlanRequest,
-    db: Session = Depends(get_db),
-    _admin: Admin = Depends(Admin.check_sudo_admin),
-):
-    account = _get_account_or_404(db, account_id)
-    plan = _get_plan_or_404(db, values.plan_id) if values.plan_id else None
-    return commerce.admin_account_response(commerce.assign_plan(db, account, plan))
-
-
 @router.post(
     "/api/commerce/admin/accounts/{account_id}/wallet/recharge",
     response_model=PortalAccountAdminResponse,
@@ -544,10 +531,7 @@ def admin_grant_plan(
 ):
     idempotency_key = _validate_idempotency_key(idempotency_key)
     account = _get_account_or_404(db, account_id)
-    plan_id = values.plan_id or account.assigned_plan_id
-    if not plan_id:
-        raise HTTPException(status_code=409, detail="No plan is assigned")
-    plan = _get_plan_or_404(db, plan_id)
+    plan = _get_plan_or_404(db, values.plan_id)
     try:
         result = commerce.grant_plan(
             db,

@@ -88,7 +88,6 @@ def utc_now(value: Optional[datetime] = None) -> datetime:
 
 def account_query(db: Session):
     return db.query(PortalAccount).options(
-        joinedload(PortalAccount.assigned_plan),
         joinedload(PortalAccount.subscription),
         joinedload(PortalAccount.proxy_user),
     )
@@ -127,17 +126,10 @@ def register_account(
         now=now,
     )
 
-    default_plan = (
-        db.query(SubscriptionPlan)
-        .filter(SubscriptionPlan.is_default.is_(True), SubscriptionPlan.is_active.is_(True))
-        .order_by(SubscriptionPlan.id.asc())
-        .first()
-    )
     account = PortalAccount(
         username=values.username,
         hashed_password=pwd_context.hash(values.password),
         wallet_balance_minor=0,
-        assigned_plan=default_plan,
     )
     db.add(account)
     try:
@@ -188,8 +180,6 @@ def validate_plan_inbounds(tags: Iterable[str]) -> list[str]:
 
 def create_plan(db: Session, values: SubscriptionPlanCreate) -> SubscriptionPlan:
     validate_plan_inbounds(values.inbound_tags)
-    if values.is_default:
-        db.query(SubscriptionPlan).update({SubscriptionPlan.is_default: False})
     plan = SubscriptionPlan(**values.model_dump())
     db.add(plan)
     db.commit()
@@ -205,10 +195,6 @@ def update_plan(
     changes = values.model_dump(exclude_unset=True)
     if "inbound_tags" in changes:
         validate_plan_inbounds(changes["inbound_tags"])
-    if changes.get("is_default"):
-        db.query(SubscriptionPlan).filter(SubscriptionPlan.id != plan.id).update(
-            {SubscriptionPlan.is_default: False}
-        )
     for field, value in changes.items():
         setattr(plan, field, value)
     plan.updated_at = utc_now()
@@ -225,9 +211,13 @@ def list_plans(db: Session) -> list[SubscriptionPlan]:
     return db.query(SubscriptionPlan).order_by(SubscriptionPlan.id.desc()).all()
 
 
-def visible_plans(account: PortalAccount) -> list[SubscriptionPlan]:
-    plan = account.assigned_plan
-    return [plan] if plan and plan.is_active else []
+def visible_plans(db: Session) -> list[SubscriptionPlan]:
+    return (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.is_visible.is_(True))
+        .order_by(SubscriptionPlan.id.desc())
+        .all()
+    )
 
 
 def usage_response(account: PortalAccount) -> PortalUsageResponse:
@@ -249,10 +239,8 @@ def me_response(account: PortalAccount) -> PortalMeResponse:
         username=account.username,
         wallet_balance_minor=int(account.wallet_balance_minor),
         is_active=account.is_active,
-        assigned_plan_id=account.assigned_plan_id,
         user_id=account.user_id,
         created_at=account.created_at,
-        assigned_plan=account.assigned_plan,
         subscription=account.subscription,
         usage=usage_response(account),
     )
@@ -281,17 +269,6 @@ def list_wallet_transactions(
         .limit(limit)
         .all()
     )
-
-
-def assign_plan(
-    db: Session,
-    account: PortalAccount,
-    plan: Optional[SubscriptionPlan],
-) -> PortalAccount:
-    account.assigned_plan = plan
-    account.updated_at = utc_now()
-    db.commit()
-    return get_account(db, account.id)
 
 
 def recharge_wallet(
@@ -536,8 +513,8 @@ def purchase_plan(
             raise IdempotencyConflict
         return _purchase_response_from_record(db, account.id, previous)
 
-    plan = account.assigned_plan
-    if not account.is_active or not plan or not plan.is_active or plan.id != plan_id:
+    plan = get_plan(db, plan_id)
+    if not account.is_active or not plan or not plan.is_visible:
         raise PlanUnavailable
 
     debit = db.execute(

@@ -88,7 +88,7 @@ class CommerceDatabaseTestCase(unittest.TestCase):
         duration_days: int = 30,
         data_limit: int = 100 * 1024**3,
         inbound_tags=None,
-        is_default: bool = True,
+        is_visible: bool = True,
     ) -> SubscriptionPlan:
         return commerce.create_plan(
             self.db,
@@ -99,7 +99,7 @@ class CommerceDatabaseTestCase(unittest.TestCase):
                 duration_days=duration_days,
                 data_limit=data_limit,
                 inbound_tags=inbound_tags or ["HK01", "HK01-US"],
-                is_default=is_default,
+                is_visible=is_visible,
             ),
         )
 
@@ -122,27 +122,22 @@ class CommerceDatabaseTestCase(unittest.TestCase):
 
 
 class AccountAndPlanTests(CommerceDatabaseTestCase):
-    def test_registration_hashes_password_and_assigns_the_single_default_plan(self) -> None:
-        default = self.create_plan()
+    def test_registration_sees_every_globally_visible_plan(self) -> None:
+        first = self.create_plan(name="First")
+        second = self.create_plan(name="Second")
+        self.create_plan(name="Hidden", is_visible=False)
         account = self.register()
+        bob = self.register("bob")
 
         self.assertNotEqual("correct-horse-battery", account.hashed_password)
         self.assertTrue(commerce.authenticate_account(self.db, "alice", "correct-horse-battery"))
         self.assertIsNone(commerce.authenticate_account(self.db, "alice", "wrong-password"))
-        self.assertEqual(default.id, account.assigned_plan_id)
-        self.assertEqual([default.id], [plan.id for plan in commerce.visible_plans(account)])
+        self.assertEqual(
+            [second.id, first.id],
+            [plan.id for plan in commerce.visible_plans(self.db)],
+        )
         self.assertIsNone(account.user_id)
-
-    def test_a_new_default_replaces_the_old_default_without_reassigning_existing_accounts(self) -> None:
-        first = self.create_plan(name="First")
-        account = self.register()
-        second = self.create_plan(name="Second")
-        self.db.refresh(first)
-
-        self.assertFalse(first.is_default)
-        self.assertTrue(second.is_default)
-        self.assertEqual(first.id, account.assigned_plan_id)
-        self.assertEqual(second.id, self.register("bob").assigned_plan_id)
+        self.assertIsNone(bob.user_id)
 
     def test_registration_rejects_an_existing_proxy_username(self) -> None:
         from app.db.models import User
@@ -367,6 +362,31 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
         self.assertIsNone(account.subscription)
         self.assertEqual(0, self.db.query(PortalPurchase).count())
 
+    def test_hidden_plan_cannot_be_self_purchased(self) -> None:
+        plan = self.create_plan(is_visible=False)
+        account = commerce.recharge_wallet(
+            self.db,
+            self.register(),
+            amount_minor=3000,
+            actor_admin="root",
+            note=None,
+            idempotency_key="recharge-hidden-plan",
+        )
+
+        with self.assertRaises(commerce.PlanUnavailable):
+            commerce.purchase_plan(
+                self.db,
+                account,
+                plan_id=plan.id,
+                idempotency_key="purchase-hidden-plan",
+            )
+
+        account = commerce.get_account(self.db, account.id)
+        self.assertEqual(3000, account.wallet_balance_minor)
+        self.assertIsNone(account.user_id)
+        self.assertIsNone(account.subscription)
+        self.assertEqual(0, self.db.query(PortalPurchase).count())
+
     def test_idempotency_key_returns_the_first_result_without_a_second_debit(self) -> None:
         plan = self.create_plan()
         account = commerce.recharge_wallet(
@@ -404,7 +424,6 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
             price_minor=2000,
             data_limit=300 * 1024**3,
             inbound_tags=["HK01", "HK01-US", "HK02", "HK02-US"],
-            is_default=False,
         )
         account = commerce.recharge_wallet(
             self.db,
@@ -424,11 +443,10 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
         original_uuid = first.user.proxies[0].settings["id"]
         first.user.used_traffic = 123456
         self.db.commit()
-        account = commerce.assign_plan(self.db, first.account, premium)
 
         second = commerce.purchase_plan(
             self.db,
-            account,
+            first.account,
             plan_id=premium.id,
             idempotency_key="purchase-0005",
             now=datetime(2026, 7, 15),
@@ -487,8 +505,8 @@ class AdminLifecycleTests(CommerceDatabaseTestCase):
                 idempotency_key="recharge-idempotent-1",
             )
 
-    def test_admin_grant_and_renew_do_not_change_wallet_balance(self) -> None:
-        plan = self.create_plan()
+    def test_admin_can_grant_a_hidden_plan_and_renew_without_changing_balance(self) -> None:
+        plan = self.create_plan(is_visible=False)
         account = self.register()
         grant = commerce.grant_plan(
             self.db,
