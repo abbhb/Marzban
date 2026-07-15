@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.exc import IntegrityError
 
@@ -14,11 +14,16 @@ from app.models.admin import Admin
 from app.models.commerce import (
     AdminGrantPlanRequest,
     AdminRenewSubscriptionRequest,
+    IPBlockListSource,
+    IPBlockListStatus,
     IPBlockCreate,
     IPBlockResponse,
+    InvitationListStatus,
     InvitationCreate,
     InvitationCreatedResponse,
     InvitationResponse,
+    PaginatedResponse,
+    PortalAccountListStatus,
     PortalAccountAdminResponse,
     PortalAccountResponse,
     PortalMeResponse,
@@ -337,13 +342,29 @@ def admin_update_plan(
 
 @router.get(
     "/api/commerce/admin/invitations",
-    response_model=List[InvitationResponse],
+    response_model=PaginatedResponse[InvitationResponse],
 )
 def admin_list_invitations(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: Optional[str] = Query(default=None, max_length=500),
+    status_filter: Optional[InvitationListStatus] = Query(default=None, alias="status"),
     db: Session = Depends(get_db),
     _admin: Admin = Depends(Admin.check_sudo_admin),
 ):
-    return portal_security.list_invitations(db)
+    items, total = portal_security.list_invitations(
+        db,
+        page=page,
+        page_size=page_size,
+        search=search,
+        status=status_filter,
+    )
+    return PaginatedResponse[InvitationResponse](
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post(
@@ -389,13 +410,31 @@ def admin_disable_invitation(
 
 @router.get(
     "/api/commerce/admin/security/blocks",
-    response_model=List[IPBlockResponse],
+    response_model=PaginatedResponse[IPBlockResponse],
 )
 def admin_list_ip_blocks(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: Optional[str] = Query(default=None, max_length=500),
+    status_filter: Optional[IPBlockListStatus] = Query(default=None, alias="status"),
+    source: Optional[IPBlockListSource] = Query(default=None),
     db: Session = Depends(get_db),
     _admin: Admin = Depends(Admin.check_sudo_admin),
 ):
-    return portal_security.list_blocks(db)
+    items, total = portal_security.list_blocks(
+        db,
+        page=page,
+        page_size=page_size,
+        search=search,
+        status=status_filter,
+        source=source,
+    )
+    return PaginatedResponse[IPBlockResponse](
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post(
@@ -463,13 +502,29 @@ def admin_update_portal_security_settings(
 
 @router.get(
     "/api/commerce/admin/accounts",
-    response_model=List[PortalAccountAdminResponse],
+    response_model=PaginatedResponse[PortalAccountAdminResponse],
 )
 def admin_list_accounts(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: Optional[str] = Query(default=None, max_length=128),
+    status_filter: Optional[PortalAccountListStatus] = Query(default=None, alias="status"),
     db: Session = Depends(get_db),
     _admin: Admin = Depends(Admin.check_sudo_admin),
 ):
-    return [commerce.admin_account_response(account) for account in commerce.list_accounts(db)]
+    accounts, total = commerce.list_accounts(
+        db,
+        page=page,
+        page_size=page_size,
+        search=search,
+        status=status_filter,
+    )
+    return PaginatedResponse[PortalAccountAdminResponse](
+        items=[commerce.admin_account_response(account) for account in accounts],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.post(

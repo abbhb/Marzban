@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "react-query";
 import { fetch } from "service/http";
 import { formatBytes, numberWithCommas } from "utils/formatByte";
+import { LiquidSurface } from "./LiquidSurface";
 
 const TotalUsersIcon = chakra(UsersIcon, {
   baseStyle: {
@@ -50,19 +51,17 @@ const StatisticCard: FC<PropsWithChildren<StatisticCardProps>> = ({
   icon,
 }) => {
   return (
-    <Card
-      p={6}
-      borderWidth="1px"
-      borderColor="light-border"
-      bg="#F9FAFB"
-      _dark={{ borderColor: "gray.600", bg: "gray.750" }}
-      borderStyle="solid"
-      boxShadow="none"
-      borderRadius="12px"
+    <LiquidSurface
+      as={Card}
+      interactive
+      p={{ base: 5, xl: 6 }}
+      rounded="2xl"
       width="full"
       display="flex"
       justifyContent="space-between"
       flexDirection="row"
+      position="relative"
+      overflow="hidden"
     >
       <HStack alignItems="center" columnGap="4">
         <Box
@@ -113,7 +112,7 @@ const StatisticCard: FC<PropsWithChildren<StatisticCardProps>> = ({
       <Box fontSize="3xl" fontWeight="semibold" mt="2">
         {content}
       </Box>
-    </Card>
+    </LiquidSurface>
   );
 };
 export const StatisticsQueryKey = "statistics-query-key";

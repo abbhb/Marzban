@@ -115,3 +115,10 @@ export type PortalSecuritySettings = {
   auto_block_seconds: number;
   updated_at: string;
 };
+
+export type PageResult<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+};

@@ -20,7 +20,7 @@ import {
 import classNames from "classnames";
 import { useDashboard } from "contexts/DashboardContext";
 import debounce from "lodash.debounce";
-import React, { FC, useState } from "react";
+import React, { FC, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 const iconProps = {
@@ -48,6 +48,33 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
     useDashboard();
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [stickyTop, setStickyTop] = useState(0);
+  const filtersRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const filtersElement = filtersRef.current;
+    const shellMain = filtersElement?.closest("main");
+    const shellHeader = shellMain?.previousElementSibling as HTMLElement | null;
+    if (!filtersElement) return;
+
+    const measureHeader = () => {
+      setStickyTop(shellHeader?.getBoundingClientRect().height || 0);
+    };
+
+    measureHeader();
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measureHeader);
+    if (shellHeader) resizeObserver?.observe(shellHeader);
+    window.addEventListener("resize", measureHeader);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureHeader);
+    };
+  }, []);
+
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
     setSearchField(e.target.value);
@@ -69,18 +96,22 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
         base: "repeat(1, 1fr)",
       }}
       position="sticky"
-      top={0}
-      mx="-6"
-      px="6"
+      top={`${stickyTop}px`}
+      mx="0"
+      mt="4"
+      mb="4"
+      px={{ base: 3, md: 4 }}
       rowGap={4}
       gap={{
         lg: 4,
         base: 0,
       }}
-      bg="var(--chakra-colors-chakra-body-bg)"
-      py={4}
-      zIndex="docked"
+      layerStyle="glass"
+      rounded="2xl"
+      py={3}
+      zIndex="sticky"
       {...props}
+      ref={filtersRef}
     >
       <GridItem colSpan={{ base: 1, md: 2, lg: 1 }} order={{ base: 2, md: 1 }}>
         <InputGroup>

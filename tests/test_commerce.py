@@ -22,12 +22,18 @@ from app.db.models import (
     PortalPurchase,
     PortalSecurityAttempt,
     SubscriptionPlan,
+    User,
     WalletTransaction,
 )
 from app.models.commerce import PortalRegister, SubscriptionPlanCreate
 from app.models.proxy import ProxyTypes
 from app.models.user import UserStatus
 from app.dependencies import get_current_portal_account
+from app.routers.commerce import (
+    admin_list_accounts,
+    admin_list_invitations,
+    admin_list_ip_blocks,
+)
 from app.services import commerce, portal_security
 from app.services.rate_limit import SlidingWindowLimiter
 from app.utils.jwt import create_admin_token, create_portal_token, get_portal_payload
@@ -146,6 +152,255 @@ class AccountAndPlanTests(CommerceDatabaseTestCase):
         self.db.commit()
         with self.assertRaises(commerce.AccountExists):
             self.register()
+
+
+class PaginatedAdminListTests(CommerceDatabaseTestCase):
+    def test_accounts_are_paginated_searched_filtered_and_eager_loaded(self) -> None:
+        active_user = User(username="portal-123", status=UserStatus.active, used_traffic=123)
+        disabled_user = User(username="portal-124", status=UserStatus.disabled, used_traffic=456)
+        self.db.add_all([active_user, disabled_user])
+        self.db.flush()
+
+        accounts = []
+        for index in range(125):
+            user_id = None
+            if index == 123:
+                user_id = active_user.id
+            elif index == 124:
+                user_id = disabled_user.id
+            accounts.append(
+                PortalAccount(
+                    username=f"portal-{index:03d}",
+                    hashed_password="test-hash",
+                    user_id=user_id,
+                )
+            )
+        self.db.add_all(accounts)
+        self.db.commit()
+        self.db.expire_all()
+
+        rows, total = commerce.list_accounts(self.db, page=2, page_size=25)
+        self.assertEqual(125, total)
+        self.assertEqual(25, len(rows))
+        self.assertEqual("portal-099", rows[0].username)
+        self.assertEqual("portal-075", rows[-1].username)
+
+        matches, match_total = commerce.list_accounts(
+            self.db,
+            search="PORTAL-012",
+            page=1,
+            page_size=20,
+        )
+        self.assertEqual(1, match_total)
+        self.assertEqual(["portal-012"], [row.username for row in matches])
+
+        unactivated, unactivated_total = commerce.list_accounts(
+            self.db,
+            status="not_activated",
+            page=1,
+            page_size=100,
+        )
+        self.assertEqual(123, unactivated_total)
+        self.assertEqual(100, len(unactivated))
+        active, active_total = commerce.list_accounts(
+            self.db,
+            status="active",
+            page=1,
+            page_size=20,
+        )
+        self.assertEqual(1, active_total)
+        self.assertEqual("portal-123", active[0].username)
+
+        # The page response can be serialized after detaching the rows. This
+        # catches regressions where proxy usage logs are lazily loaded once per
+        # account while building the nested usage response.
+        self.db.expunge_all()
+        active_response = commerce.admin_account_response(active[0])
+        self.assertEqual(123, active_response.usage.lifetime_used_traffic)
+
+        response = admin_list_accounts(
+            page=3,
+            page_size=10,
+            search=None,
+            status_filter=None,
+            db=self.db,
+            _admin=SimpleNamespace(username="root", is_sudo=True),
+        )
+        payload = response.model_dump(mode="json")
+        self.assertEqual({"items", "total", "page", "page_size"}, set(payload))
+        self.assertEqual((125, 3, 10, 10), (
+            payload["total"],
+            payload["page"],
+            payload["page_size"],
+            len(payload["items"]),
+        ))
+
+    def test_invitations_page_past_legacy_cap_and_have_disjoint_statuses(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, 0)
+        rows = []
+        for index in range(505):
+            values = {
+                "code_digest": f"{index:064x}",
+                "code_prefix": f"MGMA-{index:05d}",
+                "note": "search needle" if index == 4 else f"invite {index}",
+                "created_by": "root",
+            }
+            if index == 0:
+                values["valid_from"] = now + timedelta(hours=1)
+            elif index == 1:
+                values["expires_at"] = now
+            elif index == 2:
+                values.update({"max_uses": 1, "use_count": 1})
+            elif index == 3:
+                values["is_active"] = False
+            rows.append(PortalInvitationCode(**values))
+        self.db.add_all(rows)
+        self.db.commit()
+
+        page, total = portal_security.list_invitations(
+            self.db,
+            page=6,
+            page_size=100,
+            now=now,
+        )
+        self.assertEqual(505, total)
+        self.assertEqual(5, len(page))
+        self.assertEqual([5, 4, 3, 2, 1], [row.id for row in page])
+
+        expected_counts = {
+            "available": 501,
+            "scheduled": 1,
+            "expired": 1,
+            "exhausted": 1,
+            "disabled": 1,
+        }
+        for invitation_status, expected in expected_counts.items():
+            _items, count = portal_security.list_invitations(
+                self.db,
+                status=invitation_status,
+                page=1,
+                page_size=100,
+                now=now,
+            )
+            self.assertEqual(expected, count, invitation_status)
+
+        found, found_total = portal_security.list_invitations(
+            self.db,
+            search="NEEDLE",
+            page=1,
+            page_size=20,
+            now=now,
+        )
+        self.assertEqual(1, found_total)
+        self.assertEqual(5, found[0].id)
+
+        response = admin_list_invitations(
+            page=26,
+            page_size=20,
+            search=None,
+            status_filter=None,
+            db=self.db,
+            _admin=SimpleNamespace(username="root", is_sudo=True),
+        )
+        payload = response.model_dump(mode="json")
+        self.assertEqual((505, 26, 20, 5), (
+            payload["total"],
+            payload["page"],
+            payload["page_size"],
+            len(payload["items"]),
+        ))
+        self.assertNotIn("code_digest", payload["items"][0])
+
+    def test_ip_blocks_page_past_legacy_cap_and_support_search_and_status(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, 0)
+        rows = []
+        for index in range(505):
+            source = {
+                3: "portal_login",
+                4: "admin_login",
+                5: "portal_registration",
+            }.get(index, "manual")
+            values = {
+                "network": f"2001:db8::{index}/128",
+                "reason": "search needle" if index == 2 else f"reason {index}",
+                "source": source,
+                "created_by": "root",
+            }
+            if index == 0:
+                values["expires_at"] = now
+            elif index == 1:
+                values["is_active"] = False
+            rows.append(PortalIPBlock(**values))
+        self.db.add_all(rows)
+        self.db.commit()
+
+        page, total = portal_security.list_blocks(
+            self.db,
+            page=6,
+            page_size=100,
+            now=now,
+        )
+        self.assertEqual(505, total)
+        self.assertEqual(5, len(page))
+        self.assertEqual([5, 4, 3, 2, 1], [row.id for row in page])
+
+        for block_status, expected in {"blocked": 503, "expired": 1, "revoked": 1}.items():
+            _items, count = portal_security.list_blocks(
+                self.db,
+                status=block_status,
+                page=1,
+                page_size=100,
+                now=now,
+            )
+            self.assertEqual(expected, count, block_status)
+
+        found, found_total = portal_security.list_blocks(
+            self.db,
+            search="NEEDLE",
+            page=1,
+            page_size=20,
+            now=now,
+        )
+        self.assertEqual(1, found_total)
+        self.assertEqual(3, found[0].id)
+
+        for source in ("portal_login", "admin_login", "portal_registration"):
+            source_rows, source_total = portal_security.list_blocks(
+                self.db,
+                source=source,
+                page=1,
+                page_size=20,
+                now=now,
+            )
+            self.assertEqual(1, source_total, source)
+            self.assertEqual(source, source_rows[0].source)
+        manual_blocked, manual_blocked_total = portal_security.list_blocks(
+            self.db,
+            source="manual",
+            status="blocked",
+            page=1,
+            page_size=100,
+            now=now,
+        )
+        self.assertEqual(500, manual_blocked_total)
+        self.assertEqual(100, len(manual_blocked))
+
+        response = admin_list_ip_blocks(
+            page=26,
+            page_size=20,
+            search=None,
+            status_filter=None,
+            source=None,
+            db=self.db,
+            _admin=SimpleNamespace(username="root", is_sudo=True),
+        )
+        payload = response.model_dump(mode="json")
+        self.assertEqual((505, 26, 20, 5), (
+            payload["total"],
+            payload["page"],
+            payload["page_size"],
+            len(payload["items"]),
+        ))
 
 
 class InvitationSecurityTests(CommerceDatabaseTestCase):

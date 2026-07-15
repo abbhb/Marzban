@@ -3,12 +3,20 @@ export const theme = extendTheme({
   shadows: {
     outline: "0 0 0 3px rgba(38, 112, 232, 0.28)",
     glass: {
-      md: "0 1px 2px rgba(15, 23, 42, 0.06), 0 18px 48px rgba(15, 23, 42, 0.10)",
-      lg: "0 2px 4px rgba(15, 23, 42, 0.08), 0 24px 64px rgba(15, 23, 42, 0.14)",
-      dark: "0 1px 2px rgba(0, 0, 0, 0.24), 0 20px 56px rgba(0, 0, 0, 0.30)",
+      md: "inset 0 1px 0 rgba(255, 255, 255, 0.72), inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.40), 0 18px 48px rgba(31, 60, 105, 0.12)",
+      lg: "inset 0 1px 0 rgba(255, 255, 255, 0.78), inset 0 -1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.46), 0 24px 68px rgba(31, 60, 105, 0.16)",
+      hover: "inset 0 1px 0 rgba(255, 255, 255, 0.84), inset 0 -1px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.54), 0 28px 76px rgba(31, 60, 105, 0.20)",
+      dark: "inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(255, 255, 255, 0.11), 0 20px 56px rgba(0, 0, 0, 0.32)",
+      "dark-hover": "inset 0 1px 0 rgba(255, 255, 255, 0.20), inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.15), 0 28px 72px rgba(0, 0, 0, 0.40)",
     },
     panel:
-      "0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 30px rgba(15, 23, 42, 0.07)",
+      "inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.34), 0 10px 32px rgba(31, 60, 105, 0.09)",
+    "panel-dark":
+      "inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.09), 0 12px 36px rgba(0, 0, 0, 0.26)",
+    "glass-subtle":
+      "inset 0 1px 0 rgba(255, 255, 255, 0.50), 0 0 0 1px rgba(71, 85, 105, 0.10)",
+    "glass-subtle-dark":
+      "inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 0 0 1px rgba(255, 255, 255, 0.08)",
   },
   radii: {
     control: "12px",
@@ -42,24 +50,24 @@ export const theme = extendTheme({
     colors: {
       "app.canvas": { default: "#eef3fa", _dark: "#090e17" },
       "surface.glass": {
-        default: "rgba(255, 255, 255, 0.72)",
-        _dark: "rgba(17, 24, 39, 0.72)",
+        default: "rgba(255, 255, 255, 0.50)",
+        _dark: "rgba(13, 20, 33, 0.56)",
       },
       "surface.glass-strong": {
-        default: "rgba(255, 255, 255, 0.88)",
-        _dark: "rgba(17, 24, 39, 0.88)",
+        default: "rgba(255, 255, 255, 0.68)",
+        _dark: "rgba(13, 20, 33, 0.72)",
       },
       "surface.panel": {
-        default: "rgba(255, 255, 255, 0.92)",
-        _dark: "rgba(22, 30, 46, 0.92)",
+        default: "rgba(255, 255, 255, 0.70)",
+        _dark: "rgba(18, 27, 43, 0.74)",
       },
       "surface.muted": {
-        default: "rgba(241, 245, 249, 0.82)",
-        _dark: "rgba(30, 41, 59, 0.78)",
+        default: "rgba(241, 245, 249, 0.48)",
+        _dark: "rgba(30, 41, 59, 0.48)",
       },
       "surface.input": {
-        default: "rgba(255, 255, 255, 0.88)",
-        _dark: "rgba(15, 23, 42, 0.88)",
+        default: "rgba(255, 255, 255, 0.62)",
+        _dark: "rgba(15, 23, 42, 0.62)",
       },
       "surface.hover": {
         default: "rgba(38, 112, 232, 0.08)",
@@ -122,8 +130,7 @@ export const theme = extendTheme({
   layerStyles: {
     glass: {
       bg: "surface.glass",
-      border: "1px solid",
-      borderColor: "border.glass",
+      borderWidth: "0",
       borderRadius: "glass",
       boxShadow: "glass.md",
       backdropFilter: "var(--marzban-glass-filter)",
@@ -134,8 +141,7 @@ export const theme = extendTheme({
     },
     "glass-strong": {
       bg: "surface.glass-strong",
-      border: "1px solid",
-      borderColor: "border.glass",
+      borderWidth: "0",
       borderRadius: "glass",
       boxShadow: "glass.md",
       backdropFilter: "var(--marzban-glass-filter-strong)",
@@ -146,24 +152,28 @@ export const theme = extendTheme({
     },
     panel: {
       bg: "surface.panel",
-      border: "1px solid",
-      borderColor: "border.subtle",
+      borderWidth: "0",
       borderRadius: "panel",
       boxShadow: "panel",
+      _dark: {
+        boxShadow: "panel-dark",
+      },
     },
     glassSubtle: {
       bg: "surface.muted",
-      border: "1px solid",
-      borderColor: "border.subtle",
+      borderWidth: "0",
+      boxShadow: "glass-subtle",
       backdropFilter: "var(--marzban-glass-filter-subtle)",
       WebkitBackdropFilter: "var(--marzban-glass-filter-subtle)",
+      _dark: {
+        boxShadow: "glass-subtle-dark",
+      },
     },
     glassHero: {
       bg: "surface.glass-strong",
       backgroundImage:
         "linear-gradient(135deg, rgba(255, 255, 255, 0.40), rgba(91, 147, 247, 0.12))",
-      border: "1px solid",
-      borderColor: "border.glass",
+      borderWidth: "0",
       boxShadow: "glass.lg",
       backdropFilter: "var(--marzban-glass-filter-strong)",
       WebkitBackdropFilter: "var(--marzban-glass-filter-strong)",
@@ -175,11 +185,15 @@ export const theme = extendTheme({
     },
     glassTopbar: {
       bg: "surface.glass",
-      borderBottom: "1px solid",
-      borderColor: "border.glass",
-      boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)",
+      borderWidth: "0",
+      boxShadow:
+        "inset 0 -1px 0 rgba(255, 255, 255, 0.38), 0 8px 24px rgba(15, 23, 42, 0.05)",
       backdropFilter: "var(--marzban-glass-filter)",
       WebkitBackdropFilter: "var(--marzban-glass-filter)",
+      _dark: {
+        boxShadow:
+          "inset 0 -1px 0 rgba(255, 255, 255, 0.09), 0 8px 24px rgba(0, 0, 0, 0.20)",
+      },
     },
   },
   components: {
@@ -187,17 +201,17 @@ export const theme = extendTheme({
       baseStyle: {
         container: {
           bg: "surface.panel",
-          border: "1px solid",
-          borderColor: "border.subtle",
+          borderWidth: "0",
           borderRadius: "panel",
           boxShadow: "panel",
+          _dark: { boxShadow: "panel-dark" },
         },
       },
       variants: {
         glass: {
           container: {
             bg: "surface.glass",
-            borderColor: "border.glass",
+            borderWidth: "0",
             borderRadius: "glass",
             boxShadow: "glass.md",
             backdropFilter: "var(--marzban-glass-filter)",
@@ -220,7 +234,7 @@ export const theme = extendTheme({
       baseStyle: {
         list: {
           bg: "surface.glass-strong",
-          borderColor: "border.glass",
+          borderWidth: "0",
           borderRadius: "panel",
           boxShadow: "glass.md",
           backdropFilter: "var(--marzban-glass-filter)",
@@ -304,48 +318,27 @@ export const theme = extendTheme({
           borderSpacing: 0,
         },
         thead: {
-          borderBottomColor: "light-border",
+          borderBottomColor: "border.subtle",
         },
         th: {
-          background: "#F9FAFB",
-          borderColor: "light-border !important",
-          borderBottomColor: "light-border !important",
-          borderTop: "1px solid ",
-          borderTopColor: "light-border !important",
-          _first: {
-            borderLeft: "1px solid",
-            borderColor: "light-border !important",
-          },
-          _last: {
-            borderRight: "1px solid",
-            borderColor: "light-border !important",
-          },
+          background: "surface.glass-strong",
+          borderColor: "border.subtle !important",
+          borderBottomColor: "border.subtle !important",
+          borderTop: "0",
+          backdropFilter: "var(--marzban-glass-filter-subtle)",
+          WebkitBackdropFilter: "var(--marzban-glass-filter-subtle)",
           _dark: {
-            borderColor: "gray.600 !important",
-            background: "gray.750",
+            borderColor: "border.subtle !important",
+            background: "surface.glass-strong",
           },
         },
         td: {
-          transition: "all .1s ease-out",
-          borderColor: "light-border",
-          borderBottomColor: "light-border !important",
-          _first: {
-            borderLeft: "1px solid",
-            borderColor: "light-border",
-            _dark: {
-              borderColor: "gray.600",
-            },
-          },
-          _last: {
-            borderRight: "1px solid",
-            borderColor: "light-border",
-            _dark: {
-              borderColor: "gray.600",
-            },
-          },
+          transition: "background-color .16s ease-out",
+          borderColor: "border.subtle",
+          borderBottomColor: "border.subtle !important",
           _dark: {
-            borderColor: "gray.600",
-            borderBottomColor: "gray.600 !important",
+            borderColor: "border.subtle",
+            borderBottomColor: "border.subtle !important",
           },
         },
         tr: {
@@ -353,11 +346,11 @@ export const theme = extendTheme({
             cursor: "pointer",
             _hover: {
               "& > td": {
-                bg: "gray.200",
+                bg: "surface.hover",
               },
               _dark: {
                 "& > td": {
-                  bg: "gray.750",
+                  bg: "surface.hover",
                 },
               },
             },

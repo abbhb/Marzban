@@ -1,11 +1,44 @@
 """Schemas for the self-service portal, wallet and subscription plans."""
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Generic, List, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.user import USERNAME_REGEXP, UserStatus
+
+
+PageItem = TypeVar("PageItem")
+
+PortalAccountListStatus = Literal[
+    "not_activated",
+    "active",
+    "disabled",
+    "limited",
+    "expired",
+    "on_hold",
+]
+InvitationListStatus = Literal[
+    "available",
+    "scheduled",
+    "expired",
+    "exhausted",
+    "disabled",
+]
+IPBlockListStatus = Literal["blocked", "expired", "revoked"]
+IPBlockListSource = Literal[
+    "manual",
+    "portal_login",
+    "admin_login",
+    "portal_registration",
+]
+
+
+class PaginatedResponse(BaseModel, Generic[PageItem]):
+    items: List[PageItem]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
 
 
 class PortalRegister(BaseModel):

@@ -3,6 +3,11 @@
   --marzban-glass-filter: blur(24px) saturate(165%);
   --marzban-glass-filter-strong: blur(28px) saturate(170%);
   --marzban-glass-filter-subtle: blur(14px) saturate(145%);
+  --marzban-motion-fast: 140ms;
+  --marzban-motion-base: 220ms;
+  --marzban-motion-slow: 520ms;
+  --marzban-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --marzban-ease-fluid: cubic-bezier(0.45, 0.05, 0.2, 1);
 }
 
 html.chakra-ui-dark,
@@ -22,10 +27,213 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
 }
 
 #root {
   min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 44% 56% 61% 39% / 47% 42% 58% 53%;
+  filter: blur(24px);
+  opacity: 0.72;
+  will-change: transform;
+}
+
+body::before {
+  width: 68vmax;
+  height: 68vmax;
+  inset: -34vmax auto auto -24vmax;
+  background:
+    radial-gradient(circle at 55% 52%, rgba(83, 151, 255, 0.36), transparent 55%),
+    radial-gradient(circle at 34% 68%, rgba(139, 92, 246, 0.20), transparent 48%);
+  animation: marzban-liquid-canvas-a 24s var(--marzban-ease-fluid) infinite alternate;
+}
+
+body::after {
+  width: 62vmax;
+  height: 62vmax;
+  inset: 4vh -28vmax auto auto;
+  background:
+    radial-gradient(circle at 42% 44%, rgba(45, 212, 191, 0.28), transparent 54%),
+    radial-gradient(circle at 62% 66%, rgba(96, 165, 250, 0.25), transparent 49%);
+  animation: marzban-liquid-canvas-b 30s var(--marzban-ease-fluid) infinite alternate;
+}
+
+body.chakra-ui-dark::before {
+  background:
+    radial-gradient(circle at 55% 52%, rgba(37, 99, 235, 0.28), transparent 55%),
+    radial-gradient(circle at 34% 68%, rgba(124, 58, 237, 0.16), transparent 48%);
+  opacity: 0.58;
+}
+
+body.chakra-ui-dark::after {
+  background:
+    radial-gradient(circle at 42% 44%, rgba(13, 148, 136, 0.20), transparent 54%),
+    radial-gradient(circle at 62% 66%, rgba(59, 130, 246, 0.20), transparent 49%);
+  opacity: 0.52;
+}
+
+@keyframes marzban-liquid-canvas-a {
+  0% {
+    transform: translate3d(-4vw, -3vh, 0) rotate(-7deg) scale(1);
+  }
+
+  55% {
+    transform: translate3d(12vw, 9vh, 0) rotate(5deg) scale(1.1);
+  }
+
+  100% {
+    transform: translate3d(5vw, 18vh, 0) rotate(13deg) scale(0.96);
+  }
+}
+
+@keyframes marzban-liquid-canvas-b {
+  0% {
+    transform: translate3d(6vw, -4vh, 0) rotate(8deg) scale(0.96);
+  }
+
+  48% {
+    transform: translate3d(-12vw, 12vh, 0) rotate(-4deg) scale(1.08);
+  }
+
+  100% {
+    transform: translate3d(-5vw, 23vh, 0) rotate(-12deg) scale(1.02);
+  }
+}
+
+.liquid-surface {
+  --liquid-x: 50%;
+  --liquid-y: 18%;
+  --liquid-glow-rest: 0.16;
+  --liquid-glow-active: 0.82;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0;
+  background: var(--chakra-colors-surface-glass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 18px 48px rgba(31, 60, 105, 0.12);
+  backdrop-filter: var(--marzban-glass-filter);
+  -webkit-backdrop-filter: var(--marzban-glass-filter);
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform var(--marzban-motion-base) var(--marzban-ease-out),
+    box-shadow var(--marzban-motion-base) var(--marzban-ease-out),
+    background-color var(--marzban-motion-base) ease;
+}
+
+.liquid-surface::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      520px circle at var(--liquid-x) var(--liquid-y),
+      rgba(255, 255, 255, 0.78),
+      rgba(153, 204, 255, 0.25) 24%,
+      rgba(255, 255, 255, 0.08) 43%,
+      transparent 66%
+    );
+  opacity: var(--liquid-glow-rest);
+  transition: opacity var(--marzban-motion-base) var(--marzban-ease-out);
+}
+
+.liquid-surface--strong {
+  --liquid-glow-rest: 0.22;
+  --liquid-glow-active: 0.9;
+
+  background: var(--chakra-colors-surface-glass-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.46),
+    0 24px 68px rgba(31, 60, 105, 0.16);
+  backdrop-filter: var(--marzban-glass-filter-strong);
+  -webkit-backdrop-filter: var(--marzban-glass-filter-strong);
+}
+
+.liquid-surface--subtle {
+  --liquid-glow-rest: 0.1;
+  --liquid-glow-active: 0.52;
+
+  background: var(--chakra-colors-surface-muted);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(71, 85, 105, 0.1);
+  backdrop-filter: var(--marzban-glass-filter-subtle);
+  -webkit-backdrop-filter: var(--marzban-glass-filter-subtle);
+}
+
+.liquid-surface--interactive[data-liquid-active="true"]::before,
+.liquid-surface--interactive:hover::before {
+  opacity: var(--liquid-glow-active);
+}
+
+.chakra-ui-dark .liquid-surface {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.11),
+    0 20px 56px rgba(0, 0, 0, 0.32);
+}
+
+.chakra-ui-dark .liquid-surface::before {
+  background:
+    radial-gradient(
+      520px circle at var(--liquid-x) var(--liquid-y),
+      rgba(255, 255, 255, 0.22),
+      rgba(96, 165, 250, 0.16) 25%,
+      rgba(255, 255, 255, 0.03) 44%,
+      transparent 66%
+    );
+}
+
+.chakra-ui-dark .liquid-surface--subtle {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .liquid-surface--interactive[data-liquid-lift="true"]:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.84),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+      0 0 0 1px rgba(255, 255, 255, 0.54),
+      0 28px 76px rgba(31, 60, 105, 0.2);
+    transform: translate3d(0, -3px, 0) scale(1.006);
+  }
+
+  .chakra-ui-dark .liquid-surface--interactive[data-liquid-lift="true"]:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(255, 255, 255, 0.15),
+      0 28px 72px rgba(0, 0, 0, 0.4);
+  }
+
+  .liquid-surface--interactive[data-liquid-lift="true"]:active {
+    transform: translate3d(0, -1px, 0) scale(0.998);
+    transition-duration: var(--marzban-motion-fast);
+  }
 }
 
 button,
@@ -39,6 +247,9 @@ textarea {
   :root {
     --chakra-colors-surface-glass: #f8fafc !important;
     --chakra-colors-surface-glass-strong: #ffffff !important;
+    --chakra-colors-surface-panel: #ffffff !important;
+    --chakra-colors-surface-muted: #f1f5f9 !important;
+    --chakra-colors-surface-input: #ffffff !important;
     --marzban-glass-filter: none;
     --marzban-glass-filter-strong: none;
     --marzban-glass-filter-subtle: none;
@@ -47,6 +258,15 @@ textarea {
   .chakra-ui-dark {
     --chakra-colors-surface-glass: #111827 !important;
     --chakra-colors-surface-glass-strong: #111827 !important;
+    --chakra-colors-surface-panel: #161e2e !important;
+    --chakra-colors-surface-muted: #1e293b !important;
+    --chakra-colors-surface-input: #0f172a !important;
+  }
+
+  body::before,
+  body::after,
+  .liquid-surface::before {
+    display: none;
   }
 }
 
@@ -54,6 +274,9 @@ textarea {
   :root {
     --chakra-colors-surface-glass: rgba(255, 255, 255, 0.96) !important;
     --chakra-colors-surface-glass-strong: #ffffff !important;
+    --chakra-colors-surface-panel: #ffffff !important;
+    --chakra-colors-surface-muted: #f1f5f9 !important;
+    --chakra-colors-surface-input: #ffffff !important;
     --marzban-glass-filter: none;
     --marzban-glass-filter-strong: none;
     --marzban-glass-filter-subtle: none;
@@ -62,6 +285,15 @@ textarea {
   .chakra-ui-dark {
     --chakra-colors-surface-glass: rgba(17, 24, 39, 0.96) !important;
     --chakra-colors-surface-glass-strong: #111827 !important;
+    --chakra-colors-surface-panel: #161e2e !important;
+    --chakra-colors-surface-muted: #1e293b !important;
+    --chakra-colors-surface-input: #0f172a !important;
+  }
+
+  body::before,
+  body::after,
+  .liquid-surface::before {
+    display: none;
   }
 }
 
@@ -77,6 +309,17 @@ textarea {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  body::before,
+  body::after {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .liquid-surface--interactive[data-liquid-lift="true"]:hover,
+  .liquid-surface--interactive[data-liquid-lift="true"]:active {
+    transform: none !important;
   }
 }
 
@@ -97,6 +340,29 @@ textarea {
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+.workspace-table {
+  thead th {
+    color: var(--chakra-colors-fg-subtle);
+    letter-spacing: 0.045em;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .workspace-row td {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .workspace-row:hover td {
+    background: var(--chakra-colors-surface-hover);
+  }
+}
+
+.chakra-ui-dark .workspace-table .workspace-row td {
+  background: rgba(255, 255, 255, 0.015);
 }
 
 @keyframes spin {

@@ -37,7 +37,7 @@ import { resetStrategy, statusColors } from "constants/UserSettings";
 import { useDashboard } from "contexts/DashboardContext";
 import { useMgma } from "contexts/MgmaContext";
 import { t } from "i18next";
-import { FC, Fragment, useEffect, useState } from "react";
+import { ChangeEvent, FC, Fragment, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { User } from "types/User";
 import { formatBytes } from "utils/formatByte";
@@ -69,6 +69,13 @@ const SortIcon = chakra(ChevronDownIcon, {
     height: "15px",
   },
 });
+const USER_STATUSES = [
+  "active",
+  "on_hold",
+  "disabled",
+  "limited",
+  "expired",
+] as const;
 type UsageSliderProps = {
   used: number;
   total: number | null;
@@ -184,7 +191,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
   const {
     filters,
     users: { users },
-    users: totalUsers,
     onEditingUser,
     onFilterChange,
   } = useDashboard();
@@ -193,20 +199,45 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
   const [selectedRow, setSelectedRow] = useState<ExpandedIndex | undefined>(
     undefined
   );
-  const marginTop = useBreakpointValue({ base: 120, lg: 72 }) || 72;
-  const [top, setTop] = useState(`${marginTop}px`);
+  const [top, setTop] = useState("0px");
   const useTable = useBreakpointValue({ base: false, md: true });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const filtersElement = document.getElementById("filters");
+    if (!filtersElement) return;
+    const shellMain = filtersElement.closest("main");
+    const shellHeader = shellMain?.previousElementSibling as HTMLElement | null;
+
     const calcTop = () => {
-      const el = document.querySelectorAll("#filters")[0] as HTMLElement;
-      setTop(`${el.offsetHeight}px`);
+      const headerHeight = shellHeader?.getBoundingClientRect().height;
+      const computedTop = Number.parseFloat(
+        window.getComputedStyle(filtersElement).top
+      );
+      const offset =
+        headerHeight === undefined
+          ? Number.isFinite(computedTop)
+            ? computedTop
+            : 0
+          : headerHeight;
+      setTop(`${Math.max(0, offset) + filtersElement.offsetHeight}px`);
     };
-    window.addEventListener("scroll", calcTop);
-    () => window.removeEventListener("scroll", calcTop);
+
+    calcTop();
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(calcTop);
+    resizeObserver?.observe(filtersElement);
+    if (shellHeader) resizeObserver?.observe(shellHeader);
+    window.addEventListener("resize", calcTop);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", calcTop);
+    };
   }, []);
 
-  const isFiltered = users.length !== totalUsers.total;
+  const isFiltered = Boolean(filters.search || filters.status);
 
   const handleSort = (column: string) => {
     let newSort = filters.sort;
@@ -221,11 +252,14 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
     }
     onFilterChange({
       sort: newSort,
+      offset: 0,
     });
   };
-  const handleStatusFilter = (e: any) => {
+  const handleStatusFilter = (event: ChangeEvent<HTMLSelectElement>) => {
+    const status = event.target.value as typeof filters.status | "";
     onFilterChange({
-      status: e.target.value.length > 0 ? e.target.value : undefined,
+      status: status || undefined,
+      offset: 0,
     });
   };
 
@@ -266,45 +300,25 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 w="140px"
                 cursor={"pointer"}
               >
-                <HStack spacing={0} position="relative">
-                  <Text
-                    position="absolute"
-                    _dark={{
-                      bg: "gray.750",
-                    }}
-                    _light={{
-                      bg: "#F9FAFB",
-                    }}
-                    userSelect="none"
-                    pointerEvents="none"
-                    zIndex={1}
-                    w="100%"
-                  >
-                    {t("usersTable.status")}
-                    {filters.status ? ": " + filters.status : ""}
-                  </Text>
+                <HStack spacing={0}>
                   <Select
-                    value={filters.sort}
+                    aria-label={t("usersTable.status")}
+                    value={filters.status || ""}
+                    size="sm"
                     fontSize="xs"
-                    fontWeight="extrabold"
-                    textTransform="uppercase"
+                    fontWeight="bold"
                     cursor="pointer"
                     p={0}
                     border={0}
-                    h="auto"
-                    w="auto"
-                    icon={<></>}
-                    _focusVisible={{
-                      border: "0 !important",
-                    }}
+                    minW="120px"
                     onChange={handleStatusFilter}
                   >
-                    <option></option>
-                    <option>active</option>
-                    <option>on_hold</option>
-                    <option>disabled</option>
-                    <option>limited</option>
-                    <option>expired</option>
+                    <option value="">{t("usersTable.status")}</option>
+                    {USER_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {t(`status.${status}`)}
+                      </option>
+                    ))}
                   </Select>
                 </HStack>
               </Th>
@@ -503,53 +517,40 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               top={{ base: "unset", md: top }}
               width="400px"
               minW="150px"
-              cursor={"pointer"}
             >
-              <HStack position="relative" gap={"5px"}>
-                <Text
-                  _dark={{
-                    bg: "gray.750",
-                  }}
-                  _light={{
-                    bg: "#F9FAFB",
-                  }}
-                  userSelect="none"
-                  pointerEvents="none"
-                  zIndex={1}
-                >
-                  {t("usersTable.status")}
-                  {filters.status ? ": " + filters.status : ""}
-                </Text>
-                <Text>/</Text>
-                <Sort sort={filters.sort} column="expire" />
-                <HStack onClick={handleSort.bind(null, "expire")}>
-                  <Text>Sort by expire</Text>
-                </HStack>
+              <HStack spacing="2">
                 <Select
+                  aria-label={t("usersTable.status")}
+                  value={filters.status || ""}
+                  size="sm"
                   fontSize="xs"
-                  fontWeight="extrabold"
-                  textTransform="uppercase"
+                  fontWeight="bold"
                   cursor="pointer"
-                  position={"absolute"}
                   p={0}
-                  left={"-40px"}
                   border={0}
-                  h="auto"
-                  w="auto"
-                  icon={<></>}
-                  _focusVisible={{
-                    border: "0 !important",
-                  }}
-                  value={filters.sort}
+                  minW="120px"
+                  maxW="160px"
                   onChange={handleStatusFilter}
                 >
-                  <option></option>
-                  <option>active</option>
-                  <option>on_hold</option>
-                  <option>disabled</option>
-                  <option>limited</option>
-                  <option>expired</option>
+                  <option value="">{t("usersTable.status")}</option>
+                  {USER_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {t(`status.${status}`)}
+                    </option>
+                  ))}
                 </Select>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  px="2"
+                  flexShrink={0}
+                  onClick={handleSort.bind(null, "expire")}
+                >
+                  <HStack spacing="1">
+                    <Text>{t("portal.expiresAt")}</Text>
+                    <Sort sort={filters.sort} column="expire" />
+                  </HStack>
+                </Button>
               </HStack>
             </Th>
             <Th

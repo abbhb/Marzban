@@ -18,6 +18,7 @@ from app.db.models import (
     PortalSecurityAttempt,
     PortalSecuritySettings,
 )
+from app.models.commerce import IPBlockListSource, IPBlockListStatus, InvitationListStatus
 
 
 class PortalSecurityError(Exception):
@@ -47,6 +48,12 @@ def utc_now(value: Optional[datetime] = None) -> datetime:
     if value.tzinfo is not None:
         value = value.astimezone(timezone.utc).replace(tzinfo=None)
     return value
+
+
+def _page_offset(page: int, page_size: int) -> int:
+    if page < 1 or not 1 <= page_size <= 100:
+        raise ValueError("page must be positive and page_size must be between 1 and 100")
+    return (page - 1) * page_size
 
 
 def normalize_source_ip(value: object) -> Optional[str]:
@@ -126,13 +133,82 @@ def create_invitation(
     return invitation, code
 
 
-def list_invitations(db: Session, *, limit: int = 500) -> list[PortalInvitationCode]:
-    return (
-        db.query(PortalInvitationCode)
+def list_invitations(
+    db: Session,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    status: Optional[InvitationListStatus] = None,
+    now: Optional[datetime] = None,
+) -> tuple[list[PortalInvitationCode], int]:
+    offset = _page_offset(page, page_size)
+    now = utc_now(now)
+    query = db.query(PortalInvitationCode)
+
+    search = search.strip() if search else None
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                PortalInvitationCode.code_prefix.ilike(pattern),
+                PortalInvitationCode.note.ilike(pattern),
+                PortalInvitationCode.created_by.ilike(pattern),
+            )
+        )
+
+    started = or_(
+        PortalInvitationCode.valid_from.is_(None),
+        PortalInvitationCode.valid_from <= now,
+    )
+    unexpired = or_(
+        PortalInvitationCode.expires_at.is_(None),
+        PortalInvitationCode.expires_at > now,
+    )
+    has_uses = or_(
+        PortalInvitationCode.max_uses.is_(None),
+        PortalInvitationCode.use_count < PortalInvitationCode.max_uses,
+    )
+    if status == "available":
+        query = query.filter(
+            PortalInvitationCode.is_active.is_(True),
+            started,
+            unexpired,
+            has_uses,
+        )
+    elif status == "scheduled":
+        query = query.filter(
+            PortalInvitationCode.is_active.is_(True),
+            PortalInvitationCode.valid_from > now,
+        )
+    elif status == "expired":
+        query = query.filter(
+            PortalInvitationCode.is_active.is_(True),
+            PortalInvitationCode.expires_at.is_not(None),
+            PortalInvitationCode.expires_at <= now,
+        )
+    elif status == "exhausted":
+        query = query.filter(
+            PortalInvitationCode.is_active.is_(True),
+            started,
+            unexpired,
+            PortalInvitationCode.max_uses.is_not(None),
+            PortalInvitationCode.use_count >= PortalInvitationCode.max_uses,
+        )
+    elif status == "disabled":
+        query = query.filter(PortalInvitationCode.is_active.is_(False))
+    elif status is not None:
+        raise ValueError(f"Unsupported invitation status: {status}")
+
+    total = query.order_by(None).count()
+    items = (
+        query
         .order_by(PortalInvitationCode.id.desc())
-        .limit(max(1, min(limit, 500)))
+        .offset(offset)
+        .limit(page_size)
         .all()
     )
+    return items, total
 
 
 def get_invitation(db: Session, invitation_id: int) -> Optional[PortalInvitationCode]:
@@ -267,13 +343,57 @@ def update_security_settings(db: Session, changes: dict) -> PortalSecuritySettin
     return settings
 
 
-def list_blocks(db: Session, *, limit: int = 500) -> list[PortalIPBlock]:
-    return (
-        db.query(PortalIPBlock)
+def list_blocks(
+    db: Session,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    status: Optional[IPBlockListStatus] = None,
+    source: Optional[IPBlockListSource] = None,
+    now: Optional[datetime] = None,
+) -> tuple[list[PortalIPBlock], int]:
+    offset = _page_offset(page, page_size)
+    now = utc_now(now)
+    query = db.query(PortalIPBlock)
+
+    search = search.strip() if search else None
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                PortalIPBlock.network.ilike(pattern),
+                PortalIPBlock.reason.ilike(pattern),
+                PortalIPBlock.created_by.ilike(pattern),
+            )
+        )
+
+    if source is not None:
+        query = query.filter(PortalIPBlock.source == source)
+
+    unexpired = or_(PortalIPBlock.expires_at.is_(None), PortalIPBlock.expires_at > now)
+    if status == "blocked":
+        query = query.filter(PortalIPBlock.is_active.is_(True), unexpired)
+    elif status == "expired":
+        query = query.filter(
+            PortalIPBlock.is_active.is_(True),
+            PortalIPBlock.expires_at.is_not(None),
+            PortalIPBlock.expires_at <= now,
+        )
+    elif status == "revoked":
+        query = query.filter(PortalIPBlock.is_active.is_(False))
+    elif status is not None:
+        raise ValueError(f"Unsupported IP block status: {status}")
+
+    total = query.order_by(None).count()
+    items = (
+        query
         .order_by(PortalIPBlock.id.desc())
-        .limit(max(1, min(limit, 500)))
+        .offset(offset)
+        .limit(page_size)
         .all()
     )
+    return items, total
 
 
 def get_block(db: Session, block_id: int) -> Optional[PortalIPBlock]:

@@ -25,6 +25,7 @@ from app.db.models import (
 )
 from app.models.admin import pwd_context
 from app.models.commerce import (
+    PortalAccountListStatus,
     PortalAccountAdminResponse,
     PortalMeResponse,
     PortalRegister,
@@ -252,8 +253,45 @@ def admin_account_response(account: PortalAccount) -> PortalAccountAdminResponse
     )
 
 
-def list_accounts(db: Session) -> list[PortalAccount]:
-    return account_query(db).order_by(PortalAccount.id.desc()).all()
+def list_accounts(
+    db: Session,
+    *,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    status: Optional[PortalAccountListStatus] = None,
+) -> tuple[list[PortalAccount], int]:
+    if page < 1 or not 1 <= page_size <= 100:
+        raise ValueError("page must be positive and page_size must be between 1 and 100")
+
+    query = db.query(PortalAccount)
+    search = search.strip() if search else None
+    if search:
+        query = query.filter(PortalAccount.username.ilike(f"%{search}%"))
+
+    if status == "not_activated":
+        query = query.filter(PortalAccount.user_id.is_(None))
+    elif status is not None:
+        try:
+            proxy_status = UserStatus(status)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported portal account status: {status}") from exc
+        query = query.join(PortalAccount.proxy_user).filter(User.status == proxy_status)
+
+    # Count the filtered base query before eager loading. Applying joinedload to
+    # a count query is both unnecessary and fragile across SQLAlchemy versions.
+    total = query.order_by(None).count()
+    items = (
+        query.options(
+            joinedload(PortalAccount.subscription),
+            joinedload(PortalAccount.proxy_user).joinedload(User.usage_logs),
+        )
+        .order_by(PortalAccount.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return items, total
 
 
 def list_wallet_transactions(
