@@ -31,12 +31,11 @@ import {
   useClipboard,
   VStack,
 } from "@chakra-ui/react";
+import { AdminShell } from "components/AdminShell";
 import { Footer } from "components/Footer";
-import { Language } from "components/Language";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { fetch } from "service/http";
 import {
   CreatedInvitation,
@@ -100,7 +99,6 @@ const localTime = (value: string): string => dayjs.utc(value).local().format("YY
 
 export const CommerceAdmin = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const toast = useToast();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [accounts, setAccounts] = useState<PortalAccount[]>([]);
@@ -319,13 +317,11 @@ export const CommerceAdmin = () => {
     row.is_active && (!row.expires_at || dayjs.utc(row.expires_at).isAfter(dayjs.utc()));
 
   return (
-    <VStack minH="100vh" p={{ base: 4, md: 8 }} spacing="6" align="stretch">
-      <HStack justify="space-between">
-        <Box><Heading size="lg">{t("commerce.title")}</Heading><Text color="gray.500">{t("commerce.subtitle")}</Text></Box>
-        <HStack><Language /><Button variant="outline" onClick={() => navigate("/")}>{t("commerce.backToUsers")}</Button></HStack>
-      </HStack>
+    <AdminShell>
+      <VStack minH="100vh" p={{ base: 4, md: 8 }} spacing="6" align="stretch">
+        <Box><Heading as="h1" size="lg">{t("commerce.title")}</Heading><Text color="gray.500">{t("commerce.subtitle")}</Text></Box>
 
-      {loading ? <VStack py="20"><Spinner color="primary.500" /></VStack> : (
+        {loading ? <VStack py="20"><Spinner color="primary.500" /></VStack> : (
         <Tabs colorScheme="primary" isLazy index={tabIndex} onChange={setTabIndex}>
           <TabList overflowX="auto">
             <Tab>{t("commerce.plans")}</Tab>
@@ -479,8 +475,9 @@ export const CommerceAdmin = () => {
             </TabPanel>
           </TabPanels>
         </Tabs>
-      )}
-      <Footer />
-    </VStack>
+        )}
+        <Footer />
+      </VStack>
+    </AdminShell>
   );
 };

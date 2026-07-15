@@ -63,7 +63,7 @@ export const PortalRegister = () => {
   };
 
   return (
-    <VStack justifyContent="space-between" minH="100vh" p="6" w="full">
+    <VStack as="main" justifyContent="space-between" minH="100vh" p="6" w="full">
       <Box w="full">
         <HStack justifyContent="end"><Language /></HStack>
         <VStack maxW="360px" mx="auto" mt="8" spacing="5">

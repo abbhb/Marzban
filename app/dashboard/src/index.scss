@@ -1,4 +1,84 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+:root {
+  color-scheme: light;
+  --marzban-glass-filter: blur(24px) saturate(165%);
+  --marzban-glass-filter-strong: blur(28px) saturate(170%);
+  --marzban-glass-filter-subtle: blur(14px) saturate(145%);
+}
+
+html.chakra-ui-dark,
+body.chakra-ui-dark {
+  color-scheme: dark;
+}
+
+html {
+  min-height: 100%;
+  background: var(--chakra-colors-app-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --chakra-colors-surface-glass: #f8fafc !important;
+    --chakra-colors-surface-glass-strong: #ffffff !important;
+    --marzban-glass-filter: none;
+    --marzban-glass-filter-strong: none;
+    --marzban-glass-filter-subtle: none;
+  }
+
+  .chakra-ui-dark {
+    --chakra-colors-surface-glass: #111827 !important;
+    --chakra-colors-surface-glass-strong: #111827 !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --chakra-colors-surface-glass: rgba(255, 255, 255, 0.96) !important;
+    --chakra-colors-surface-glass-strong: #ffffff !important;
+    --marzban-glass-filter: none;
+    --marzban-glass-filter-strong: none;
+    --marzban-glass-filter-subtle: none;
+  }
+
+  .chakra-ui-dark {
+    --chakra-colors-surface-glass: rgba(17, 24, 39, 0.96) !important;
+    --chakra-colors-surface-glass-strong: #111827 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 .bg-blue-animate {
   animation: blur-animate 200ms ease-in;

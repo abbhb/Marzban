@@ -85,7 +85,7 @@ export const Login: FC = () => {
       .finally(setLoading.bind(null, false));
   };
   return (
-    <VStack justifyContent="space-between" minH="100vh" p="6" w="full">
+    <VStack as="main" justifyContent="space-between" minH="100vh" p="6" w="full">
       <Box w="full">
         <HStack justifyContent="end" w="full">
           <Language />

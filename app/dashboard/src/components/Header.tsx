@@ -12,21 +12,12 @@ import {
 } from "@chakra-ui/react";
 import {
   ArrowLeftOnRectangleIcon,
-  BanknotesIcon,
-  Bars3Icon,
-  ChartPieIcon,
-  Cog6ToothIcon,
   CurrencyDollarIcon,
-  DocumentMinusIcon,
-  LinkIcon,
+  EllipsisHorizontalIcon,
   MoonIcon,
-  ShieldCheckIcon,
-  SquaresPlusIcon,
   SunIcon,
 } from "@heroicons/react/24/outline";
 import { DONATION_URL, REPO_URL } from "constants/Project";
-import { useDashboard } from "contexts/DashboardContext";
-import { useSubscriptionSecurity } from "contexts/SubscriptionSecurityContext";
 import differenceInDays from "date-fns/differenceInDays";
 import isValid from "date-fns/isValid";
 import { FC, ReactNode, useState } from "react";
@@ -35,7 +26,6 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { updateThemeColor } from "utils/themeColor";
 import { Language } from "./Language";
-import useGetUser from "hooks/useGetUser";
 
 type HeaderProps = {
   actions?: ReactNode;
@@ -49,16 +39,9 @@ const iconProps = {
 
 const DarkIcon = chakra(MoonIcon, iconProps);
 const LightIcon = chakra(SunIcon, iconProps);
-const CoreSettingsIcon = chakra(Cog6ToothIcon, iconProps);
-const SettingsIcon = chakra(Bars3Icon, iconProps);
+const MoreActionsIcon = chakra(EllipsisHorizontalIcon, iconProps);
 const LogoutIcon = chakra(ArrowLeftOnRectangleIcon, iconProps);
 const DonationIcon = chakra(CurrencyDollarIcon, iconProps);
-const HostsIcon = chakra(LinkIcon, iconProps);
-const NodesIcon = chakra(SquaresPlusIcon, iconProps);
-const NodesUsageIcon = chakra(ChartPieIcon, iconProps);
-const ResetUsageIcon = chakra(DocumentMinusIcon, iconProps);
-const SubscriptionSecurityIcon = chakra(ShieldCheckIcon, iconProps);
-const CommerceIcon = chakra(BanknotesIcon, iconProps);
 const NotificationCircle = chakra(Box, {
   baseStyle: {
     bg: "yellow.500",
@@ -87,25 +70,7 @@ export const shouldShowDonation = (): boolean => {
 };
 
 export const Header: FC<HeaderProps> = ({ actions }) => {
-  const { userData, getUserIsSuccess, getUserIsPending } = useGetUser();
-
-  const isSudo = () => {
-    if (!getUserIsPending && getUserIsSuccess) {
-      return userData.is_sudo;
-    }
-    return false;
-  };
-
-  const {
-    onEditingHosts,
-    onResetAllUsage,
-    onEditingNodes,
-    onShowingNodesUsage,
-  } = useDashboard();
-  const openSubscriptionSecurity = useSubscriptionSecurity(
-    (state) => state.open
-  );
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colorMode, toggleColorMode } = useColorMode();
   const [showDonationNotif, setShowDonationNotif] = useState(
     shouldShowDonation()
@@ -121,89 +86,30 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
     <HStack
       gap={2}
       justifyContent="space-between"
-      __css={{
-        "& .menuList": {
-          direction: "ltr",
-        },
-      }}
       position="relative"
     >
       <Text as="h1" fontWeight="semibold" fontSize="2xl">
         {t("users")}
       </Text>
-      {showDonationNotif && (
-        <NotificationCircle top="0" right="0" zIndex={9999} />
-      )}
-      <Box overflow="auto" css={{ direction: "rtl" }}>
+      <Box overflowX="auto">
         <HStack alignItems="center">
-          <Menu>
-            <MenuButton
-              as={IconButton}
-              size="sm"
-              variant="outline"
-              icon={
-                <>
-                  <SettingsIcon />
-                </>
-              }
-              position="relative"
-            ></MenuButton>
-            <MenuList minW="170px" zIndex={99999} className="menuList">
-              {isSudo() && (
-                <>
-                  <MenuItem
-                    maxW="170px"
-                    fontSize="sm"
-                    icon={<HostsIcon />}
-                    onClick={onEditingHosts.bind(null, true)}
-                  >
-                    {t("header.hostSettings")}
-                  </MenuItem>
-                  <MenuItem
-                    maxW="170px"
-                    fontSize="sm"
-                    icon={<NodesIcon />}
-                    onClick={onEditingNodes.bind(null, true)}
-                  >
-                    {t("header.nodeSettings")}
-                  </MenuItem>
-                  <MenuItem
-                    maxW="170px"
-                    fontSize="sm"
-                    icon={<NodesUsageIcon />}
-                    onClick={onShowingNodesUsage.bind(null, true)}
-                  >
-                    {t("header.nodesUsage")}
-                  </MenuItem>
-                  <MenuItem
-                    maxW="170px"
-                    fontSize="sm"
-                    icon={<ResetUsageIcon />}
-                    onClick={onResetAllUsage.bind(null, true)}
-                  >
-                    {t("resetAllUsage")}
-                  </MenuItem>
-                  <MenuItem
-                    maxW="230px"
-                    fontSize="sm"
-                    icon={<SubscriptionSecurityIcon />}
-                    onClick={openSubscriptionSecurity}
-                  >
-                    {t("header.subscriptionSecurity")}
-                  </MenuItem>
-                  <Link to="/commerce">
-                    <MenuItem
-                      maxW="230px"
-                      fontSize="sm"
-                      icon={<CommerceIcon />}
-                    >
-                      {t("header.commerce")}
-                    </MenuItem>
-                  </Link>
-                </>
-              )}
-              <Link to={DONATION_URL} target="_blank">
+          {actions}
+          <Box position="relative">
+            <Menu placement="bottom-end">
+              <MenuButton
+                as={IconButton}
+                variant="outline"
+                icon={<MoreActionsIcon />}
+                minW="11"
+                minH="11"
+                aria-label={`${t("header.donation")} / ${t("header.logout")}`}
+              />
+              <MenuList minW="170px" zIndex={99999} dir={i18n.dir()}>
                 <MenuItem
+                  as="a"
+                  href={DONATION_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   maxW="170px"
                   fontSize="sm"
                   icon={<DonationIcon />}
@@ -215,34 +121,23 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                     <NotificationCircle top="3" right="2" />
                   )}
                 </MenuItem>
-              </Link>
-              <Link to="/login">
-                <MenuItem maxW="170px" fontSize="sm" icon={<LogoutIcon />}>
+                <MenuItem as={Link} to="/login" maxW="170px" fontSize="sm" icon={<LogoutIcon />}>
                   {t("header.logout")}
                 </MenuItem>
-              </Link>
-            </MenuList>
-          </Menu>
-
-          {isSudo() && (
-            <IconButton
-              size="sm"
-              variant="outline"
-              aria-label="core settings"
-              onClick={() => {
-                useDashboard.setState({ isEditingCore: true });
-              }}
-            >
-              <CoreSettingsIcon />
-            </IconButton>
-          )}
+              </MenuList>
+            </Menu>
+            {showDonationNotif && (
+              <NotificationCircle top="1" right="1" pointerEvents="none" />
+            )}
+          </Box>
 
           <Language />
 
           <IconButton
-            size="sm"
             variant="outline"
-            aria-label="switch theme"
+            aria-label={t("portal.switchTheme")}
+            minW="11"
+            minH="11"
             onClick={() => {
               updateThemeColor(colorMode == "dark" ? "light" : "dark");
               toggleColorMode();

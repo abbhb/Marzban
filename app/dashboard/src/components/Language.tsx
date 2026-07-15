@@ -22,7 +22,7 @@ const LangIcon = chakra(LanguageIcon, {
 });
 
 export const Language: FC<HeaderProps> = ({ actions }) => {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
 
   var changeLanguage = (lang: string) => {
     i18n.changeLanguage(lang);
@@ -36,6 +36,9 @@ export const Language: FC<HeaderProps> = ({ actions }) => {
         variant="outline"
         icon={<LangIcon />}
         position="relative"
+        minW="11"
+        minH="11"
+        aria-label={t("language")}
       />
       <MenuList minW="100px" zIndex={9999}>
         <MenuItem

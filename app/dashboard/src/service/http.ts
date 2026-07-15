@@ -1,6 +1,9 @@
 import { FetchOptions, $fetch as ohMyFetch } from "ofetch";
 import { getAuthToken } from "utils/authStorage";
-import { getPortalAuthToken } from "utils/portalAuthStorage";
+import {
+  getPortalAuthToken,
+  removePortalAuthToken,
+} from "utils/portalAuthStorage";
 
 export const $fetch = ohMyFetch.create({
   // Keep production API routing safe even when a manual/offline build omits
@@ -35,5 +38,14 @@ export const portalFetch = <T = any>(
       Authorization: `Bearer ${token}`,
     };
   }
-  return $fetch<T>(url, ops);
+  return $fetch<T>(url, ops).catch((error: any) => {
+    const status = error?.statusCode || error?.response?.status;
+    if (token && status === 401) {
+      removePortalAuthToken();
+      if (!window.location.hash.startsWith("#/portal/login")) {
+        window.location.hash = "/portal/login";
+      }
+    }
+    throw error;
+  });
 };

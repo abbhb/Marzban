@@ -11,6 +11,11 @@ import { registerLocale } from "react-datepicker";
 import { initReactI18next } from "react-i18next";
 import dashboardPackage from "../../package.json";
 
+const syncDocumentLanguage = (lng: string) => {
+    document.documentElement.lang = lng;
+    document.documentElement.dir = i18n.dir(lng);
+};
+
 declare module "i18next" {
     interface CustomTypeOptions {
         returnNull: false;
@@ -55,11 +60,13 @@ i18n
         },
         function (err, t) {
             dayjs.locale(i18n.language);
+            syncDocumentLanguage(i18n.language);
         }
     );
 
 i18n.on("languageChanged", (lng) => {
     dayjs.locale(lng);
+    syncDocumentLanguage(lng);
 });
 
 // DataPicker
