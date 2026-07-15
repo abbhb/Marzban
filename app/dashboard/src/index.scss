@@ -3,6 +3,7 @@
   --marzban-glass-filter: blur(24px) saturate(124%);
   --marzban-glass-filter-strong: blur(32px) saturate(128%);
   --marzban-glass-filter-subtle: saturate(112%);
+  --marzban-sidebar-filter: blur(22px) saturate(116%);
   --marzban-overlay-filter: blur(18px) saturate(112%);
   --marzban-motion-fast: 140ms;
   --marzban-motion-base: 240ms;
@@ -167,8 +168,8 @@ body.chakra-ui-dark::after {
   overflow: hidden;
   border: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    inset 0 -1px 0 rgba(94, 112, 140, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.48), 0 10px 30px rgba(31, 60, 105, 0.1);
+    inset 0 -1px 0 rgba(94, 112, 140, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.48),
+    0 10px 30px rgba(31, 60, 105, 0.1);
   backdrop-filter: var(--marzban-glass-filter);
   -webkit-backdrop-filter: var(--marzban-glass-filter);
   transition: box-shadow var(--marzban-motion-base) var(--marzban-ease-out),
@@ -196,7 +197,7 @@ body.chakra-ui-dark::after {
 }
 
 .liquid-surface::before {
-  z-index: 0;
+  z-index: -1;
   background: radial-gradient(
       400px circle at var(--liquid-x) var(--liquid-y),
       rgba(255, 255, 255, 0.7),
@@ -216,7 +217,7 @@ body.chakra-ui-dark::after {
 }
 
 .liquid-surface::after {
-  z-index: 0;
+  z-index: -1;
   background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.28),
@@ -236,19 +237,14 @@ body.chakra-ui-dark::after {
   transition: opacity var(--marzban-motion-base) var(--marzban-ease-out);
 }
 
-.liquid-surface > * {
-  position: relative;
-  z-index: 1;
-}
-
 .liquid-surface--strong {
   --liquid-glow-rest: 0.24;
   --liquid-glow-active: 0.5;
   --liquid-rim-rest: 0.62;
 
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    inset 0 -1px 0 rgba(94, 112, 140, 0.11),
-    0 0 0 1px rgba(255, 255, 255, 0.54), 0 18px 48px rgba(31, 60, 105, 0.14);
+    inset 0 -1px 0 rgba(94, 112, 140, 0.11), 0 0 0 1px rgba(255, 255, 255, 0.54),
+    0 18px 48px rgba(31, 60, 105, 0.14);
   backdrop-filter: var(--marzban-glass-filter-strong);
   -webkit-backdrop-filter: var(--marzban-glass-filter-strong);
 }
@@ -348,8 +344,90 @@ body.chakra-ui-dark::after {
 }
 
 .liquid-shell-surface {
-  --liquid-glow-rest: 0.22;
-  --liquid-rim-rest: 0.66;
+  --liquid-glow-rest: 0.18;
+  --liquid-rim-rest: 0.58;
+}
+
+.liquid-sidebar-surface {
+  --sidebar-shadow-x: 12px;
+  --sidebar-inner-edge-x: -1px;
+
+  background-color: var(--chakra-colors-surface-sidebar) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    inset var(--sidebar-inner-edge-x) 0 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(78, 98, 126, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.46),
+    var(--sidebar-shadow-x) 18px 44px rgba(31, 60, 105, 0.11) !important;
+  backdrop-filter: var(--marzban-sidebar-filter) !important;
+  -webkit-backdrop-filter: var(--marzban-sidebar-filter) !important;
+}
+
+:dir(rtl) .liquid-sidebar-surface {
+  --sidebar-shadow-x: -12px;
+  --sidebar-inner-edge-x: 1px;
+}
+
+.liquid-sidebar-surface::before {
+  background: radial-gradient(
+      320px circle at 84% -6%,
+      rgba(255, 255, 255, 0.54),
+      rgba(164, 205, 245, 0.1) 32%,
+      transparent 70%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(255, 255, 255, 0.18),
+      transparent 38%,
+      rgba(96, 165, 250, 0.035) 74%,
+      transparent
+    );
+  opacity: 0.46;
+}
+
+.liquid-sidebar-surface::after {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.34),
+    transparent 28%,
+    transparent 76%,
+    rgba(96, 165, 250, 0.055)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68),
+    inset 1px 0 0 rgba(255, 255, 255, 0.24),
+    inset -1px 0 0 rgba(88, 117, 158, 0.06);
+  opacity: 0.72;
+}
+
+.chakra-ui-dark .liquid-sidebar-surface {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset var(--sidebar-inner-edge-x) 0 0 rgba(255, 255, 255, 0.055),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.1),
+    var(--sidebar-shadow-x) 20px 48px rgba(0, 0, 0, 0.28) !important;
+}
+
+.chakra-ui-dark .liquid-sidebar-surface::before {
+  background: radial-gradient(
+      320px circle at 84% -6%,
+      rgba(255, 255, 255, 0.18),
+      rgba(96, 165, 250, 0.08) 32%,
+      transparent 70%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(255, 255, 255, 0.055),
+      transparent 38%,
+      rgba(59, 130, 246, 0.055) 74%,
+      transparent
+    );
+  opacity: 0.5;
+}
+
+.chakra-ui-dark .liquid-sidebar-surface::after {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 1px 0 0 rgba(255, 255, 255, 0.055), inset -1px 0 0 rgba(0, 0, 0, 0.14);
+}
+
+.liquid-sidebar-navigation {
+  scrollbar-gutter: stable;
 }
 
 .liquid-topbar {
@@ -358,37 +436,159 @@ body.chakra-ui-dark::after {
     0 12px 34px rgba(31, 60, 105, 0.09);
 }
 
+// Chakra resolves its `insetEnd` shorthand against the theme's initial LTR
+// direction. Keep close controls logical when the document switches to RTL.
+.chakra-modal__close-btn {
+  right: auto !important;
+  left: auto !important;
+  inset-inline-end: var(--chakra-space-3) !important;
+}
+
+.liquid-sidebar-surface > .chakra-modal__close-btn {
+  inset-inline-end: var(--chakra-space-5) !important;
+}
+
 .liquid-nav-item {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  border: 1px solid transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  transform: translate3d(0, 0, 0);
+  transition: color var(--marzban-motion-fast) ease,
+    background-color var(--marzban-motion-fast) ease,
+    border-color var(--marzban-motion-fast) ease,
+    box-shadow var(--marzban-motion-fast) ease,
+    transform var(--marzban-motion-fast) var(--marzban-ease-out) !important;
 }
 
-.liquid-nav-item::before {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  z-index: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(
+.liquid-nav-item:active {
+  transform: scale(0.985);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .liquid-nav-item:hover:not([data-active="true"]):not([aria-current="page"]) {
+    background-color: var(--chakra-colors-surface-nav-hover) !important;
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16),
+      transparent 72%
+    ) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  }
+
+  .chakra-ui-dark
+    .liquid-nav-item:hover:not([data-active="true"]):not(
+      [aria-current="page"]
+    ) {
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.07),
+      transparent 72%
+    ) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  }
+}
+
+.liquid-nav-item[data-active="true"],
+.liquid-nav-item[aria-current="page"] {
+  color: var(--chakra-colors-primary-600) !important;
+  background-color: var(--chakra-colors-surface-nav-selected) !important;
+  background-image: linear-gradient(
     180deg,
-    rgba(38, 112, 232, 0.15),
-    rgba(38, 112, 232, 0.09)
-  );
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
-  opacity: 0;
-  transition: opacity var(--marzban-motion-base) ease;
+    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0.045) 58%,
+    rgba(45, 126, 220, 0.035)
+  ) !important;
+  border-color: rgba(75, 145, 232, 0.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64),
+    inset 0 -1px 0 rgba(35, 105, 190, 0.1) !important;
 }
 
-.liquid-nav-item > * {
-  position: relative;
-  z-index: 1;
+.chakra-ui-dark .liquid-nav-item[data-active="true"],
+.chakra-ui-dark .liquid-nav-item[aria-current="page"] {
+  color: var(--chakra-colors-primary-300) !important;
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.13),
+    rgba(255, 255, 255, 0.025) 62%,
+    rgba(0, 0, 0, 0.045)
+  ) !important;
+  border-color: rgba(131, 190, 255, 0.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14) !important;
 }
 
-.liquid-nav-item[data-active="true"]::before,
-.liquid-nav-item[aria-current="page"]::before {
-  opacity: 1;
+.liquid-nav-item[data-danger="true"][data-active="true"] {
+  color: var(--chakra-colors-red-600) !important;
+  background-color: rgba(229, 62, 62, 0.12) !important;
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.28),
+    rgba(229, 62, 62, 0.025)
+  ) !important;
+  border-color: rgba(229, 62, 62, 0.16) !important;
+}
+
+.chakra-ui-dark .liquid-nav-item[data-danger="true"][data-active="true"] {
+  color: var(--chakra-colors-red-300) !important;
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.09),
+    rgba(229, 62, 62, 0.025)
+  ) !important;
+}
+
+.liquid-sidebar-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--chakra-colors-border-subtle);
+}
+
+.liquid-control-cluster {
+  padding: 3px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48),
+    inset 0 -1px 0 rgba(76, 95, 122, 0.065), 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+@media (max-width: 61.99em) {
+  .liquid-sidebar-footer .liquid-control-cluster > button,
+  .liquid-sidebar-footer > .liquid-sidebar-danger-control,
+  .chakra-modal__close-btn {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+.chakra-ui-dark .liquid-control-cluster {
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.065);
+}
+
+.liquid-control-cluster .chakra-button {
+  border-radius: 11px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .liquid-control-cluster .chakra-button:hover {
+    background: var(--chakra-colors-surface-nav-hover) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34) !important;
+  }
+
+  .liquid-sidebar-danger-control:hover,
+  .liquid-sidebar-logout:hover {
+    color: var(--chakra-colors-red-500);
+    background: rgba(229, 62, 62, 0.1) !important;
+  }
 }
 
 .liquid-page-enter {
@@ -439,23 +639,30 @@ textarea {
   :root {
     --chakra-colors-surface-glass: #f8fafc !important;
     --chakra-colors-surface-glass-strong: #ffffff !important;
+    --chakra-colors-surface-sidebar: #f4f7fb !important;
     --chakra-colors-surface-panel: #ffffff !important;
     --chakra-colors-surface-muted: #f1f5f9 !important;
     --chakra-colors-surface-inset: #f1f5f9 !important;
     --chakra-colors-surface-input: #ffffff !important;
+    --chakra-colors-surface-nav-hover: #e8edf5 !important;
+    --chakra-colors-surface-nav-selected: #d9e9fc !important;
     --marzban-glass-filter: none;
     --marzban-glass-filter-strong: none;
     --marzban-glass-filter-subtle: none;
+    --marzban-sidebar-filter: none;
     --marzban-overlay-filter: none;
   }
 
   .chakra-ui-dark {
     --chakra-colors-surface-glass: #111827 !important;
     --chakra-colors-surface-glass-strong: #111827 !important;
+    --chakra-colors-surface-sidebar: #121925 !important;
     --chakra-colors-surface-panel: #161e2e !important;
     --chakra-colors-surface-muted: #1e293b !important;
     --chakra-colors-surface-inset: #1e293b !important;
     --chakra-colors-surface-input: #0f172a !important;
+    --chakra-colors-surface-nav-hover: #202b3d !important;
+    --chakra-colors-surface-nav-selected: #17365b !important;
   }
 
   body::before,
@@ -470,23 +677,30 @@ textarea {
   :root {
     --chakra-colors-surface-glass: rgba(255, 255, 255, 0.96) !important;
     --chakra-colors-surface-glass-strong: #ffffff !important;
+    --chakra-colors-surface-sidebar: #f4f7fb !important;
     --chakra-colors-surface-panel: #ffffff !important;
     --chakra-colors-surface-muted: #f1f5f9 !important;
     --chakra-colors-surface-inset: #f1f5f9 !important;
     --chakra-colors-surface-input: #ffffff !important;
+    --chakra-colors-surface-nav-hover: #e8edf5 !important;
+    --chakra-colors-surface-nav-selected: #d9e9fc !important;
     --marzban-glass-filter: none;
     --marzban-glass-filter-strong: none;
     --marzban-glass-filter-subtle: none;
+    --marzban-sidebar-filter: none;
     --marzban-overlay-filter: none;
   }
 
   .chakra-ui-dark {
     --chakra-colors-surface-glass: rgba(17, 24, 39, 0.96) !important;
     --chakra-colors-surface-glass-strong: #111827 !important;
+    --chakra-colors-surface-sidebar: #121925 !important;
     --chakra-colors-surface-panel: #161e2e !important;
     --chakra-colors-surface-muted: #1e293b !important;
     --chakra-colors-surface-inset: #1e293b !important;
     --chakra-colors-surface-input: #0f172a !important;
+    --chakra-colors-surface-nav-hover: #202b3d !important;
+    --chakra-colors-surface-nav-selected: #17365b !important;
   }
 
   body::before,
@@ -528,12 +742,16 @@ textarea {
     --chakra-colors-surface-glass: rgba(255, 255, 255, 0.92) !important;
     --chakra-colors-surface-glass-strong: rgba(255, 255, 255, 0.96) !important;
     --chakra-colors-surface-panel: rgba(255, 255, 255, 0.96) !important;
+    --chakra-colors-surface-sidebar: rgba(255, 255, 255, 0.96) !important;
+    --chakra-colors-surface-nav-selected: rgba(10, 92, 190, 0.24) !important;
   }
 
   .chakra-ui-dark {
     --chakra-colors-surface-glass: rgba(9, 14, 23, 0.94) !important;
     --chakra-colors-surface-glass-strong: rgba(9, 14, 23, 0.98) !important;
     --chakra-colors-surface-panel: rgba(9, 14, 23, 0.98) !important;
+    --chakra-colors-surface-sidebar: rgba(9, 14, 23, 0.98) !important;
+    --chakra-colors-surface-nav-selected: rgba(64, 156, 255, 0.34) !important;
   }
 
   :focus-visible {
@@ -562,13 +780,27 @@ textarea {
     backdrop-filter: none !important;
   }
 
+  .liquid-nav-item {
+    color: ButtonText !important;
+    background: Canvas !important;
+    border-color: ButtonBorder !important;
+    box-shadow: none !important;
+  }
+
+  .liquid-nav-item[data-active="true"],
+  .liquid-nav-item[aria-current="page"] {
+    color: HighlightText !important;
+    background: Highlight !important;
+    border-color: Highlight !important;
+  }
+
   :focus-visible {
     outline: 2px solid Highlight !important;
     outline-offset: 2px !important;
     box-shadow: none !important;
   }
 
-  [aria-current="page"],
+  [aria-current="page"]:not(.liquid-nav-item),
   [aria-selected="true"] {
     color: Highlight !important;
     border-color: Highlight !important;

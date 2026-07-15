@@ -144,7 +144,7 @@ export const SubscriptionSecurityModal: FC = () => {
             </Text>
           </HStack>
         </ModalHeader>
-        <ModalCloseButton mt={3} />
+        <ModalCloseButton />
 
         <ModalBody>
           {isLoading && !settings ? (

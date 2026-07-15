@@ -96,6 +96,7 @@ const PortalNavigation = ({ onNavigate }: { onNavigate?: () => void }) => {
       spacing="2"
       align="stretch"
       aria-label={t("portal.primaryNavigation")}
+      className="liquid-sidebar-navigation"
     >
       {navigation.map(({ to, key, icon: Icon, end }) => (
         <Button
@@ -110,13 +111,9 @@ const PortalNavigation = ({ onNavigate }: { onNavigate?: () => void }) => {
           variant="ghost"
           className="liquid-nav-item"
           color="fg.muted"
-          border="1px solid transparent"
-          _hover={{ bg: "surface.hover", color: "fg.default" }}
+          _hover={{ color: "fg.default" }}
           _activeLink={{
-            bg: "surface.active",
             color: "primary.600",
-            borderColor: "glass.border",
-            boxShadow: "0 10px 24px rgba(57, 111, 228, 0.12)",
           }}
           onClick={onNavigate}
         >
@@ -240,7 +237,12 @@ export const PortalLayout = () => {
   );
 
   const sidebar = (
-    <VStack h="full" align="stretch" spacing="6">
+    <VStack
+      h="full"
+      align="stretch"
+      spacing="6"
+      className="liquid-sidebar-stack"
+    >
       <HStack px="3" spacing="3">
         <Box transform="scale(.72)" transformOrigin="left center" w="10" h="10">
           <LogoIcon />
@@ -266,6 +268,7 @@ export const PortalLayout = () => {
       </Box>
       <Button
         variant="ghost"
+        className="liquid-sidebar-logout"
         justifyContent="flex-start"
         minH="11"
         leftIcon={<LogoutIcon />}
@@ -291,8 +294,9 @@ export const PortalLayout = () => {
         zIndex="20"
       >
         <LiquidSurface
-          tone="strong"
-          className="glass-surface liquid-shell-surface"
+          tone="glass"
+          bg="surface.sidebar"
+          className="glass-surface liquid-shell-surface liquid-sidebar-surface"
           rounded="3xl"
           h="full"
           p="4"
@@ -314,8 +318,9 @@ export const PortalLayout = () => {
           p="3"
         >
           <LiquidSurface
-            tone="strong"
-            className="glass-surface liquid-shell-surface"
+            tone="glass"
+            bg="surface.sidebar"
+            className="glass-surface liquid-shell-surface liquid-sidebar-surface"
             rounded="3xl"
             h="full"
             p="4"

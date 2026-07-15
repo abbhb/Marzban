@@ -1271,7 +1271,7 @@ export const HostsDialog: FC = () => {
             <ModalIcon color="white" />
           </Icon>
         </ModalHeader>
-        <ModalCloseButton mt={3} />
+        <ModalCloseButton />
         <ModalBody w="440px" pb={3} pt={3}>
           <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(handleFormSubmit)}>

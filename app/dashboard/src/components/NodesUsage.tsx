@@ -88,7 +88,7 @@ export const NodesUsage: FC<NodesUsageProps> = () => {
             </Text>
           </HStack>
         </ModalHeader>
-        <ModalCloseButton mt={3} disabled={disabled} />
+        <ModalCloseButton disabled={disabled} />
         <ModalBody>
           <VStack gap={4}>
             <UsageFilter

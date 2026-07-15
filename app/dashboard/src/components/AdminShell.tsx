@@ -97,19 +97,13 @@ const Navigation = ({
         variant="ghost"
         className="liquid-nav-item"
         data-active={isActive ? "true" : "false"}
-        bg={isActive ? (danger ? "red.50" : "surface.active") : "transparent"}
+        data-danger={danger ? "true" : undefined}
         color={danger ? "red.600" : isActive ? "primary.600" : "fg.muted"}
         fontWeight={isActive ? "semibold" : "medium"}
         _dark={{
-          bg: isActive
-            ? danger
-              ? "rgba(245, 101, 101, 0.14)"
-              : "surface.active"
-            : "transparent",
           color: danger ? "red.300" : isActive ? "primary.300" : "fg.muted",
         }}
         _hover={{
-          bg: danger ? "rgba(245, 101, 101, 0.12)" : "surface.hover",
           color: danger ? undefined : "fg.default",
         }}
       >
@@ -129,6 +123,7 @@ const Navigation = ({
       minH="0"
       overflowY="auto"
       pe="1"
+      className="liquid-sidebar-navigation"
     >
       {groups.map((group) => (
         <VStack
@@ -137,15 +132,15 @@ const Navigation = ({
           aria-label={group.label}
           align="stretch"
           spacing="1"
+          className="liquid-nav-group"
         >
           <Text
             px="3"
             mb="1"
             color="fg.subtle"
             fontSize="xs"
-            fontWeight="700"
-            letterSpacing=".08em"
-            textTransform="uppercase"
+            fontWeight="600"
+            letterSpacing="normal"
           >
             {group.label}
           </Text>
@@ -289,28 +284,31 @@ export const AdminShell = ({ children }: AdminShellProps) => {
         label={navigationLabel}
         onNavigate={drawer.onClose}
       />
-      <HStack
-        pt="3"
-        borderTop="1px solid"
-        borderColor="border.subtle"
-        justify="space-between"
-      >
-        <Language />
-        <IconButton
-          aria-label={t("portal.switchTheme")}
-          icon={
-            <Icon as={colorMode === "light" ? MoonIcon : SunIcon} boxSize="5" />
-          }
-          minW="11"
-          minH="11"
-          variant="ghost"
-          onClick={switchTheme}
-        />
+      <HStack className="liquid-sidebar-footer" justify="space-between">
+        <HStack className="liquid-control-cluster" spacing="0">
+          <Language />
+          <IconButton
+            aria-label={t("portal.switchTheme")}
+            icon={
+              <Icon
+                as={colorMode === "light" ? MoonIcon : SunIcon}
+                boxSize="4"
+              />
+            }
+            minW="9"
+            w="9"
+            h="9"
+            variant="ghost"
+            onClick={switchTheme}
+          />
+        </HStack>
         <IconButton
           aria-label={t("header.logout")}
           icon={<Icon as={ArrowLeftOnRectangleIcon} boxSize="5" />}
-          minW="11"
-          minH="11"
+          className="liquid-sidebar-danger-control"
+          minW="9"
+          w="9"
+          h="9"
           variant="ghost"
           onClick={logout}
         />
@@ -331,8 +329,9 @@ export const AdminShell = ({ children }: AdminShellProps) => {
         p="4"
       >
         <LiquidSurface
-          tone="strong"
-          className="glass-surface liquid-shell-surface"
+          tone="glass"
+          bg="surface.sidebar"
+          className="glass-surface liquid-shell-surface liquid-sidebar-surface"
           rounded="3xl"
           h="full"
           p="4"
@@ -383,8 +382,9 @@ export const AdminShell = ({ children }: AdminShellProps) => {
           p="3"
         >
           <LiquidSurface
-            tone="strong"
-            className="glass-surface liquid-shell-surface"
+            tone="glass"
+            bg="surface.sidebar"
+            className="glass-surface liquid-shell-surface liquid-sidebar-surface"
             rounded="3xl"
             h="full"
             p="4"

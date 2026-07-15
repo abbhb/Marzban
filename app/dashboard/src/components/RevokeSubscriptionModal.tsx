@@ -74,7 +74,7 @@ export const RevokeSubscriptionModal: FC<RevokeSubscriptionModalProps> = () => {
             <ResetIcon />
           </Icon>
         </ModalHeader>
-        <ModalCloseButton mt={3} />
+        <ModalCloseButton />
         <ModalBody>
           <Text fontWeight="semibold" fontSize="lg">
             {t("revokeUserSub.title")}

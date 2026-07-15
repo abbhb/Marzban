@@ -559,14 +559,23 @@ export const NodesDialog: FC = () => {
           bg="blackAlpha.300"
           backdropFilter="var(--marzban-overlay-filter)"
         />
-        <ModalContent mx="3" w="fit-content" maxW="3xl">
+        <ModalContent
+          mx="3"
+          w={{ base: "calc(100% - 24px)", sm: "fit-content" }}
+          maxW="3xl"
+        >
           <ModalHeader pt={6}>
             <Icon color="primary">
               <ModalIcon color="white" />
             </Icon>
           </ModalHeader>
-          <ModalCloseButton mt={3} />
-          <ModalBody w="440px" pb={6} pt={3}>
+          <ModalCloseButton />
+          <ModalBody
+            w={{ base: "full", sm: "440px" }}
+            maxW="full"
+            pb={6}
+            pt={3}
+          >
             <Text mb={3} opacity={0.8} fontSize="sm">
               {t("nodes.title")}
             </Text>

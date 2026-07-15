@@ -14,17 +14,13 @@ const ambientReflection = {
     content: '""',
     position: "absolute",
     inset: "0",
-    zIndex: "0",
+    zIndex: "-1",
     pointerEvents: "none",
     borderRadius: "inherit",
     bgImage:
       "linear-gradient(145deg, rgba(255, 255, 255, 0.28), transparent 34%, rgba(96, 165, 250, 0.04) 76%, transparent)",
     opacity: 0.5,
     transition: "opacity var(--marzban-motion-base) ease",
-  },
-  "& > *": {
-    position: "relative",
-    zIndex: "1",
   },
 };
 
@@ -89,6 +85,10 @@ export const theme = extendTheme({
         default: "rgba(255, 255, 255, 0.74)",
         _dark: "rgba(11, 18, 31, 0.78)",
       },
+      "surface.sidebar": {
+        default: "rgba(246, 249, 255, 0.56)",
+        _dark: "rgba(15, 20, 30, 0.62)",
+      },
       "surface.panel": {
         default: "rgba(255, 255, 255, 0.66)",
         _dark: "rgba(18, 27, 43, 0.70)",
@@ -120,6 +120,14 @@ export const theme = extendTheme({
       "surface.active": {
         default: "rgba(38, 112, 232, 0.14)",
         _dark: "rgba(147, 197, 253, 0.16)",
+      },
+      "surface.nav-hover": {
+        default: "rgba(255, 255, 255, 0.30)",
+        _dark: "rgba(255, 255, 255, 0.07)",
+      },
+      "surface.nav-selected": {
+        default: "rgba(10, 132, 255, 0.17)",
+        _dark: "rgba(64, 156, 255, 0.22)",
       },
       "surface.track": {
         default: "rgba(100, 116, 139, 0.16)",
@@ -328,7 +336,7 @@ export const theme = extendTheme({
     Alert: {
       baseStyle: {
         container: {
-          bg: "surface.inset",
+          bg: "var(--alert-bg)",
           borderWidth: "0",
           borderRadius: "panel",
           boxShadow: "glass-subtle",
@@ -469,8 +477,32 @@ export const theme = extendTheme({
           WebkitBackdropFilter: "var(--marzban-glass-filter-strong)",
           _dark: { boxShadow: "glass.dark" },
         },
-        header: { borderBottomColor: "border.subtle" },
-        footer: { borderTopColor: "border.subtle" },
+        header: {
+          position: "relative",
+          zIndex: "1",
+          borderBottomColor: "border.subtle",
+        },
+        body: { position: "relative", zIndex: "1" },
+        footer: {
+          position: "relative",
+          zIndex: "1",
+          borderTopColor: "border.subtle",
+        },
+        closeButton: {
+          position: "absolute",
+          top: "3",
+          insetInlineEnd: "3",
+          zIndex: "2",
+          minW: "9",
+          w: "9",
+          h: "9",
+          borderRadius: "full",
+          bg: "surface.input",
+          boxShadow: "glass-subtle",
+          _hover: { bg: "surface.nav-hover" },
+          _focusVisible: focusVisible,
+          _dark: { boxShadow: "glass-subtle-dark" },
+        },
       },
     },
     Drawer: {

@@ -76,7 +76,7 @@ export const ResetUserUsageModal: FC<DeleteUserModalProps> = () => {
             <ResetIcon />
           </Icon>
         </ModalHeader>
-        <ModalCloseButton mt={3} />
+        <ModalCloseButton />
         <ModalBody>
           <Text fontWeight="semibold" fontSize="lg">
             {t("resetUserUsage.title")}

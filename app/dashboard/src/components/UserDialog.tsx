@@ -404,7 +404,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 </Text>
               </HStack>
             </ModalHeader>
-            <ModalCloseButton mt={3} disabled={disabled} />
+            <ModalCloseButton disabled={disabled} />
             <ModalBody>
               <Grid
                 templateColumns={{

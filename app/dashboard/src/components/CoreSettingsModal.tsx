@@ -399,7 +399,7 @@ export const CoreSettingsModal: FC = () => {
             </Text>
           </HStack>
         </ModalHeader>
-        <ModalCloseButton mt={3} />
+        <ModalCloseButton />
         <CoreSettingModalContent />
       </ModalContent>
     </Modal>

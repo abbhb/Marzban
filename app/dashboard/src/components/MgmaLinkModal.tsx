@@ -157,7 +157,7 @@ export const MgmaLinkModal: FC = () => {
             </Box>
           </HStack>
         </ModalHeader>
-        <ModalCloseButton mt={3} />
+        <ModalCloseButton />
 
         <ModalBody>
           <Alert status="warning" borderRadius="md" mb={4} fontSize="sm">
