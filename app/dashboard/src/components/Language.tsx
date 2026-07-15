@@ -5,6 +5,7 @@ import {
   MenuButton,
   MenuItem,
   MenuList,
+  Portal,
 } from "@chakra-ui/react";
 import { LanguageIcon } from "@heroicons/react/24/outline";
 import { FC, ReactNode } from "react";
@@ -33,43 +34,30 @@ export const Language: FC<HeaderProps> = ({ actions }) => {
       <MenuButton
         as={IconButton}
         size="sm"
-        variant="outline"
+        variant="ghost"
         icon={<LangIcon />}
         position="relative"
-        minW="11"
-        minH="11"
+        w="9"
+        h="9"
+        minW="9"
         aria-label={t("language")}
       />
-      <MenuList minW="100px" zIndex={9999}>
-        <MenuItem
-          maxW="100px"
-          fontSize="sm"
-          onClick={() => changeLanguage("en")}
-        >
-          English
-        </MenuItem>
-        <MenuItem
-          maxW="100px"
-          fontSize="sm"
-          onClick={() => changeLanguage("fa")}
-        >
-          فارسی
-        </MenuItem>
-        <MenuItem
-          maxW="100px"
-          fontSize="sm"
-          onClick={() => changeLanguage("zh-cn")}
-        >
-          简体中文
-        </MenuItem>
-        <MenuItem
-          maxW="100px"
-          fontSize="sm"
-          onClick={() => changeLanguage("ru")}
-        >
-          Русский
-        </MenuItem>
-      </MenuList>
+      <Portal>
+        <MenuList minW="128px" zIndex="popover">
+          <MenuItem fontSize="sm" onClick={() => changeLanguage("en")}>
+            English
+          </MenuItem>
+          <MenuItem fontSize="sm" onClick={() => changeLanguage("fa")}>
+            فارسی
+          </MenuItem>
+          <MenuItem fontSize="sm" onClick={() => changeLanguage("zh-cn")}>
+            简体中文
+          </MenuItem>
+          <MenuItem fontSize="sm" onClick={() => changeLanguage("ru")}>
+            Русский
+          </MenuItem>
+        </MenuList>
+      </Portal>
     </Menu>
   );
 };

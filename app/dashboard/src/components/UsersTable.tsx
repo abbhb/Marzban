@@ -179,16 +179,14 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
     const shellHeader = shellMain?.previousElementSibling as HTMLElement | null;
 
     const calcTop = () => {
-      const headerHeight = shellHeader?.getBoundingClientRect().height;
+      const headerHeight = shellHeader?.getBoundingClientRect().height || 0;
       const computedTop = Number.parseFloat(
         window.getComputedStyle(filtersElement).top
       );
-      const offset =
-        headerHeight === undefined
-          ? Number.isFinite(computedTop)
-            ? computedTop
-            : 0
-          : headerHeight;
+      const offset = Math.max(
+        headerHeight,
+        Number.isFinite(computedTop) ? computedTop : 0
+      );
       setTop(`${Math.max(0, offset) + filtersElement.offsetHeight}px`);
     };
 
@@ -245,18 +243,21 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
   };
 
   return (
-    <Box id="users-table" overflowX="hidden">
+    <Box id="users-table" overflowX="clip">
       <Accordion
         allowToggle
         display={{ base: "block", xl: "none" }}
         index={selectedRow}
       >
         <Table orientation="vertical" zIndex="docked" {...props}>
-          <Thead zIndex="docked" position="relative">
+          <Thead
+            className="users-table-head"
+            zIndex="docked"
+            position="sticky"
+            top={top}
+          >
             <Tr>
               <Th
-                position="sticky"
-                top={top}
                 minW="120px"
                 pl={4}
                 pr={4}
@@ -275,8 +276,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 </Button>
               </Th>
               <Th
-                position="sticky"
-                top={top}
                 minW="50px"
                 pl={0}
                 pr={0}
@@ -306,8 +305,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 </HStack>
               </Th>
               <Th
-                position="sticky"
-                top={top}
                 minW="32px"
                 w="32px"
                 p={0}
@@ -442,11 +439,14 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
         display={{ base: "none", xl: "table" }}
         {...props}
       >
-        <Thead zIndex="docked" position="relative">
+        <Thead
+          className="users-table-head"
+          zIndex="docked"
+          position="sticky"
+          top={top}
+        >
           <Tr>
             <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
               minW="140px"
               aria-sort={ariaSort("username")}
             >
@@ -463,8 +463,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               </Button>
             </Th>
             <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
               width="400px"
               minW="150px"
             >
@@ -504,8 +502,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               </HStack>
             </Th>
             <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
               width="350px"
               minW="230px"
               aria-sort={ariaSort("used_traffic")}
@@ -523,8 +519,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               </Button>
             </Th>
             <Th
-              position="sticky"
-              top={{ base: "unset", md: top }}
               width="200px"
               minW="180px"
             />

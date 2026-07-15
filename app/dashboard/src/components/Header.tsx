@@ -7,6 +7,7 @@ import {
   MenuButton,
   MenuItem,
   MenuList,
+  Portal,
   Text,
   useColorMode,
 } from "@chakra-ui/react";
@@ -83,30 +84,48 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
   };
 
   return (
-    <HStack gap={2} justifyContent="space-between" position="relative">
+    <HStack
+      gap={4}
+      justifyContent="space-between"
+      position="relative"
+      minW="0"
+    >
       <Text as="h1" fontWeight="semibold" fontSize="2xl" flexShrink={0}>
         {t("users")}
       </Text>
-      <Box overflowX="auto">
-        <HStack alignItems="center">
+      <HStack
+        alignItems="center"
+        flexShrink={0}
+        gap="1"
+        p="1"
+        rounded="xl"
+        bg="surface.inset"
+        boxShadow="glass-subtle"
+        _dark={{ boxShadow: "glass-subtle-dark" }}
+      >
+        <Box minW="0" maxW={{ base: "28vw", lg: "none" }} overflowX="auto">
           {actions}
-          <Box position="relative">
-            <Menu placement="bottom-end">
-              <MenuButton
-                as={IconButton}
-                variant="outline"
-                icon={<MoreActionsIcon />}
-                minW="11"
-                minH="11"
-                aria-label={`${t("header.donation")} / ${t("header.logout")}`}
-              />
-              <MenuList minW="170px" zIndex={99999} dir={i18n.dir()}>
+        </Box>
+        <Box position="relative">
+          <Menu placement="bottom-end">
+            <MenuButton
+              as={IconButton}
+              size="sm"
+              variant="ghost"
+              icon={<MoreActionsIcon />}
+              w="9"
+              h="9"
+              minW="9"
+              aria-label={`${t("header.donation")} / ${t("header.logout")}`}
+            />
+            <Portal>
+              <MenuList minW="184px" zIndex="popover" dir={i18n.dir()}>
                 <MenuItem
                   as="a"
                   href={DONATION_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  maxW="170px"
+                  minH="9"
                   fontSize="sm"
                   icon={<DonationIcon />}
                   position="relative"
@@ -120,59 +139,67 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                 <MenuItem
                   as={Link}
                   to="/login"
-                  maxW="170px"
+                  minH="9"
                   fontSize="sm"
                   icon={<LogoutIcon />}
                 >
                   {t("header.logout")}
                 </MenuItem>
               </MenuList>
-            </Menu>
-            {showDonationNotif && (
-              <NotificationCircle top="1" right="1" pointerEvents="none" />
-            )}
-          </Box>
+            </Portal>
+          </Menu>
+          {showDonationNotif && (
+            <NotificationCircle top="1" right="1" pointerEvents="none" />
+          )}
+        </Box>
 
-          <Box display={{ base: "none", md: "block" }}>
-            <Language />
-          </Box>
+        <Box display={{ base: "none", md: "block" }}>
+          <Language />
+        </Box>
 
-          <IconButton
-            variant="outline"
-            aria-label={t("portal.switchTheme")}
-            minW="11"
-            minH="11"
-            onClick={() => {
-              updateThemeColor(colorMode == "dark" ? "light" : "dark");
-              toggleColorMode();
-            }}
+        <IconButton
+          size="sm"
+          variant="ghost"
+          aria-label={t("portal.switchTheme")}
+          w="9"
+          h="9"
+          minW="9"
+          onClick={() => {
+            updateThemeColor(colorMode == "dark" ? "light" : "dark");
+            toggleColorMode();
+          }}
+        >
+          {colorMode === "light" ? <DarkIcon /> : <LightIcon />}
+        </IconButton>
+
+        <Box
+          css={{ direction: "ltr" }}
+          display={{ base: "none", xl: "flex" }}
+          alignItems="center"
+          h="7"
+          px="1"
+          overflow="hidden"
+          lineHeight="0"
+          __css={{
+            "& span": {
+              display: "inline-flex",
+            },
+            "& iframe": {
+              display: "block",
+            },
+          }}
+        >
+          <GitHubButton
+            href={REPO_URL}
+            data-color-scheme={`no-preference: ${gBtnColor}; light: ${gBtnColor}; dark: ${gBtnColor};`}
+            data-size="large"
+            data-show-count="true"
+            aria-label="Star Marzban on GitHub"
           >
-            {colorMode === "light" ? <DarkIcon /> : <LightIcon />}
-          </IconButton>
-
-          <Box
-            css={{ direction: "ltr" }}
-            display={{ base: "none", xl: "flex" }}
-            alignItems="center"
-            pr="2"
-            __css={{
-              "&  span": {
-                display: "inline-flex",
-              },
-            }}
-          >
-            <GitHubButton
-              href={REPO_URL}
-              data-color-scheme={`no-preference: ${gBtnColor}; light: ${gBtnColor}; dark: ${gBtnColor};`}
-              data-size="large"
-              data-show-count="true"
-              aria-label="Star Marzban on GitHub"
-            >
-              Star
-            </GitHubButton>
-          </Box>
-        </HStack>
-      </Box>
+            Star
+          </GitHubButton>
+        </Box>
+      </HStack>
     </HStack>
   );
 };

@@ -48,6 +48,7 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
       className,
       interactive = false,
       lift = interactive,
+      style,
       onPointerEnter,
       onPointerCancel,
       onPointerDown,
@@ -130,8 +131,8 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
         window.cancelAnimationFrame(animationFrame.current);
         animationFrame.current = null;
       }
-      event.currentTarget.style.setProperty("--liquid-x", "50%");
-      event.currentTarget.style.setProperty("--liquid-y", "18%");
+      event.currentTarget.style.setProperty("--liquid-x", "76%");
+      event.currentTarget.style.setProperty("--liquid-y", "-8%");
       event.currentTarget.style.setProperty("--liquid-tilt-x", "0deg");
       event.currentTarget.style.setProperty("--liquid-tilt-y", "0deg");
       onPointerLeave?.(event);
@@ -166,9 +167,9 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
         bg={styles.background}
         boxShadow={styles.shadow}
         backdropFilter={styles.filter}
-        WebkitBackdropFilter={styles.filter}
         _dark={{ boxShadow: styles.darkShadow }}
         {...props}
+        style={{ WebkitBackdropFilter: styles.filter, ...style }}
         className={[
           "liquid-surface",
           `liquid-surface--${tone}`,

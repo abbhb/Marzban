@@ -18,12 +18,9 @@ const ambientReflection = {
     pointerEvents: "none",
     borderRadius: "inherit",
     bgImage:
-      "radial-gradient(460px circle at var(--liquid-env-x) var(--liquid-env-y), rgba(255, 255, 255, 0.42), rgba(123, 196, 255, 0.12) 30%, transparent 68%), linear-gradient(128deg, rgba(255, 255, 255, 0.22), transparent 38%, rgba(96, 165, 250, 0.08) 74%, transparent)",
-    opacity: 0.72,
-    transform:
-      "translate3d(var(--liquid-env-shift-x-soft), var(--liquid-env-shift-y-soft), 0)",
-    transition:
-      "transform var(--marzban-motion-slow) var(--marzban-ease-out), opacity var(--marzban-motion-base) ease",
+      "linear-gradient(145deg, rgba(255, 255, 255, 0.28), transparent 34%, rgba(96, 165, 250, 0.04) 76%, transparent)",
+    opacity: 0.5,
+    transition: "opacity var(--marzban-motion-base) ease",
   },
   "& > *": {
     position: "relative",
@@ -35,16 +32,16 @@ export const theme = extendTheme({
   shadows: {
     outline: "0 0 0 3px rgba(38, 112, 232, 0.28)",
     glass: {
-      md: "inset 0 1px 0 rgba(255, 255, 255, 0.72), inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.40), 0 18px 48px rgba(31, 60, 105, 0.12)",
-      lg: "inset 0 1px 0 rgba(255, 255, 255, 0.78), inset 0 -1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.46), 0 24px 68px rgba(31, 60, 105, 0.16)",
+      md: "inset 0 1px 0 rgba(255, 255, 255, 0.76), inset 0 -1px 0 rgba(98, 116, 145, 0.10), 0 0 0 1px rgba(255, 255, 255, 0.46), 0 10px 30px rgba(31, 60, 105, 0.10)",
+      lg: "inset 0 1px 0 rgba(255, 255, 255, 0.82), inset 0 -1px 0 rgba(98, 116, 145, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.52), 0 18px 48px rgba(31, 60, 105, 0.14)",
       hover:
-        "inset 0 1px 0 rgba(255, 255, 255, 0.84), inset 0 -1px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.54), 0 28px 76px rgba(31, 60, 105, 0.20)",
-      dark: "inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(255, 255, 255, 0.11), 0 20px 56px rgba(0, 0, 0, 0.32)",
+        "inset 0 1px 0 rgba(255, 255, 255, 0.86), inset 0 -1px 0 rgba(98, 116, 145, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.56), 0 16px 42px rgba(31, 60, 105, 0.14)",
+      dark: "inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(255, 255, 255, 0.035), 0 0 0 1px rgba(255, 255, 255, 0.11), 0 14px 38px rgba(0, 0, 0, 0.30)",
       "dark-hover":
-        "inset 0 1px 0 rgba(255, 255, 255, 0.20), inset 0 -1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.15), 0 28px 72px rgba(0, 0, 0, 0.40)",
+        "inset 0 1px 0 rgba(255, 255, 255, 0.19), inset 0 -1px 0 rgba(255, 255, 255, 0.045), 0 0 0 1px rgba(255, 255, 255, 0.14), 0 18px 48px rgba(0, 0, 0, 0.36)",
     },
     panel:
-      "inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.34), 0 10px 32px rgba(31, 60, 105, 0.09)",
+      "inset 0 1px 0 rgba(255, 255, 255, 0.64), 0 0 0 1px rgba(255, 255, 255, 0.38), 0 6px 20px rgba(31, 60, 105, 0.07)",
     "panel-dark":
       "inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.09), 0 12px 36px rgba(0, 0, 0, 0.26)",
     "glass-subtle":
@@ -85,28 +82,36 @@ export const theme = extendTheme({
     colors: {
       "app.canvas": { default: "#eaf1fa", _dark: "#080d16" },
       "surface.glass": {
-        default: "rgba(255, 255, 255, 0.36)",
-        _dark: "rgba(11, 18, 31, 0.50)",
+        default: "rgba(255, 255, 255, 0.58)",
+        _dark: "rgba(11, 18, 31, 0.64)",
       },
       "surface.glass-strong": {
-        default: "rgba(255, 255, 255, 0.52)",
-        _dark: "rgba(11, 18, 31, 0.66)",
+        default: "rgba(255, 255, 255, 0.74)",
+        _dark: "rgba(11, 18, 31, 0.78)",
       },
       "surface.panel": {
-        default: "rgba(255, 255, 255, 0.48)",
-        _dark: "rgba(18, 27, 43, 0.58)",
+        default: "rgba(255, 255, 255, 0.66)",
+        _dark: "rgba(18, 27, 43, 0.70)",
       },
       "surface.muted": {
-        default: "rgba(241, 247, 255, 0.34)",
-        _dark: "rgba(30, 41, 59, 0.34)",
+        default: "rgba(241, 247, 255, 0.52)",
+        _dark: "rgba(30, 41, 59, 0.48)",
       },
       "surface.input": {
-        default: "rgba(255, 255, 255, 0.46)",
-        _dark: "rgba(15, 23, 42, 0.48)",
+        default: "rgba(255, 255, 255, 0.72)",
+        _dark: "rgba(15, 23, 42, 0.64)",
       },
       "surface.inset": {
-        default: "rgba(255, 255, 255, 0.24)",
-        _dark: "rgba(15, 23, 42, 0.30)",
+        default: "rgba(237, 242, 249, 0.68)",
+        _dark: "rgba(15, 23, 42, 0.58)",
+      },
+      "surface.table-head": {
+        default: "rgba(239, 244, 251, 0.985)",
+        _dark: "rgba(15, 23, 38, 0.985)",
+      },
+      "surface.toolbar": {
+        default: "rgba(250, 252, 255, 0.88)",
+        _dark: "rgba(11, 18, 31, 0.9)",
       },
       "surface.hover": {
         default: "rgba(38, 112, 232, 0.08)",
@@ -589,13 +594,14 @@ export const theme = extendTheme({
           borderBottomColor: "border.subtle",
         },
         th: {
-          background: "surface.inset",
+          background: "surface.table-head",
+          boxShadow: "inset 0 1px 0 rgba(255, 255, 255, .52)",
           borderColor: "border.subtle !important",
           borderBottomColor: "border.subtle !important",
           borderTop: "0",
           _dark: {
             borderColor: "border.subtle !important",
-            background: "surface.inset",
+            background: "surface.table-head",
           },
         },
         td: {

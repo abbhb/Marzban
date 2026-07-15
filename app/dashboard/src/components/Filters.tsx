@@ -106,7 +106,8 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
         lg: 4,
         base: 0,
       }}
-      layerStyle="glass"
+      layerStyle="glass-strong"
+      bg="surface.toolbar"
       rounded="2xl"
       py={3}
       zIndex="sticky"
