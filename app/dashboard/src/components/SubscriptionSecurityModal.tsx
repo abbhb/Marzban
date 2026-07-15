@@ -48,15 +48,8 @@ const parseCidrs = (value: string): string[] =>
     .filter(Boolean);
 
 export const SubscriptionSecurityModal: FC = () => {
-  const {
-    isOpen,
-    isLoading,
-    isSaving,
-    settings,
-    close,
-    load,
-    save,
-  } = useSubscriptionSecurity();
+  const { isOpen, isLoading, isSaving, settings, close, load, save } =
+    useSubscriptionSecurity();
   const { t } = useTranslation();
   const toast = useToast();
   const [form, setForm] = useState<SubscriptionSecuritySettingsUpdate>({
@@ -97,8 +90,7 @@ export const SubscriptionSecurityModal: FC = () => {
 
   const needsCustomCidrs = useMemo(
     () =>
-      form.source_mode === "custom" ||
-      form.source_mode === "china_or_custom",
+      form.source_mode === "custom" || form.source_mode === "china_or_custom",
     [form.source_mode]
   );
 
@@ -137,7 +129,10 @@ export const SubscriptionSecurityModal: FC = () => {
 
   return (
     <Modal isOpen={isOpen} onClose={close} size="lg" isCentered>
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3">
         <ModalHeader pt={6}>
           <HStack gap={3}>
@@ -174,9 +169,8 @@ export const SubscriptionSecurityModal: FC = () => {
                   onChange={(event) =>
                     setForm({
                       ...form,
-                      mode:
-                        event.target
-                          .value as SubscriptionSecuritySettingsUpdate["mode"],
+                      mode: event.target
+                        .value as SubscriptionSecuritySettingsUpdate["mode"],
                     })
                   }
                 >
@@ -196,9 +190,7 @@ export const SubscriptionSecurityModal: FC = () => {
               </FormControl>
 
               <FormControl
-                isInvalid={
-                  validationError === "subscriptionSecurity.ttlError"
-                }
+                isInvalid={validationError === "subscriptionSecurity.ttlError"}
               >
                 <FormLabel>{t("subscriptionSecurity.ttl")}</FormLabel>
                 <NumberInput
@@ -238,7 +230,12 @@ export const SubscriptionSecurityModal: FC = () => {
                   />
                 </HStack>
                 {form.single_use && (
-                  <Alert status="warning" borderRadius="md" mt={3} fontSize="sm">
+                  <Alert
+                    status="warning"
+                    borderRadius="md"
+                    mt={3}
+                    fontSize="sm"
+                  >
                     <AlertIcon />
                     <AlertDescription>
                       {t("subscriptionSecurity.singleUseWarning")}
@@ -299,8 +296,7 @@ export const SubscriptionSecurityModal: FC = () => {
 
               {settings && (
                 <HStack
-                  bg="gray.50"
-                  _dark={{ bg: "gray.700" }}
+                  layerStyle="glassSubtle"
                   borderRadius="md"
                   p={3}
                   justify="space-between"

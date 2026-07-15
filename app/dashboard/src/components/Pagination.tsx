@@ -133,7 +133,13 @@ export const Pagination: FC = () => {
         </HStack>
       </Box>
 
-      <ButtonGroup size="sm" isAttached variant="outline" order={{ base: 1, md: 2 }}>
+      <ButtonGroup
+        size="sm"
+        variant="glass"
+        order={{ base: 1, md: 2 }}
+        w={{ base: "full", md: "auto" }}
+        justifyContent={{ base: "space-between", md: "flex-end" }}
+      >
         <Button
           leftIcon={<PrevIcon />}
           onClick={changePage.bind(null, page - 1)}
@@ -141,12 +147,29 @@ export const Pagination: FC = () => {
         >
           {t("previous")}
         </Button>
+        <Button
+          display={{ base: "inline-flex", md: "none" }}
+          isDisabled
+          aria-label={`${page + 1} / ${Math.max(noPages, 1)}`}
+        >
+          {page + 1} / {Math.max(noPages, 1)}
+        </Button>
         {pages.map((pageIndex) => {
           if (typeof pageIndex === "string")
-            return <Button key={pageIndex}>...</Button>;
+            return (
+              <Button
+                key={pageIndex}
+                display={{ base: "none", md: "inline-flex" }}
+                isDisabled
+                aria-hidden
+              >
+                …
+              </Button>
+            );
           return (
             <Button
               key={pageIndex}
+              display={{ base: "none", md: "inline-flex" }}
               variant={(pageIndex as number) === page ? "solid" : "outline"}
               onClick={changePage.bind(null, pageIndex)}
             >

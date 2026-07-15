@@ -36,7 +36,9 @@ export const DeleteNodeModal: FC<DeleteUserModalProps> = ({
   const { isLoading, mutate: onDelete } = useMutation(deleteNode, {
     onSuccess: () => {
       generateSuccessMessage(
-        t("deleteNode.deleteSuccess", {name: deletingNode && deletingNode.name}),
+        t("deleteNode.deleteSuccess", {
+          name: deletingNode && deletingNode.name,
+        }),
         toast
       );
       setDeletingNode(null);
@@ -50,7 +52,10 @@ export const DeleteNodeModal: FC<DeleteUserModalProps> = ({
 
   return (
     <Modal isCentered isOpen={!!deletingNode} onClose={onClose} size="sm">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3">
         <ModalHeader pt={6}>
           <Icon color="red">
@@ -70,7 +75,7 @@ export const DeleteNodeModal: FC<DeleteUserModalProps> = ({
               color="gray.600"
             >
               <Trans components={{ b: <b /> }}>
-                {t("deleteNode.prompt", {name: deletingNode.name})}
+                {t("deleteNode.prompt", { name: deletingNode.name })}
               </Trans>
             </Text>
           )}

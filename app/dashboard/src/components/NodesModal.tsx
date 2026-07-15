@@ -73,10 +73,7 @@ import { Input } from "./Input";
 
 const CustomInput = chakra(Input, {
   baseStyle: {
-    bg: "white",
-    _dark: {
-      bg: "gray.700",
-    },
+    bg: "surface.input",
   },
 });
 
@@ -177,7 +174,9 @@ const NodeAccordion: FC<AccordionInboundType> = ({ toggleAccordion, node }) => {
                 </Text>
               </Badge>
             )}
-            {node.status && <NodeModalStatusBadge status={nodeStatus} compact />}
+            {node.status && (
+              <NodeModalStatusBadge status={nodeStatus} compact />
+            )}
           </HStack>
         </HStack>
         <AccordionIcon />
@@ -404,10 +403,7 @@ const NodeForm: NodeFormType = ({
               </HStack>
               <Collapse in={showCertificate} animateOpacity>
                 <Text
-                  bg="rgba(255,255,255,.5)"
-                  _dark={{
-                    bg: "rgba(255,255,255,.2)",
-                  }}
+                  bg="surface.inset"
                   rounded="md"
                   p="2"
                   lineHeight="1.2"
@@ -482,7 +478,7 @@ const NodeForm: NodeFormType = ({
           </Box>
         </HStack>
         <HStack alignItems="flex-start" w="100%">
-        <Box>
+          <Box>
             <CustomInput
               label={t("nodes.nodePort")}
               size="sm"
@@ -559,7 +555,10 @@ export const NodesDialog: FC = () => {
   return (
     <>
       <Modal isOpen={isEditingNodes} onClose={onClose}>
-        <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+        <ModalOverlay
+          bg="blackAlpha.300"
+          backdropFilter="var(--marzban-overlay-filter)"
+        />
         <ModalContent mx="3" w="fit-content" maxW="3xl">
           <ModalHeader pt={6}>
             <Icon color="primary">

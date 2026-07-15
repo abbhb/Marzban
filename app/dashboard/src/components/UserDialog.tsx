@@ -302,8 +302,8 @@ export const UserDialog: FC<UserDialogProps> = () => {
           : "no_reset",
       status:
         values.status === "active" ||
-          values.status === "disabled" ||
-          values.status === "on_hold"
+        values.status === "disabled" ||
+        values.status === "on_hold"
           ? values.status
           : "active",
     };
@@ -381,7 +381,10 @@ export const UserDialog: FC<UserDialogProps> = () => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="2xl">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <FormProvider {...form}>
         <ModalContent mx="3">
           <form onSubmit={form.handleSubmit(submit)}>
@@ -458,7 +461,10 @@ export const UserDialog: FC<UserDialogProps> = () => {
                                     return (
                                       <Tooltip
                                         placement="top"
-                                        label={"status: " + t(`status.${field.value}`)}
+                                        label={
+                                          "status: " +
+                                          t(`status.${field.value}`)
+                                        }
                                         textTransform="capitalize"
                                       >
                                         <Box>
@@ -563,8 +569,11 @@ export const UserDialog: FC<UserDialogProps> = () => {
                                   }}
                                   sx={{
                                     option: {
-                                      backgroundColor: colorMode === "dark" ? "#222C3B" : "white"
-                                    }
+                                      backgroundColor:
+                                        colorMode === "dark"
+                                          ? "#222C3B"
+                                          : "white",
+                                    },
                                   }}
                                 >
                                   {resetStrategy.map((s) => {
@@ -654,13 +663,13 @@ export const UserDialog: FC<UserDialogProps> = () => {
                                         target: {
                                           value: date
                                             ? dayjs(
-                                              dayjs(date)
-                                                .set("hour", 23)
-                                                .set("minute", 59)
-                                                .set("second", 59)
-                                            )
-                                              .utc()
-                                              .valueOf() / 1000
+                                                dayjs(date)
+                                                  .set("hour", 23)
+                                                  .set("minute", 59)
+                                                  .set("second", 59)
+                                              )
+                                                .utc()
+                                                .valueOf() / 1000
                                             : 0,
                                           name: "expire",
                                         },

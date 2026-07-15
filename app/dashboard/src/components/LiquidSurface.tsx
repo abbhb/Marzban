@@ -49,12 +49,15 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
       interactive = false,
       lift = interactive,
       onPointerEnter,
+      onPointerCancel,
+      onPointerDown,
       onPointerLeave,
       onPointerMove,
+      onPointerUp,
       tone = "glass",
       ...props
     },
-    ref,
+    ref
   ) => {
     const reduceMotion = usePrefersReducedMotion();
     const animationFrame = useRef<number | null>(null);
@@ -71,7 +74,7 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
           window.cancelAnimationFrame(animationFrame.current);
         }
       },
-      [],
+      []
     );
 
     const flushPointerPosition = () => {
@@ -80,6 +83,14 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
       if (!pending) return;
       pending.element.style.setProperty("--liquid-x", `${pending.x}%`);
       pending.element.style.setProperty("--liquid-y", `${pending.y}%`);
+      pending.element.style.setProperty(
+        "--liquid-tilt-x",
+        `${((50 - pending.y) / 50) * 0.65}deg`
+      );
+      pending.element.style.setProperty(
+        "--liquid-tilt-y",
+        `${((pending.x - 50) / 50) * 0.8}deg`
+      );
     };
 
     const handlePointerEnter: PointerEventHandler<HTMLDivElement> = (event) => {
@@ -95,15 +106,16 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
         if (bounds.width > 0 && bounds.height > 0) {
           const x = Math.max(
             0,
-            Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100),
+            Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100)
           );
           const y = Math.max(
             0,
-            Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100),
+            Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100)
           );
           pendingPosition.current = { element: event.currentTarget, x, y };
           if (animationFrame.current === null) {
-            animationFrame.current = window.requestAnimationFrame(flushPointerPosition);
+            animationFrame.current =
+              window.requestAnimationFrame(flushPointerPosition);
           }
         }
       }
@@ -112,6 +124,7 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
 
     const handlePointerLeave: PointerEventHandler<HTMLDivElement> = (event) => {
       event.currentTarget.dataset.liquidActive = "false";
+      event.currentTarget.dataset.liquidPressed = "false";
       pendingPosition.current = null;
       if (animationFrame.current !== null) {
         window.cancelAnimationFrame(animationFrame.current);
@@ -119,7 +132,28 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
       }
       event.currentTarget.style.setProperty("--liquid-x", "50%");
       event.currentTarget.style.setProperty("--liquid-y", "18%");
+      event.currentTarget.style.setProperty("--liquid-tilt-x", "0deg");
+      event.currentTarget.style.setProperty("--liquid-tilt-y", "0deg");
       onPointerLeave?.(event);
+    };
+
+    const handlePointerDown: PointerEventHandler<HTMLDivElement> = (event) => {
+      if (interactive && !reduceMotion) {
+        event.currentTarget.dataset.liquidPressed = "true";
+      }
+      onPointerDown?.(event);
+    };
+
+    const handlePointerUp: PointerEventHandler<HTMLDivElement> = (event) => {
+      event.currentTarget.dataset.liquidPressed = "false";
+      onPointerUp?.(event);
+    };
+
+    const handlePointerCancel: PointerEventHandler<HTMLDivElement> = (
+      event
+    ) => {
+      event.currentTarget.dataset.liquidPressed = "false";
+      onPointerCancel?.(event);
     };
 
     return (
@@ -144,15 +178,21 @@ export const LiquidSurface = forwardRef<LiquidSurfaceProps, "div">(
           .filter(Boolean)
           .join(" ")}
         data-liquid-active="false"
-        data-liquid-lift={interactive && lift && !reduceMotion ? "true" : undefined}
-        onPointerEnter={handlePointerEnter}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
+        data-liquid-pressed="false"
+        data-liquid-lift={
+          interactive && lift && !reduceMotion ? "true" : undefined
+        }
+        onPointerEnter={interactive ? handlePointerEnter : onPointerEnter}
+        onPointerMove={interactive ? handlePointerMove : onPointerMove}
+        onPointerLeave={interactive ? handlePointerLeave : onPointerLeave}
+        onPointerDown={interactive ? handlePointerDown : onPointerDown}
+        onPointerUp={interactive ? handlePointerUp : onPointerUp}
+        onPointerCancel={interactive ? handlePointerCancel : onPointerCancel}
       >
         {children}
       </Box>
     );
-  },
+  }
 );
 
 LiquidSurface.displayName = "LiquidSurface";

@@ -43,7 +43,7 @@ export const ResetUserUsageModal: FC<DeleteUserModalProps> = () => {
       resetDataUsage(user)
         .then(() => {
           toast({
-            title: t("resetUserUsage.success", {username: user.username}),
+            title: t("resetUserUsage.success", { username: user.username }),
             status: "success",
             isClosable: true,
             position: "top",
@@ -66,7 +66,10 @@ export const ResetUserUsageModal: FC<DeleteUserModalProps> = () => {
   };
   return (
     <Modal isCentered isOpen={!!user} onClose={onClose} size="sm">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3">
         <ModalHeader pt={6}>
           <Icon color="blue">
@@ -85,9 +88,8 @@ export const ResetUserUsageModal: FC<DeleteUserModalProps> = () => {
               _dark={{ color: "gray.400" }}
               color="gray.600"
             >
-              <Trans
-                components={{b: <b /> }}>
-                {t("resetUserUsage.prompt", {username: user.username})}
+              <Trans components={{ b: <b /> }}>
+                {t("resetUserUsage.prompt", { username: user.username })}
               </Trans>
             </Text>
           )}

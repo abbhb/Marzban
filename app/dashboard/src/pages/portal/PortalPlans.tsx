@@ -199,7 +199,6 @@ export const PortalPlans = () => {
               <LiquidSurface
                 as={Card}
                 key={plan.id}
-                interactive
                 rounded="3xl"
                 overflow="hidden"
               >
@@ -298,7 +297,7 @@ export const PortalPlans = () => {
         closeOnEsc={purchasingPlanId === null}
         closeOnOverlayClick={purchasingPlanId === null}
       >
-        <AlertDialogOverlay backdropFilter="blur(10px)">
+        <AlertDialogOverlay backdropFilter="var(--marzban-overlay-filter)">
           <AlertDialogContent layerStyle="glass" rounded="3xl" mx="4">
             <AlertDialogHeader>
               {t("portal.confirmPurchaseTitle")}

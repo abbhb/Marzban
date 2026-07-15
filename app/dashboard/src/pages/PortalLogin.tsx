@@ -2,7 +2,6 @@ import {
   Alert,
   AlertDescription,
   AlertIcon,
-  Box,
   Button,
   HStack,
   Link,
@@ -10,9 +9,8 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Footer } from "components/Footer";
+import { AuthShell } from "components/AuthShell";
 import { Input } from "components/Input";
-import { Language } from "components/Language";
 import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -23,7 +21,6 @@ import {
   setPortalAuthToken,
 } from "utils/portalAuthStorage";
 import { z } from "zod";
-import { LogoIcon } from "./Login";
 
 const schema = z.object({
   username: z.string().min(1, "login.fieldRequired"),
@@ -31,7 +28,9 @@ const schema = z.object({
 });
 
 const errorDetail = (error: any): string =>
-  error?.data?.detail || error?.response?._data?.detail || "portal.requestFailed";
+  error?.data?.detail ||
+  error?.response?._data?.detail ||
+  "portal.requestFailed";
 
 export const PortalLogin = () => {
   const { t } = useTranslation();
@@ -66,51 +65,67 @@ export const PortalLogin = () => {
   };
 
   return (
-    <VStack as="main" justifyContent="space-between" minH="100vh" p="6" w="full">
-      <Box w="full">
-        <HStack justifyContent="end"><Language /></HStack>
-        <VStack maxW="360px" mx="auto" mt="10" spacing="5">
-          <LogoIcon />
-          <Text fontSize="2xl" fontWeight="semibold">{t("portal.loginTitle")}</Text>
-          <Text color="gray.500">{t("portal.loginSubtitle")}</Text>
-          <Box as="form" w="full" onSubmit={handleSubmit(login)}>
-            <VStack spacing="3">
-              <Input
-                placeholder={t("username")}
-                autoComplete="username"
-                {...register("username")}
-                error={t(errors.username?.message as string)}
-              />
-              <Input
-                type="password"
-                placeholder={t("password")}
-                autoComplete="current-password"
-                {...register("password")}
-                error={t(errors.password?.message as string)}
-              />
-              {error && (
-                <Alert status="error" rounded="md">
-                  <AlertIcon />
-                  <AlertDescription>{t(error)}</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" colorScheme="primary" w="full" isLoading={loading}>
-                {t("portal.login")}
-              </Button>
-            </VStack>
-          </Box>
-          <HStack fontSize="sm">
+    <AuthShell
+      title={t("portal.loginTitle")}
+      subtitle={t("portal.loginSubtitle")}
+      footer={
+        <>
+          <HStack justify="center" flexWrap="wrap">
             <Text>{t("portal.noAccount")}</Text>
-            <Link as={RouterLink} to="/portal/register" color="primary.500">
+            <Link
+              as={RouterLink}
+              to="/portal/register"
+              color="primary.500"
+              fontWeight="600"
+            >
               {t("portal.register")}
             </Link>
           </HStack>
-          <Link as={RouterLink} to="/login" fontSize="sm" color="gray.500">
+          <Link
+            as={RouterLink}
+            to="/login"
+            textAlign="center"
+            color="fg.subtle"
+          >
             {t("portal.adminLogin")}
           </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(login)}>
+        <VStack spacing="3">
+          <Input
+            label={t("username")}
+            placeholder={t("username")}
+            autoComplete="username"
+            {...register("username")}
+            error={t(errors.username?.message as string)}
+          />
+          <Input
+            type="password"
+            label={t("password")}
+            placeholder={t("password")}
+            autoComplete="current-password"
+            {...register("password")}
+            error={t(errors.password?.message as string)}
+          />
+          {error && (
+            <Alert status="error" rounded="xl">
+              <AlertIcon />
+              <AlertDescription>{t(error)}</AlertDescription>
+            </Alert>
+          )}
+          <Button
+            type="submit"
+            colorScheme="primary"
+            w="full"
+            minH="12"
+            isLoading={loading}
+          >
+            {t("portal.login")}
+          </Button>
         </VStack>
-      </Box>
-      <Footer />
-    </VStack>
+      </form>
+    </AuthShell>
   );
 };

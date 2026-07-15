@@ -9,11 +9,9 @@ import {
   ExpandedIndex,
   HStack,
   IconButton,
+  Progress,
+  ProgressProps,
   Select,
-  Slider,
-  SliderFilledTrack,
-  SliderProps,
-  SliderTrack,
   Table,
   TableProps,
   Tbody,
@@ -81,7 +79,7 @@ type UsageSliderProps = {
   total: number | null;
   dataLimitResetStrategy: string | null;
   totalUsedTraffic: number;
-} & SliderProps;
+} & ProgressProps;
 
 const getResetStrategy = (strategy: string): string => {
   for (var i = 0; i < resetStrategy.length; i++) {
@@ -91,32 +89,6 @@ const getResetStrategy = (strategy: string): string => {
     }
   }
   return "No";
-};
-const UsageSliderCompact: FC<UsageSliderProps> = (props) => {
-  const { used, total, dataLimitResetStrategy, totalUsedTraffic } = props;
-  const isUnlimited = total === 0 || total === null;
-  return (
-    <HStack
-      justifyContent="space-between"
-      fontSize="xs"
-      fontWeight="medium"
-      color="gray.600"
-      _dark={{
-        color: "gray.400",
-      }}
-    >
-      <Text>
-        {formatBytes(used)} /{" "}
-        {isUnlimited ? (
-          <Text as="span" fontFamily="system-ui">
-            ∞
-          </Text>
-        ) : (
-          formatBytes(total)
-        )}
-      </Text>
-    </HStack>
-  );
 };
 const UsageSlider: FC<UsageSliderProps> = (props) => {
   const {
@@ -130,16 +102,14 @@ const UsageSlider: FC<UsageSliderProps> = (props) => {
   const isReached = !isUnlimited && (used / total) * 100 >= 100;
   return (
     <>
-      <Slider
-        orientation="horizontal"
+      <Progress
+        aria-label={t("usersTable.dataUsage")}
         value={isUnlimited ? 100 : Math.min((used / total) * 100, 100)}
         colorScheme={isReached ? "red" : "primary"}
+        h="6px"
+        borderRadius="full"
         {...restOfProps}
-      >
-        <SliderTrack h="6px" borderRadius="full">
-          <SliderFilledTrack borderRadius="full" />
-        </SliderTrack>
-      </Slider>
+      />
       <HStack
         justifyContent="space-between"
         fontSize="xs"
@@ -200,7 +170,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
     undefined
   );
   const [top, setTop] = useState("0px");
-  const useTable = useBreakpointValue({ base: false, md: true });
+  const useTable = useBreakpointValue({ base: false, xl: true });
 
   useLayoutEffect(() => {
     const filtersElement = document.getElementById("filters");
@@ -267,11 +237,18 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
     setSelectedRow(index === selectedRow ? undefined : index);
   };
 
+  const ariaSort = (column: string) => {
+    if (!filters.sort.includes(column)) return "none" as const;
+    return filters.sort.startsWith("-")
+      ? ("descending" as const)
+      : ("ascending" as const);
+  };
+
   return (
-    <Box id="users-table" overflowX={{ base: "unset", md: "unset" }}>
+    <Box id="users-table" overflowX="hidden">
       <Accordion
-        allowMultiple
-        display={{ base: "block", md: "none" }}
+        allowToggle
+        display={{ base: "block", xl: "none" }}
         index={selectedRow}
       >
         <Table orientation="vertical" zIndex="docked" {...props}>
@@ -283,13 +260,19 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 minW="120px"
                 pl={4}
                 pr={4}
-                cursor={"pointer"}
-                onClick={handleSort.bind(null, "username")}
+                aria-sort={ariaSort("username")}
               >
-                <HStack>
-                  <span>{t("users")}</span>
-                  <Sort sort={filters.sort} column="username" />
-                </HStack>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  px="2"
+                  onClick={() => handleSort("username")}
+                >
+                  <HStack>
+                    <span>{t("users")}</span>
+                    <Sort sort={filters.sort} column="username" />
+                  </HStack>
+                </Button>
               </Th>
               <Th
                 position="sticky"
@@ -325,19 +308,6 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               <Th
                 position="sticky"
                 top={top}
-                minW="100px"
-                cursor={"pointer"}
-                pr={0}
-                onClick={handleSort.bind(null, "used_traffic")}
-              >
-                <HStack>
-                  <span>{t("usersTable.dataUsage")}</span>
-                  <Sort sort={filters.sort} column="used_traffic" />
-                </HStack>
-              </Th>
-              <Th
-                position="sticky"
-                top={top}
                 minW="32px"
                 w="32px"
                 p={0}
@@ -359,7 +329,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                         minW="100px"
                         pl={4}
                         pr={4}
-                        maxW="calc(100vw - 50px - 32px - 100px - 48px)"
+                        maxW="calc(100vw - 50px - 32px - 48px)"
                       >
                         <div className="flex-status">
                           <OnlineBadge lastOnline={user.online_at} />
@@ -374,27 +344,28 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                           status={user.status}
                         />
                       </Td>
-                      <Td borderBottom={0} minW="100px" pr={0}>
-                        <UsageSliderCompact
-                          totalUsedTraffic={user.lifetime_used_traffic}
-                          dataLimitResetStrategy={
-                            user.data_limit_reset_strategy
-                          }
-                          used={user.used_traffic}
-                          total={user.data_limit}
-                          colorScheme={statusColors[user.status].bandWidthColor}
-                        />
-                      </Td>
                       <Td p={0} borderBottom={0} w="32px" minW="32px">
-                        <AccordionArrowIcon
-                          color="gray.600"
-                          _dark={{
-                            color: "gray.400",
-                          }}
-                          transition="transform .2s ease-out"
-                          transform={
-                            selectedRow === i ? "rotate(180deg)" : "0deg"
+                        <IconButton
+                          aria-label={`${t("usersTable.dataUsage")}: ${
+                            user.username
+                          }`}
+                          aria-expanded={selectedRow === i}
+                          icon={
+                            <AccordionArrowIcon
+                              transition="transform .2s ease-out"
+                              transform={
+                                selectedRow === i ? "rotate(180deg)" : "0deg"
+                              }
+                            />
                           }
+                          size="sm"
+                          variant="ghost"
+                          color="gray.600"
+                          _dark={{ color: "gray.400" }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleAccordion(i);
+                          }}
                         />
                       </Td>
                     </Tr>
@@ -402,7 +373,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                       className="collapsible"
                       onClick={toggleAccordion.bind(null, i)}
                     >
-                      <Td p={0} colSpan={4}>
+                      <Td p={0} colSpan={3}>
                         <AccordionItem border={0}>
                           <AccordionButton display="none"></AccordionButton>
                           <AccordionPanel
@@ -453,34 +424,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                                   />
                                   <OnlineStatus lastOnline={user.online_at} />
                                 </Box>
-                                <HStack>
-                                  <ActionButtons user={user} />
-                                  <Tooltip
-                                    label={t("userDialog.editUser")}
-                                    placement="top"
-                                  >
-                                    <IconButton
-                                      p="0 !important"
-                                      aria-label="Edit user"
-                                      bg="transparent"
-                                      _dark={{
-                                        _hover: {
-                                          bg: "gray.700",
-                                        },
-                                      }}
-                                      size={{
-                                        base: "sm",
-                                        md: "md",
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEditingUser(user);
-                                      }}
-                                    >
-                                      <EditIcon />
-                                    </IconButton>
-                                  </Tooltip>
-                                </HStack>
+                                <ActionButtons user={user} />
                               </HStack>
                             </VStack>
                           </AccordionPanel>
@@ -495,7 +439,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
       </Accordion>
       <Table
         orientation="vertical"
-        display={{ base: "none", md: "table" }}
+        display={{ base: "none", xl: "table" }}
         {...props}
       >
         <Thead zIndex="docked" position="relative">
@@ -504,13 +448,19 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               position="sticky"
               top={{ base: "unset", md: top }}
               minW="140px"
-              cursor={"pointer"}
-              onClick={handleSort.bind(null, "username")}
+              aria-sort={ariaSort("username")}
             >
-              <HStack>
-                <span>{t("username")}</span>
-                <Sort sort={filters.sort} column="username" />
-              </HStack>
+              <Button
+                size="sm"
+                variant="ghost"
+                px="2"
+                onClick={() => handleSort("username")}
+              >
+                <HStack>
+                  <span>{t("username")}</span>
+                  <Sort sort={filters.sort} column="username" />
+                </HStack>
+              </Button>
             </Th>
             <Th
               position="sticky"
@@ -558,13 +508,19 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
               top={{ base: "unset", md: top }}
               width="350px"
               minW="230px"
-              cursor={"pointer"}
-              onClick={handleSort.bind(null, "used_traffic")}
+              aria-sort={ariaSort("used_traffic")}
             >
-              <HStack>
-                <span>{t("usersTable.dataUsage")}</span>
-                <Sort sort={filters.sort} column="used_traffic" />
-              </HStack>
+              <Button
+                size="sm"
+                variant="ghost"
+                px="2"
+                onClick={() => handleSort("used_traffic")}
+              >
+                <HStack>
+                  <span>{t("usersTable.dataUsage")}</span>
+                  <Sort sort={filters.sort} column="used_traffic" />
+                </HStack>
+              </Button>
             </Th>
             <Th
               position="sticky"
@@ -633,6 +589,7 @@ type ActionButtonsProps = {
 
 const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
   const openMgma = useMgma((state) => state.open);
+  const onEditingUser = useDashboard((state) => state.onEditingUser);
   const canIssueMgma = user.status === "active" || user.status === "on_hold";
   return (
     <HStack
@@ -666,6 +623,17 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user }) => {
           onClick={() => void openMgma(user)}
         >
           <MgmaIcon />
+        </IconButton>
+      </Tooltip>
+      <Tooltip label={t("userDialog.editUser")} placement="top">
+        <IconButton
+          p="0 !important"
+          aria-label={`${t("userDialog.editUser")}: ${user.username}`}
+          bg="transparent"
+          size={{ base: "sm", md: "md" }}
+          onClick={() => onEditingUser(user)}
+        >
+          <EditIcon />
         </IconButton>
       </Tooltip>
     </HStack>

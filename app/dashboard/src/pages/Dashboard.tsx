@@ -62,7 +62,13 @@ export const Dashboard: FC = () => {
 
   return (
     <AdminShell>
-      <VStack justifyContent="space-between" minH="100vh" p="6" rowGap={4}>
+      <VStack
+        justifyContent="space-between"
+        minH="100vh"
+        p={{ base: 4, md: 6 }}
+        rowGap={4}
+        className="liquid-page-enter"
+      >
         <Box w="full">
           <Header />
           <Statistics mt="4" />

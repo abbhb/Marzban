@@ -19,7 +19,7 @@ import {
   Text,
   Tooltip,
   useToast,
-  useColorMode
+  useColorMode,
 } from "@chakra-ui/react";
 import {
   ArrowPathIcon,
@@ -108,7 +108,6 @@ const getWebsocketUrl = (nodeID: string) => {
 
 let logsTmp: string[] = [];
 const CoreSettingModalContent: FC = () => {
-
   const { colorMode } = useColorMode();
 
   const { data: nodes } = useNodesQuery();
@@ -291,8 +290,9 @@ const CoreSettingModalContent: FC = () => {
                   }}
                   sx={{
                     option: {
-                      backgroundColor: colorMode === "dark" ? "#222C3B" : "white"
-                    }
+                      backgroundColor:
+                        colorMode === "dark" ? "#222C3B" : "white",
+                    },
                   }}
                   onChange={(v) =>
                     handleLog(
@@ -319,12 +319,10 @@ const CoreSettingModalContent: FC = () => {
             <Text as={FormLabel}>{t(`core.socket.${status}`)}</Text>
           </HStack>
           <Box
-            border="1px solid"
-            borderColor="gray.300"
-            bg="#F9F9F9"
+            border="0"
+            layerStyle="glassSubtle"
             _dark={{
-              borderColor: "gray.500",
-              bg: "#2e3440",
+              color: "gray.200",
             }}
             borderRadius={5}
             minHeight="200px"
@@ -386,7 +384,10 @@ export const CoreSettingsModal: FC = () => {
 
   return (
     <Modal isOpen={isEditingCore} onClose={onClose} size="3xl">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3" w="full">
         <ModalHeader pt={6}>
           <HStack gap={2}>

@@ -28,6 +28,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Footer } from "components/Footer";
 import { Language } from "components/Language";
+import { LiquidSurface } from "components/LiquidSurface";
 import { LogoIcon } from "pages/Login";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -90,7 +91,12 @@ const pageTitles: Record<string, string> = {
 const PortalNavigation = ({ onNavigate }: { onNavigate?: () => void }) => {
   const { t } = useTranslation();
   return (
-    <VStack as="nav" spacing="2" align="stretch" aria-label={t("portal.primaryNavigation")}>
+    <VStack
+      as="nav"
+      spacing="2"
+      align="stretch"
+      aria-label={t("portal.primaryNavigation")}
+    >
       {navigation.map(({ to, key, icon: Icon, end }) => (
         <Button
           key={to}
@@ -102,6 +108,7 @@ const PortalNavigation = ({ onNavigate }: { onNavigate?: () => void }) => {
           px="4"
           leftIcon={<Icon />}
           variant="ghost"
+          className="liquid-nav-item"
           color="fg.muted"
           border="1px solid transparent"
           _hover={{ bg: "surface.hover", color: "fg.default" }}
@@ -148,7 +155,11 @@ export const PortalLayout = () => {
     setPlansError(visiblePlans.status === "rejected");
     setTransactionsError(ledger.status === "rejected");
     if (visiblePlans.status === "rejected" || ledger.status === "rejected") {
-      toast({ title: t("portal.requestFailed"), status: "error", position: "top" });
+      toast({
+        title: t("portal.requestFailed"),
+        status: "error",
+        position: "top",
+      });
     }
     setSupplementalLoading(false);
   }, [t, toast]);
@@ -167,8 +178,16 @@ export const PortalLayout = () => {
     if (ledger.status === "fulfilled") setTransactions(ledger.value);
     setPlansError(visiblePlans.status === "rejected");
     setTransactionsError(ledger.status === "rejected");
-    if (profile.status === "rejected" || visiblePlans.status === "rejected" || ledger.status === "rejected") {
-      toast({ title: t("portal.requestFailed"), status: "error", position: "top" });
+    if (
+      profile.status === "rejected" ||
+      visiblePlans.status === "rejected" ||
+      ledger.status === "rejected"
+    ) {
+      toast({
+        title: t("portal.requestFailed"),
+        status: "error",
+        position: "top",
+      });
     }
     setSupplementalLoading(false);
   }, [t, toast]);
@@ -198,8 +217,26 @@ export const PortalLayout = () => {
 
   const title = t(pageTitles[location.pathname] || "portal.dashboardTitle");
   const context = useMemo(
-    () => ({ me, plans, transactions, plansError, transactionsError, supplementalLoading, applyPurchase, refresh }),
-    [me, plans, transactions, plansError, transactionsError, supplementalLoading, applyPurchase, refresh],
+    () => ({
+      me,
+      plans,
+      transactions,
+      plansError,
+      transactionsError,
+      supplementalLoading,
+      applyPurchase,
+      refresh,
+    }),
+    [
+      me,
+      plans,
+      transactions,
+      plansError,
+      transactionsError,
+      supplementalLoading,
+      applyPurchase,
+      refresh,
+    ]
   );
 
   const sidebar = (
@@ -209,14 +246,20 @@ export const PortalLayout = () => {
           <LogoIcon />
         </Box>
         <Box>
-          <Text fontWeight="700" letterSpacing="-.02em">{t("portal.portalName")}</Text>
-          <Text fontSize="xs" color="fg.subtle">{t("portal.portalTagline")}</Text>
+          <Text fontWeight="700" letterSpacing="-.02em">
+            {t("portal.portalName")}
+          </Text>
+          <Text fontSize="xs" color="fg.subtle">
+            {t("portal.portalTagline")}
+          </Text>
         </Box>
       </HStack>
       <PortalNavigation onNavigate={mobileNav.onClose} />
       <Box flex="1" />
       <Box layerStyle="glassSubtle" rounded="2xl" p="3">
-        <Text fontSize="sm" fontWeight="600" noOfLines={1}>{me.username}</Text>
+        <Text fontSize="sm" fontWeight="600" noOfLines={1}>
+          {me.username}
+        </Text>
         <Text fontSize="xs" color="fg.subtle" noOfLines={1}>
           {me.subscription?.plan_name || t("portal.noPlan")}
         </Text>
@@ -247,66 +290,107 @@ export const PortalLayout = () => {
         p="4"
         zIndex="20"
       >
-        <Box layerStyle="glass" rounded="3xl" h="full" p="4" boxShadow="glass.lg">
+        <LiquidSurface
+          tone="strong"
+          className="glass-surface liquid-shell-surface"
+          rounded="3xl"
+          h="full"
+          p="4"
+        >
           {sidebar}
-        </Box>
+        </LiquidSurface>
       </Box>
 
-      <Drawer isOpen={mobileNav.isOpen} placement={i18n.dir() === "rtl" ? "right" : "left"} onClose={mobileNav.onClose}>
-        <DrawerOverlay backdropFilter="blur(8px)" />
-        <DrawerContent aria-label={t("portal.primaryNavigation")} bg="transparent" boxShadow="none" p="3">
-          <Box layerStyle="glass" rounded="3xl" h="full" p="4" boxShadow="glass.lg">
-            <DrawerCloseButton aria-label={t("close")} top="5" insetInlineEnd="5" minW="11" minH="11" />
-            <DrawerBody p="0" pt="2">{sidebar}</DrawerBody>
-          </Box>
+      <Drawer
+        isOpen={mobileNav.isOpen}
+        placement={i18n.dir() === "rtl" ? "right" : "left"}
+        onClose={mobileNav.onClose}
+      >
+        <DrawerOverlay backdropFilter="var(--marzban-overlay-filter)" />
+        <DrawerContent
+          aria-label={t("portal.primaryNavigation")}
+          bg="transparent"
+          boxShadow="none"
+          p="3"
+        >
+          <LiquidSurface
+            tone="strong"
+            className="glass-surface liquid-shell-surface"
+            rounded="3xl"
+            h="full"
+            p="4"
+          >
+            <DrawerCloseButton
+              aria-label={t("close")}
+              top="5"
+              insetInlineEnd="5"
+              minW="11"
+              minH="11"
+            />
+            <DrawerBody p="0" pt="2">
+              {sidebar}
+            </DrawerBody>
+          </LiquidSurface>
         </DrawerContent>
       </Drawer>
 
       <Box flex="1" minW="0" ms={{ base: 0, lg: "260px" }}>
-        <HStack
+        <LiquidSurface
           as="header"
+          tone="glass"
+          className="glass-surface liquid-topbar"
           position="sticky"
           top="0"
           zIndex="10"
           minH="72px"
           px={{ base: 4, md: 7 }}
-          justify="space-between"
-          layerStyle="glassTopbar"
+          overflow="visible"
         >
-          <HStack spacing="3">
-            <IconButton
-              display={{ base: "inline-flex", lg: "none" }}
-              aria-label={t("portal.openNavigation")}
-              icon={<MenuIcon />}
-              minW="11"
-              minH="11"
-              variant="ghost"
-              onClick={mobileNav.onOpen}
-            />
-            <Box>
-              <Text as="h1" fontWeight="700" fontSize={{ base: "lg", md: "xl" }} letterSpacing="-.025em">
-                {title}
-              </Text>
-              <Text display={{ base: "none", md: "block" }} fontSize="xs" color="fg.subtle">
-                {t("portal.signedInAs", { username: me.username })}
-              </Text>
-            </Box>
+          <HStack minH="72px" justify="space-between">
+            <HStack spacing="3">
+              <IconButton
+                display={{ base: "inline-flex", lg: "none" }}
+                aria-label={t("portal.openNavigation")}
+                icon={<MenuIcon />}
+                minW="11"
+                minH="11"
+                variant="ghost"
+                onClick={mobileNav.onOpen}
+              />
+              <Box>
+                <Text
+                  as="h1"
+                  fontWeight="700"
+                  fontSize={{ base: "lg", md: "xl" }}
+                  letterSpacing="-.025em"
+                >
+                  {title}
+                </Text>
+                <Text
+                  display={{ base: "none", md: "block" }}
+                  fontSize="xs"
+                  color="fg.subtle"
+                >
+                  {t("portal.signedInAs", { username: me.username })}
+                </Text>
+              </Box>
+            </HStack>
+            <HStack>
+              <Language />
+              <IconButton
+                aria-label={t("portal.switchTheme")}
+                icon={colorMode === "light" ? <DarkIcon /> : <LightIcon />}
+                minW="11"
+                minH="11"
+                variant="ghost"
+                onClick={switchTheme}
+              />
+            </HStack>
           </HStack>
-          <HStack>
-            <Language />
-            <IconButton
-              aria-label={t("portal.switchTheme")}
-              icon={colorMode === "light" ? <DarkIcon /> : <LightIcon />}
-              minW="11"
-              minH="11"
-              variant="ghost"
-              onClick={switchTheme}
-            />
-          </HStack>
-        </HStack>
+        </LiquidSurface>
 
         <Box as="main" px={{ base: 4, md: 7 }} pt={{ base: 5, md: 7 }} pb="8">
-          <Box maxW="1440px" mx="auto">
+          <Box maxW="1440px" mx="auto" className="liquid-page-enter">
             <Outlet context={context} />
             <Footer mt="10" />
           </Box>

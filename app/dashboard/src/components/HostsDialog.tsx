@@ -92,19 +92,13 @@ export const DownIcon = chakra(ArrowDownIcon, {
 
 const Select = chakra(ChakraSelect, {
   baseStyle: {
-    bg: "white",
-    _dark: {
-      bg: "gray.700",
-    },
+    bg: "surface.input",
   },
 });
 
 const Input = chakra(CustomInput, {
   baseStyle: {
-    bg: "white",
-    _dark: {
-      bg: "gray.700",
-    },
+    bg: "surface.input",
   },
 });
 
@@ -281,12 +275,11 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                 <VStack
                   id={host.id}
                   key={host.id}
-                  border="1px solid"
-                  _dark={{ borderColor: "gray.600", bg: "#273142" }}
-                  _light={{ borderColor: "gray.200", bg: "#fcfbfb" }}
+                  border="0"
+                  layerStyle="glassSubtle"
                   p={2}
                   w="full"
-                  borderRadius="4px"
+                  borderRadius="xl"
                 >
                   <HStack w="100%" alignItems="flex-start">
                     <FormControl
@@ -1067,7 +1060,6 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                               )}
                           </FormControl>
 
-
                           <FormControl
                             isInvalid={
                               !!(
@@ -1094,8 +1086,8 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                                   }
                                 </Error>
                               )}
-                        </FormControl>
-                         <FormControl
+                          </FormControl>
+                          <FormControl
                             isInvalid={
                               !!(
                                 accordionErrors &&
@@ -1269,7 +1261,10 @@ export const HostsDialog: FC = () => {
 
   return (
     <Modal isOpen={isEditingHosts} onClose={onClose}>
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3" w="fit-content" maxW="3xl">
         <ModalHeader pt={6}>
           <Icon color="primary">

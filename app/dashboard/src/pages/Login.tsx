@@ -2,12 +2,8 @@ import {
   Alert,
   AlertDescription,
   AlertIcon,
-  Box,
   Button,
   chakra,
-  FormControl,
-  FormLabel,
-  HStack,
   Link,
   Text,
   VStack,
@@ -19,26 +15,18 @@ import { FieldValues, useForm } from "react-hook-form";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { z } from "zod";
-import { Footer } from "components/Footer";
+import { AuthShell } from "components/AuthShell";
 import { Input } from "components/Input";
 import { fetch } from "service/http";
 import { removeAuthToken, setAuthToken } from "utils/authStorage";
-import { ReactComponent as Logo } from "assets/logo.svg";
 import { useTranslation } from "react-i18next";
-import { Language } from "components/Language";
 
 const schema = z.object({
   username: z.string().min(1, "login.fieldRequired"),
   password: z.string().min(1, "login.fieldRequired"),
 });
 
-export const LogoIcon = chakra(Logo, {
-  baseStyle: {
-    strokeWidth: "10px",
-    w: 12,
-    h: 12,
-  },
-});
+export { LogoIcon } from "components/AuthShell";
 
 const LoginIcon = chakra(ArrowRightOnRectangleIcon, {
   baseStyle: {
@@ -85,72 +73,61 @@ export const Login: FC = () => {
       .finally(setLoading.bind(null, false));
   };
   return (
-    <VStack as="main" justifyContent="space-between" minH="100vh" p="6" w="full">
-      <Box w="full">
-        <HStack justifyContent="end" w="full">
-          <Language />
-        </HStack>
-        <HStack w="full" justifyContent="center" alignItems="center">
-          <Box w="full" maxW="340px" mt="6">
-            <VStack alignItems="center" w="full">
-              <LogoIcon />
-              <Text fontSize="2xl" fontWeight="semibold">
-                {t("login.loginYourAccount")}
-              </Text>
-              <Text color="gray.600" _dark={{ color: "gray.400" }}>
-                {t("login.welcomeBack")}
-              </Text>
-            </VStack>
-            <Box w="full" maxW="300px" m="auto" pt="4">
-              <form onSubmit={handleSubmit(login)}>
-                <VStack mt={4} rowGap={2}>
-                  <FormControl>
-                    <Input
-                      w="full"
-                      placeholder={t("username")}
-                      autoComplete="username"
-                      {...register("username")}
-                      error={t(errors?.username?.message as string)}
-                    />
-                  </FormControl>
-                  <FormControl>
-                    <Input
-                      w="full"
-                      type="password"
-                      placeholder={t("password")}
-                      autoComplete="current-password"
-                      {...register("password")}
-                      error={t(errors?.password?.message as string)}
-                    />
-                  </FormControl>
-                  {error && (
-                    <Alert status="error" rounded="md">
-                      <AlertIcon />
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  <Button
-                    isLoading={loading}
-                    type="submit"
-                    w="full"
-                    colorScheme="primary"
-                  >
-                    {<LoginIcon marginRight={1} />}
-                    {t("login")}
-                  </Button>
-                </VStack>
-              </form>
-              <Text textAlign="center" mt="4" fontSize="sm">
-                <Link as={RouterLink} to="/portal/login" color="primary.500">
-                  {t("portal.userLogin")}
-                </Link>
-              </Text>
-            </Box>
-          </Box>
-        </HStack>
-      </Box>
-      <Footer />
-    </VStack>
+    <AuthShell
+      context="admin"
+      title={t("login.loginYourAccount")}
+      subtitle={t("login.welcomeBack")}
+      footer={
+        <Text textAlign="center">
+          <Link
+            as={RouterLink}
+            to="/portal/login"
+            color="primary.500"
+            fontWeight="600"
+          >
+            {t("portal.userLogin")}
+          </Link>
+        </Text>
+      }
+    >
+      <form onSubmit={handleSubmit(login)}>
+        <VStack spacing="3">
+          <Input
+            w="full"
+            label={t("username")}
+            placeholder={t("username")}
+            autoComplete="username"
+            {...register("username")}
+            error={t(errors?.username?.message as string)}
+          />
+          <Input
+            w="full"
+            type="password"
+            label={t("password")}
+            placeholder={t("password")}
+            autoComplete="current-password"
+            {...register("password")}
+            error={t(errors?.password?.message as string)}
+          />
+          {error && (
+            <Alert status="error" rounded="xl">
+              <AlertIcon />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <Button
+            isLoading={loading}
+            type="submit"
+            w="full"
+            minH="12"
+            colorScheme="primary"
+          >
+            <LoginIcon marginRight={1} />
+            {t("login")}
+          </Button>
+        </VStack>
+      </form>
+    </AuthShell>
   );
 };
 

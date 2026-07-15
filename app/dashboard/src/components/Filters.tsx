@@ -116,12 +116,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
       <GridItem colSpan={{ base: 1, md: 2, lg: 1 }} order={{ base: 2, md: 1 }}>
         <InputGroup>
           <InputLeftElement pointerEvents="none" children={<SearchIcon />} />
-          <Input
-            placeholder={t("search")}
-            value={search}
-            borderColor="light-border"
-            onChange={onChange}
-          />
+          <Input placeholder={t("search")} value={search} onChange={onChange} />
 
           <InputRightElement>
             {loading && <Spinner size="xs" />}
@@ -138,8 +133,8 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
           </InputRightElement>
         </InputGroup>
       </GridItem>
-      <GridItem colSpan={2} order={{ base: 1, md: 2 }}>
-        <HStack justifyContent="flex-end" alignItems="center" h="full">
+      <GridItem colSpan={{ base: 1, md: 2 }} order={{ base: 1, md: 2 }}>
+        <HStack justifyContent="flex-end" alignItems="center" h="full" w="full">
           <IconButton
             aria-label="refresh users"
             disabled={loading}

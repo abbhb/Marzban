@@ -115,13 +115,7 @@ export const PortalAccess = () => {
         gap="5"
         alignItems="start"
       >
-        <LiquidSurface
-          as={Card}
-          interactive
-          lift={false}
-          rounded="3xl"
-          w="full"
-        >
+        <LiquidSurface as={Card} rounded="3xl" w="full">
           <CardBody p={{ base: 6, md: 8 }}>
             <Alert status="warning" rounded="2xl" mb="6" alignItems="start">
               <AlertIcon mt="1" />
@@ -196,13 +190,7 @@ export const PortalAccess = () => {
             )}
           </CardBody>
         </LiquidSurface>
-        <LiquidSurface
-          as={Card}
-          interactive
-          lift={false}
-          rounded="3xl"
-          w="full"
-        >
+        <LiquidSurface as={Card} rounded="3xl" w="full">
           <CardBody p="6">
             <Text color="fg.subtle" fontSize="sm">
               {t("portal.accessBoundTo", { username: me.username })}

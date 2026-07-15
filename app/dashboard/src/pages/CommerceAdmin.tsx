@@ -1,4 +1,14 @@
-import { Box, Heading, Tab, TabList, TabPanel, TabPanels, Tabs, Text, VStack } from "@chakra-ui/react";
+import {
+  Box,
+  Heading,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
+  Text,
+  VStack,
+} from "@chakra-ui/react";
 import { AdminShell } from "components/AdminShell";
 import { Footer } from "components/Footer";
 import { useState } from "react";
@@ -14,13 +24,29 @@ export const CommerceAdmin = () => {
 
   return (
     <AdminShell>
-      <VStack minH="100vh" p={{ base: 4, md: 8 }} spacing="6" align="stretch">
+      <VStack
+        minH="100vh"
+        p={{ base: 4, md: 8 }}
+        spacing="6"
+        align="stretch"
+        className="liquid-page-enter"
+      >
         <Box>
-          <Heading as="h1" size="lg" letterSpacing="-.035em">{t("commerce.title")}</Heading>
-          <Text mt="1" color="fg.muted">{t("commerce.subtitle")}</Text>
+          <Heading as="h1" size="lg" letterSpacing="-.035em">
+            {t("commerce.title")}
+          </Heading>
+          <Text mt="1" color="fg.muted">
+            {t("commerce.subtitle")}
+          </Text>
         </Box>
 
-        <Tabs colorScheme="primary" isLazy index={tabIndex} onChange={setTabIndex} variant="soft-rounded">
+        <Tabs
+          colorScheme="primary"
+          isLazy
+          index={tabIndex}
+          onChange={setTabIndex}
+          variant="unstyled"
+        >
           <TabList
             w="fit-content"
             maxW="full"
@@ -36,10 +62,18 @@ export const CommerceAdmin = () => {
             <Tab whiteSpace="nowrap">{t("commerce.security")}</Tab>
           </TabList>
           <TabPanels mt="4">
-            <TabPanel px="0"><PlansWorkspace /></TabPanel>
-            <TabPanel px="0"><AccountsWorkspace /></TabPanel>
-            <TabPanel px="0"><InvitationsWorkspace /></TabPanel>
-            <TabPanel px="0"><SecurityWorkspace /></TabPanel>
+            <TabPanel px="0" className="liquid-page-enter">
+              <PlansWorkspace />
+            </TabPanel>
+            <TabPanel px="0" className="liquid-page-enter">
+              <AccountsWorkspace />
+            </TabPanel>
+            <TabPanel px="0" className="liquid-page-enter">
+              <InvitationsWorkspace />
+            </TabPanel>
+            <TabPanel px="0" className="liquid-page-enter">
+              <SecurityWorkspace />
+            </TabPanel>
           </TabPanels>
         </Tabs>
 

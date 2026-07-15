@@ -1,13 +1,22 @@
 :root {
   color-scheme: light;
-  --marzban-glass-filter: blur(24px) saturate(165%);
-  --marzban-glass-filter-strong: blur(28px) saturate(170%);
-  --marzban-glass-filter-subtle: blur(14px) saturate(145%);
+  --liquid-env-x: 68%;
+  --liquid-env-y: 18%;
+  --liquid-env-shift-x: 0px;
+  --liquid-env-shift-y: 0px;
+  --liquid-env-shift-x-soft: 0px;
+  --liquid-env-shift-y-soft: 0px;
+  --liquid-env-shift-x-inverse: 0px;
+  --liquid-env-shift-y-inverse: 0px;
+  --marzban-glass-filter: blur(18px) saturate(178%) contrast(103%);
+  --marzban-glass-filter-strong: blur(22px) saturate(184%) contrast(104%);
+  --marzban-glass-filter-subtle: saturate(135%);
+  --marzban-overlay-filter: blur(12px) saturate(125%);
   --marzban-motion-fast: 140ms;
-  --marzban-motion-base: 220ms;
-  --marzban-motion-slow: 520ms;
+  --marzban-motion-base: 240ms;
+  --marzban-motion-slow: 680ms;
   --marzban-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --marzban-ease-fluid: cubic-bezier(0.45, 0.05, 0.2, 1);
+  --marzban-ease-fluid: cubic-bezier(0.4, 0.05, 0.18, 1);
 }
 
 html.chakra-ui-dark,
@@ -44,140 +53,236 @@ body::after {
   position: fixed;
   z-index: 0;
   pointer-events: none;
-  border-radius: 44% 56% 61% 39% / 47% 42% 58% 53%;
-  filter: blur(24px);
-  opacity: 0.72;
-  will-change: transform;
 }
 
 body::before {
-  width: 68vmax;
-  height: 68vmax;
-  inset: -34vmax auto auto -24vmax;
-  background:
-    radial-gradient(circle at 55% 52%, rgba(83, 151, 255, 0.36), transparent 55%),
-    radial-gradient(circle at 34% 68%, rgba(139, 92, 246, 0.20), transparent 48%);
-  animation: marzban-liquid-canvas-a 24s var(--marzban-ease-fluid) infinite alternate;
+  inset: -18vmax;
+  background: radial-gradient(
+      ellipse 26% 30% at 14% 18%,
+      rgba(75, 139, 255, 0.48),
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 20% 24% at 38% 70%,
+      rgba(139, 92, 246, 0.27),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 28% 25% at 78% 16%,
+      rgba(45, 212, 191, 0.34),
+      transparent 66%
+    ),
+    radial-gradient(
+      ellipse 23% 28% at 89% 76%,
+      rgba(96, 165, 250, 0.34),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 16% 18% at 58% 43%,
+      rgba(255, 255, 255, 0.74),
+      transparent 72%
+    );
+  background-size: 108% 108%;
+  opacity: 0.88;
+  transform: translate3d(
+    var(--liquid-env-shift-x),
+    var(--liquid-env-shift-y),
+    0
+  );
+  animation: marzban-liquid-canvas 28s var(--marzban-ease-fluid) infinite
+    alternate;
+  transition: transform var(--marzban-motion-slow) var(--marzban-ease-out);
 }
 
 body::after {
-  width: 62vmax;
-  height: 62vmax;
-  inset: 4vh -28vmax auto auto;
-  background:
-    radial-gradient(circle at 42% 44%, rgba(45, 212, 191, 0.28), transparent 54%),
-    radial-gradient(circle at 62% 66%, rgba(96, 165, 250, 0.25), transparent 49%);
-  animation: marzban-liquid-canvas-b 30s var(--marzban-ease-fluid) infinite alternate;
+  inset: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+    radial-gradient(
+      circle at var(--liquid-env-x) var(--liquid-env-y),
+      rgba(255, 255, 255, 0.34),
+      transparent 34%
+    );
+  background-size: 72px 72px, 72px 72px, 100% 100%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.5),
+    transparent 78%
+  );
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 78%);
+  opacity: 0.2;
+  transform: translate3d(
+    var(--liquid-env-shift-x-inverse),
+    var(--liquid-env-shift-y-inverse),
+    0
+  );
+  transition: transform var(--marzban-motion-slow) var(--marzban-ease-out);
 }
 
 body.chakra-ui-dark::before {
-  background:
-    radial-gradient(circle at 55% 52%, rgba(37, 99, 235, 0.28), transparent 55%),
-    radial-gradient(circle at 34% 68%, rgba(124, 58, 237, 0.16), transparent 48%);
-  opacity: 0.58;
+  background: radial-gradient(
+      ellipse 26% 30% at 14% 18%,
+      rgba(37, 99, 235, 0.36),
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 20% 24% at 38% 70%,
+      rgba(124, 58, 237, 0.24),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 28% 25% at 78% 16%,
+      rgba(13, 148, 136, 0.26),
+      transparent 66%
+    ),
+    radial-gradient(
+      ellipse 23% 28% at 89% 76%,
+      rgba(59, 130, 246, 0.26),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 16% 18% at 58% 43%,
+      rgba(125, 211, 252, 0.12),
+      transparent 72%
+    );
+  opacity: 0.76;
 }
 
 body.chakra-ui-dark::after {
-  background:
-    radial-gradient(circle at 42% 44%, rgba(13, 148, 136, 0.20), transparent 54%),
-    radial-gradient(circle at 62% 66%, rgba(59, 130, 246, 0.20), transparent 49%);
-  opacity: 0.52;
+  background: linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(
+      circle at var(--liquid-env-x) var(--liquid-env-y),
+      rgba(125, 211, 252, 0.13),
+      transparent 35%
+    );
+  background-size: 72px 72px, 72px 72px, 100% 100%;
+  opacity: 0.3;
 }
 
-@keyframes marzban-liquid-canvas-a {
+@keyframes marzban-liquid-canvas {
   0% {
-    transform: translate3d(-4vw, -3vh, 0) rotate(-7deg) scale(1);
+    background-position: 0% 0%;
   }
 
-  55% {
-    transform: translate3d(12vw, 9vh, 0) rotate(5deg) scale(1.1);
+  52% {
+    background-position: 5% 3%;
   }
 
   100% {
-    transform: translate3d(5vw, 18vh, 0) rotate(13deg) scale(0.96);
-  }
-}
-
-@keyframes marzban-liquid-canvas-b {
-  0% {
-    transform: translate3d(6vw, -4vh, 0) rotate(8deg) scale(0.96);
-  }
-
-  48% {
-    transform: translate3d(-12vw, 12vh, 0) rotate(-4deg) scale(1.08);
-  }
-
-  100% {
-    transform: translate3d(-5vw, 23vh, 0) rotate(-12deg) scale(1.02);
+    background-position: -4% 6%;
   }
 }
 
 .liquid-surface {
-  --liquid-x: 50%;
-  --liquid-y: 18%;
-  --liquid-glow-rest: 0.16;
-  --liquid-glow-active: 0.82;
+  --liquid-x: var(--liquid-env-x);
+  --liquid-y: var(--liquid-env-y);
+  --liquid-tilt-x: 0deg;
+  --liquid-tilt-y: 0deg;
+  --liquid-glow-rest: 0.34;
+  --liquid-glow-active: 0.92;
+  --liquid-rim-rest: 0.32;
+  --liquid-rim-active: 0.58;
 
   position: relative;
   isolation: isolate;
   overflow: hidden;
   border: 0;
-  background: var(--chakra-colors-surface-glass);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
-    0 0 0 1px rgba(255, 255, 255, 0.4),
-    0 18px 48px rgba(31, 60, 105, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    inset 0 -1px 0 rgba(107, 142, 196, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.48), 0 18px 48px rgba(31, 60, 105, 0.13);
   backdrop-filter: var(--marzban-glass-filter);
   -webkit-backdrop-filter: var(--marzban-glass-filter);
-  transform: translate3d(0, 0, 0);
-  transition:
-    transform var(--marzban-motion-base) var(--marzban-ease-out),
+  transform: perspective(1100px) translate3d(0, 0, 0)
+    rotateX(var(--liquid-tilt-x)) rotateY(var(--liquid-tilt-y));
+  transform-style: preserve-3d;
+  transition: transform var(--marzban-motion-base) var(--marzban-ease-out),
     box-shadow var(--marzban-motion-base) var(--marzban-ease-out),
+    border-radius var(--marzban-motion-base) var(--marzban-ease-out),
     background-color var(--marzban-motion-base) ease;
 }
 
-.liquid-surface::before {
+.liquid-surface::before,
+.liquid-surface::after {
   content: "";
   position: absolute;
   inset: -1px;
-  z-index: -1;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    radial-gradient(
-      520px circle at var(--liquid-x) var(--liquid-y),
-      rgba(255, 255, 255, 0.78),
-      rgba(153, 204, 255, 0.25) 24%,
-      rgba(255, 255, 255, 0.08) 43%,
-      transparent 66%
+}
+
+.liquid-surface::before {
+  z-index: 0;
+  background: radial-gradient(
+      460px circle at var(--liquid-x) var(--liquid-y),
+      rgba(255, 255, 255, 0.88),
+      rgba(153, 204, 255, 0.3) 22%,
+      rgba(103, 232, 249, 0.1) 42%,
+      transparent 68%
+    ),
+    linear-gradient(
+      128deg,
+      rgba(255, 255, 255, 0.38),
+      transparent 36%,
+      rgba(96, 165, 250, 0.1) 72%,
+      transparent
     );
   opacity: var(--liquid-glow-rest);
+  transform: translate3d(
+      var(--liquid-env-shift-x-soft),
+      var(--liquid-env-shift-y-soft),
+      0
+    )
+    scale(1.025);
+  transition: opacity var(--marzban-motion-base) var(--marzban-ease-out),
+    transform var(--marzban-motion-slow) var(--marzban-ease-out);
+}
+
+.liquid-surface::after {
+  z-index: 0;
+  background: linear-gradient(
+      118deg,
+      rgba(255, 255, 255, 0.34),
+      transparent 30%,
+      transparent 66%,
+      rgba(102, 190, 255, 0.12)
+    ),
+    radial-gradient(
+      260px circle at var(--liquid-x) var(--liquid-y),
+      rgba(255, 255, 255, 0.24),
+      transparent 66%
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64),
+    inset 1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(69, 111, 169, 0.08);
+  opacity: var(--liquid-rim-rest);
   transition: opacity var(--marzban-motion-base) var(--marzban-ease-out);
 }
 
-.liquid-surface--strong {
-  --liquid-glow-rest: 0.22;
-  --liquid-glow-active: 0.9;
+.liquid-surface > * {
+  position: relative;
+  z-index: 1;
+}
 
-  background: var(--chakra-colors-surface-glass-strong);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.46),
-    0 24px 68px rgba(31, 60, 105, 0.16);
+.liquid-surface--strong {
+  --liquid-glow-rest: 0.42;
+  --liquid-glow-active: 0.98;
+  --liquid-rim-rest: 0.4;
+
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 -1px 0 rgba(107, 142, 196, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.56), 0 24px 68px rgba(31, 60, 105, 0.17);
   backdrop-filter: var(--marzban-glass-filter-strong);
   -webkit-backdrop-filter: var(--marzban-glass-filter-strong);
 }
 
 .liquid-surface--subtle {
-  --liquid-glow-rest: 0.1;
-  --liquid-glow-active: 0.52;
+  --liquid-glow-rest: 0.18;
+  --liquid-glow-active: 0.56;
+  --liquid-rim-rest: 0.2;
 
-  background: var(--chakra-colors-surface-muted);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 0 0 1px rgba(71, 85, 105, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 0 0 1px rgba(71, 85, 105, 0.08);
   backdrop-filter: var(--marzban-glass-filter-subtle);
   -webkit-backdrop-filter: var(--marzban-glass-filter-subtle);
 }
@@ -187,52 +292,146 @@ body.chakra-ui-dark::after {
   opacity: var(--liquid-glow-active);
 }
 
+.liquid-surface--interactive[data-liquid-active="true"]::after,
+.liquid-surface--interactive:hover::after {
+  opacity: var(--liquid-rim-active);
+}
+
+.liquid-surface:focus-visible {
+  outline: 2px solid var(--chakra-colors-focus-ring);
+  outline-offset: 3px;
+}
+
 .chakra-ui-dark .liquid-surface {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 1px rgba(255, 255, 255, 0.11),
-    0 20px 56px rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.035),
+    0 0 0 1px rgba(255, 255, 255, 0.12), 0 20px 56px rgba(0, 0, 0, 0.34);
 }
 
 .chakra-ui-dark .liquid-surface::before {
-  background:
-    radial-gradient(
-      520px circle at var(--liquid-x) var(--liquid-y),
-      rgba(255, 255, 255, 0.22),
-      rgba(96, 165, 250, 0.16) 25%,
-      rgba(255, 255, 255, 0.03) 44%,
-      transparent 66%
+  background: radial-gradient(
+      460px circle at var(--liquid-x) var(--liquid-y),
+      rgba(255, 255, 255, 0.3),
+      rgba(96, 165, 250, 0.19) 24%,
+      rgba(45, 212, 191, 0.07) 43%,
+      transparent 68%
+    ),
+    linear-gradient(
+      128deg,
+      rgba(255, 255, 255, 0.08),
+      transparent 38%,
+      rgba(59, 130, 246, 0.11) 74%,
+      transparent
     );
 }
 
+.chakra-ui-dark .liquid-surface::after {
+  background: linear-gradient(
+      118deg,
+      rgba(255, 255, 255, 0.12),
+      transparent 30%,
+      transparent 66%,
+      rgba(96, 165, 250, 0.13)
+    ),
+    radial-gradient(
+      260px circle at var(--liquid-x) var(--liquid-y),
+      rgba(255, 255, 255, 0.11),
+      transparent 66%
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 1px 0 0 rgba(255, 255, 255, 0.07), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+
 .chakra-ui-dark .liquid-surface--subtle {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .liquid-surface--interactive[data-liquid-lift="true"]:hover {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84),
       inset 0 -1px 0 rgba(255, 255, 255, 0.16),
-      0 0 0 1px rgba(255, 255, 255, 0.54),
-      0 28px 76px rgba(31, 60, 105, 0.2);
-    transform: translate3d(0, -3px, 0) scale(1.006);
+      0 0 0 1px rgba(255, 255, 255, 0.54), 0 28px 76px rgba(31, 60, 105, 0.2);
+    transform: perspective(1100px) translate3d(0, -3px, 0)
+      rotateX(var(--liquid-tilt-x)) rotateY(var(--liquid-tilt-y)) scale(1.006);
+    will-change: transform;
   }
 
   .chakra-ui-dark .liquid-surface--interactive[data-liquid-lift="true"]:hover {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
       inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-      0 0 0 1px rgba(255, 255, 255, 0.15),
-      0 28px 72px rgba(0, 0, 0, 0.4);
+      0 0 0 1px rgba(255, 255, 255, 0.15), 0 28px 72px rgba(0, 0, 0, 0.4);
   }
 
-  .liquid-surface--interactive[data-liquid-lift="true"]:active {
-    transform: translate3d(0, -1px, 0) scale(0.998);
+  .liquid-surface--interactive[data-liquid-pressed="true"] {
+    border-radius: calc(var(--chakra-radii-glass) - 2px);
+    transform: perspective(1100px) translate3d(0, -1px, 0)
+      rotateX(var(--liquid-tilt-x)) rotateY(var(--liquid-tilt-y)) scale(0.994);
     transition-duration: var(--marzban-motion-fast);
+  }
+}
+
+.liquid-shell-surface {
+  --liquid-glow-rest: 0.46;
+  --liquid-rim-rest: 0.44;
+}
+
+.liquid-topbar {
+  border-radius: 0 0 22px 22px;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.44),
+    0 12px 34px rgba(31, 60, 105, 0.09);
+}
+
+.liquid-nav-item {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.liquid-nav-item::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(
+      160px circle at var(--liquid-env-x) var(--liquid-env-y),
+      rgba(255, 255, 255, 0.68),
+      transparent 70%
+    ),
+    linear-gradient(120deg, rgba(96, 165, 250, 0.16), rgba(45, 212, 191, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity var(--marzban-motion-base) ease,
+    transform var(--marzban-motion-base) var(--marzban-ease-out);
+}
+
+.liquid-nav-item > * {
+  position: relative;
+  z-index: 1;
+}
+
+.liquid-nav-item[data-active="true"]::before,
+.liquid-nav-item[aria-current="page"]::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.liquid-page-enter {
+  animation: marzban-page-enter 480ms var(--marzban-ease-out) both;
+}
+
+@keyframes marzban-page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 9px, 0) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -243,16 +442,39 @@ textarea {
   font: inherit;
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+.chakra-input:not([aria-invalid="true"]),
+.chakra-textarea:not([aria-invalid="true"]),
+.chakra-select:not([aria-invalid="true"]) {
+  border-color: var(--chakra-colors-border-subtle) !important;
+  background-color: var(--chakra-colors-surface-input);
+}
+
+.chakra-input:not([aria-invalid="true"]):hover,
+.chakra-textarea:not([aria-invalid="true"]):hover,
+.chakra-select:not([aria-invalid="true"]):hover {
+  border-color: var(--chakra-colors-primary-300) !important;
+}
+
+.chakra-input:focus-visible,
+.chakra-textarea:focus-visible,
+.chakra-select:focus-visible {
+  border-color: var(--chakra-colors-focus-ring) !important;
+}
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
   :root {
     --chakra-colors-surface-glass: #f8fafc !important;
     --chakra-colors-surface-glass-strong: #ffffff !important;
     --chakra-colors-surface-panel: #ffffff !important;
     --chakra-colors-surface-muted: #f1f5f9 !important;
+    --chakra-colors-surface-inset: #f1f5f9 !important;
     --chakra-colors-surface-input: #ffffff !important;
     --marzban-glass-filter: none;
     --marzban-glass-filter-strong: none;
     --marzban-glass-filter-subtle: none;
+    --marzban-overlay-filter: none;
   }
 
   .chakra-ui-dark {
@@ -260,12 +482,14 @@ textarea {
     --chakra-colors-surface-glass-strong: #111827 !important;
     --chakra-colors-surface-panel: #161e2e !important;
     --chakra-colors-surface-muted: #1e293b !important;
+    --chakra-colors-surface-inset: #1e293b !important;
     --chakra-colors-surface-input: #0f172a !important;
   }
 
   body::before,
   body::after,
-  .liquid-surface::before {
+  .liquid-surface::before,
+  .liquid-surface::after {
     display: none;
   }
 }
@@ -276,10 +500,12 @@ textarea {
     --chakra-colors-surface-glass-strong: #ffffff !important;
     --chakra-colors-surface-panel: #ffffff !important;
     --chakra-colors-surface-muted: #f1f5f9 !important;
+    --chakra-colors-surface-inset: #f1f5f9 !important;
     --chakra-colors-surface-input: #ffffff !important;
     --marzban-glass-filter: none;
     --marzban-glass-filter-strong: none;
     --marzban-glass-filter-subtle: none;
+    --marzban-overlay-filter: none;
   }
 
   .chakra-ui-dark {
@@ -287,12 +513,14 @@ textarea {
     --chakra-colors-surface-glass-strong: #111827 !important;
     --chakra-colors-surface-panel: #161e2e !important;
     --chakra-colors-surface-muted: #1e293b !important;
+    --chakra-colors-surface-inset: #1e293b !important;
     --chakra-colors-surface-input: #0f172a !important;
   }
 
   body::before,
   body::after,
-  .liquid-surface::before {
+  .liquid-surface::before,
+  .liquid-surface::after {
     display: none;
   }
 }
@@ -318,23 +546,76 @@ textarea {
   }
 
   .liquid-surface--interactive[data-liquid-lift="true"]:hover,
-  .liquid-surface--interactive[data-liquid-lift="true"]:active {
+  .liquid-surface--interactive[data-liquid-pressed="true"] {
     transform: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --chakra-colors-surface-glass: rgba(255, 255, 255, 0.92) !important;
+    --chakra-colors-surface-glass-strong: rgba(255, 255, 255, 0.96) !important;
+    --chakra-colors-surface-panel: rgba(255, 255, 255, 0.96) !important;
+  }
+
+  .chakra-ui-dark {
+    --chakra-colors-surface-glass: rgba(9, 14, 23, 0.94) !important;
+    --chakra-colors-surface-glass-strong: rgba(9, 14, 23, 0.98) !important;
+    --chakra-colors-surface-panel: rgba(9, 14, 23, 0.98) !important;
+  }
+
+  :focus-visible {
+    outline-width: 3px !important;
+  }
+}
+
+@media (forced-colors: active) {
+  body::before,
+  body::after,
+  .liquid-surface::before,
+  .liquid-surface::after {
+    display: none !important;
+  }
+
+  .liquid-surface,
+  .glass-surface,
+  .chakra-card,
+  .chakra-modal__content,
+  .chakra-drawer__content,
+  .chakra-menu__menu-list {
+    color: CanvasText !important;
+    background: Canvas !important;
+    border: 1px solid CanvasText !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+  }
+
+  [aria-current="page"],
+  [aria-selected="true"] {
+    color: Highlight !important;
+    border-color: Highlight !important;
   }
 }
 
 .bg-blue-animate {
   animation: blur-animate 200ms ease-in;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--marzban-overlay-filter);
+  -webkit-backdrop-filter: var(--marzban-overlay-filter);
 }
 
 @keyframes blur-animate {
   from {
-    backdrop-filter: blur(1px);
+    opacity: 0;
   }
 
   to {
-    backdrop-filter: blur(10px);
+    opacity: 1;
   }
 }
 
@@ -424,48 +705,55 @@ table thead {
 }
 
 .react-datepicker {
-  background-color: var(--chakra-colors-white) !important;
-  border: 1px solid var(--chakra-colors-gray-200);
-  border-radius: var(--chakra-radii-md) !important;
+  background-color: var(--chakra-colors-surface-glass-strong) !important;
+  border: 0;
+  border-radius: var(--chakra-radii-panel) !important;
+  box-shadow: var(--chakra-shadows-glass-md);
+  backdrop-filter: var(--marzban-glass-filter);
+  -webkit-backdrop-filter: var(--marzban-glass-filter);
+  overflow: hidden;
   position: relative;
 }
 
 .chakra-ui-dark .react-datepicker {
-  background-color: var(--chakra-colors-gray-700) !important;
-  border: 1px solid var(--chakra-colors-gray-600);
-  border-radius: var(--chakra-radii-md) !important;
-  position: relative;
+  box-shadow: var(--chakra-shadows-glass-dark);
 }
 
 .react-datepicker__header {
   text-align: center;
   background-color: unset;
   position: relative;
-  border-bottom: 1px solid var(--chakra-colors-gray-200);
+  border-bottom: 1px solid var(--chakra-colors-border-subtle);
 }
 
 .chakra-ui-dark .react-datepicker__header {
-  border-bottom: 1px solid var(--chakra-colors-gray-600);
+  border-bottom: 1px solid var(--chakra-colors-border-subtle);
 }
 
-.react-datepicker-popper[data-placement^=bottom] .react-datepicker__triangle::after {
+.react-datepicker-popper[data-placement^="bottom"]
+  .react-datepicker__triangle::after {
   border-top: none;
-  border-bottom-color: var(--chakra-colors-white);
+  border-bottom-color: var(--chakra-colors-surface-glass-strong);
 }
 
-.react-datepicker-popper[data-placement^=bottom] .react-datepicker__triangle::before {
+.react-datepicker-popper[data-placement^="bottom"]
+  .react-datepicker__triangle::before {
   top: -1px;
-  border-bottom-color: var(--chakra-colors-gray-200);
+  border-bottom-color: var(--chakra-colors-border-subtle);
 }
 
-.chakra-ui-dark .react-datepicker-popper[data-placement^=bottom] .react-datepicker__triangle::after {
+.chakra-ui-dark
+  .react-datepicker-popper[data-placement^="bottom"]
+  .react-datepicker__triangle::after {
   border-top: none;
-  border-bottom-color: var(--chakra-colors-gray-700);
+  border-bottom-color: var(--chakra-colors-surface-glass-strong);
 }
 
-.chakra-ui-dark .react-datepicker-popper[data-placement^=bottom] .react-datepicker__triangle::before {
+.chakra-ui-dark
+  .react-datepicker-popper[data-placement^="bottom"]
+  .react-datepicker__triangle::before {
   top: -1px;
-  border-bottom-color: var(--chakra-colors-gray-600);
+  border-bottom-color: var(--chakra-colors-border-subtle);
 }
 
 .react-datepicker__current-month,
@@ -482,14 +770,14 @@ table thead {
 
 .react-datepicker__day:hover {
   border-radius: 0.3rem;
-  background-color: var(--chakra-colors-primary-300) !important;
-  color: var(--chakra-colors-white) !important;
+  background-color: var(--chakra-colors-primary-100) !important;
+  color: var(--chakra-colors-primary-900) !important;
 }
 
 .chakra-ui-dark .react-datepicker__day:hover {
   border-radius: 0.3rem;
-  background-color: var(--chakra-colors-primary-500) !important;
-  color: var(--chakra-colors-gray-800) !important;
+  background-color: var(--chakra-colors-primary-700) !important;
+  color: var(--chakra-colors-white) !important;
 }
 
 .react-datepicker__day--disabled {
@@ -515,7 +803,7 @@ table thead {
 .react-datepicker__day--in-selecting-range,
 .react-datepicker__day--in-range {
   border-radius: 0.3rem;
-  background-color: var(--chakra-colors-primary-500) !important;
+  background-color: var(--chakra-colors-primary-600) !important;
   color: var(--chakra-colors-white) !important;
 }
 
@@ -528,12 +816,17 @@ table thead {
   color: var(--chakra-colors-gray-800) !important;
 }
 
-.react-datepicker__day--in-selecting-range:not(.react-datepicker__day--in-range) {
+.react-datepicker__day--in-selecting-range:not(
+    .react-datepicker__day--in-range
+  ) {
   border-radius: 0.3rem;
   background-color: var(--chakra-colors-primary-400) !important;
 }
 
-.chakra-ui-dark .react-datepicker__day--in-selecting-range:not(.react-datepicker__day--in-range) {
+.chakra-ui-dark
+  .react-datepicker__day--in-selecting-range:not(
+    .react-datepicker__day--in-range
+  ) {
   border-radius: 0.3rem;
   background-color: var(--chakra-colors-primary-400) !important;
 }
@@ -580,10 +873,10 @@ table thead {
 .pulse.green {
   animation: green-pulse-animation 3s infinite;
 }
-.pulse.red{
+.pulse.red {
   animation: red-pulse-animation 3s infinite;
 }
-.pulse.orange{
+.pulse.orange {
   animation: orange-pulse-animation 3s infinite;
 }
 
@@ -628,5 +921,5 @@ table thead {
   display: flex;
   align-items: center;
   justify-content: start;
-  gap: .7rem;
+  gap: 0.7rem;
 }

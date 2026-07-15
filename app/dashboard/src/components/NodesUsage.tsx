@@ -73,7 +73,10 @@ export const NodesUsage: FC<NodesUsageProps> = () => {
 
   return (
     <Modal isOpen={isShowingNodesUsage} onClose={onClose} size="2xl">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3" w="full">
         <ModalHeader pt={6}>
           <HStack gap={2}>

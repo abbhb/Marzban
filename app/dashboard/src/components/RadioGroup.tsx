@@ -56,25 +56,23 @@ const InboundCard: FC<
         position="relative"
         {...htmlProps}
         cursor="pointer"
-        borderRadius="sm"
-        border="1px solid"
-        borderColor={"gray.200"}
-        _dark={{
-          borderColor: "gray.600",
-        }}
+        borderRadius="xl"
+        border="0"
+        bg="surface.inset"
+        boxShadow="glass-subtle"
         display="flex"
         alignItems="center"
         justifyContent="space-between"
         overflow="hidden"
         _checked={{
-          bg: "gray.50",
+          bg: "surface.active",
           outline: "2px",
-          boxShadow: "outline",
-          outlineColor: "primary.500",
+          outlineColor: "focus.ring",
+          outlineOffset: "2px",
           borderColor: "transparent",
           fontWeight: "medium",
           _dark: {
-            bg: "gray.750",
+            bg: "surface.active",
             borderColor: "transparent",
           },
           "& p": {
@@ -188,20 +186,18 @@ const RadioCard: FC<
   return (
     <AccordionItem
       isDisabled={!protocolHasInbound}
-      borderRadius="md"
-      borderStyle="solid"
-      border="1px"
-      borderColor="gray.200"
-      bg={shouldBeDisabled ? "gray.100" : "transparent"}
+      borderRadius="xl"
+      border="0"
+      boxShadow="glass-subtle"
+      bg={shouldBeDisabled ? "surface.muted" : "surface.inset"}
       _dark={{
-        borderColor: "gray.600",
-        bg: shouldBeDisabled ? "#364154" : "transparent",
+        boxShadow: "glass-subtle-dark",
       }}
       _checked={{
-        bg: "gray.50",
+        bg: "surface.active",
         outline: "2px",
-        boxShadow: "outline",
-        outlineColor: "primary.500",
+        outlineColor: "focus.ring",
+        outlineOffset: "2px",
         borderColor: "transparent",
       }}
       {...getCheckboxProps()}
@@ -307,18 +303,17 @@ const RadioCard: FC<
         pb={3}
         roundedBottom="5px"
         pt={3}
-        _dark={{ bg: inputProps.checked && "gray.750" }}
+        bg={inputProps.checked ? "surface.inset" : "transparent"}
       >
         <VStack
           w="full"
           rowGap={2}
-          borderStyle="solid"
-          borderWidth="1px"
-          borderRadius="md"
+          borderWidth="0"
+          borderRadius="xl"
+          layerStyle="glassSubtle"
           pl={3}
           pr={3}
           pt={1.5}
-          _dark={{ bg: "gray.700" }}
         >
           <VStack alignItems="flex-start" w="full">
             <Text fontSize="sm">{t("inbound")}</Text>

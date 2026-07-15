@@ -83,12 +83,8 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
   };
 
   return (
-    <HStack
-      gap={2}
-      justifyContent="space-between"
-      position="relative"
-    >
-      <Text as="h1" fontWeight="semibold" fontSize="2xl">
+    <HStack gap={2} justifyContent="space-between" position="relative">
+      <Text as="h1" fontWeight="semibold" fontSize="2xl" flexShrink={0}>
         {t("users")}
       </Text>
       <Box overflowX="auto">
@@ -121,7 +117,13 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                     <NotificationCircle top="3" right="2" />
                   )}
                 </MenuItem>
-                <MenuItem as={Link} to="/login" maxW="170px" fontSize="sm" icon={<LogoutIcon />}>
+                <MenuItem
+                  as={Link}
+                  to="/login"
+                  maxW="170px"
+                  fontSize="sm"
+                  icon={<LogoutIcon />}
+                >
                   {t("header.logout")}
                 </MenuItem>
               </MenuList>
@@ -131,7 +133,9 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
             )}
           </Box>
 
-          <Language />
+          <Box display={{ base: "none", md: "block" }}>
+            <Language />
+          </Box>
 
           <IconButton
             variant="outline"
@@ -148,7 +152,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
 
           <Box
             css={{ direction: "ltr" }}
-            display="flex"
+            display={{ base: "none", xl: "flex" }}
             alignItems="center"
             pr="2"
             __css={{

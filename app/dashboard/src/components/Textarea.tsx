@@ -82,7 +82,8 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           rounded="md"
           _focusWithin={{
             outline: "2px solid",
-            outlineColor: "primary.200",
+            outlineColor: "focus.ring",
+            outlineOffset: "2px",
           }}
           bg={disabled ? "gray.100" : "transparent"}
           _dark={{ bg: disabled ? "gray.600" : "transparent" }}
@@ -125,11 +126,19 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           )}
           {clearable && value && value.length && (
             <InputRightElement
+              as="button"
+              type="button"
+              aria-label="Clear value"
               borderLeftRadius={0}
               borderRightRadius="6px"
               bg="transparent"
               onClick={clear}
               cursor="pointer"
+              _focusVisible={{
+                outline: "2px solid",
+                outlineColor: "focus.ring",
+                outlineOffset: "2px",
+              }}
             >
               <ClearIcon />
             </InputRightElement>

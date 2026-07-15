@@ -31,6 +31,7 @@ import {
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { Language } from "components/Language";
+import { LiquidSurface } from "components/LiquidSurface";
 import { ElementType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLoaderData, useLocation, useNavigate } from "react-router-dom";
@@ -94,11 +95,17 @@ const Navigation = ({
         px="3"
         rounded="xl"
         variant="ghost"
+        className="liquid-nav-item"
+        data-active={isActive ? "true" : "false"}
         bg={isActive ? (danger ? "red.50" : "surface.active") : "transparent"}
         color={danger ? "red.600" : isActive ? "primary.600" : "fg.muted"}
         fontWeight={isActive ? "semibold" : "medium"}
         _dark={{
-          bg: isActive ? (danger ? "rgba(245, 101, 101, 0.14)" : "surface.active") : "transparent",
+          bg: isActive
+            ? danger
+              ? "rgba(245, 101, 101, 0.14)"
+              : "surface.active"
+            : "transparent",
           color: danger ? "red.300" : isActive ? "primary.300" : "fg.muted",
         }}
         _hover={{
@@ -147,7 +154,12 @@ const Navigation = ({
       ))}
       <Box flex="1" minH="2" />
       {!!maintenanceItems.length && (
-        <VStack role="group" aria-label={maintenanceLabel} align="stretch" spacing="2">
+        <VStack
+          role="group"
+          aria-label={maintenanceLabel}
+          align="stretch"
+          spacing="2"
+        >
           <Divider borderColor="border.subtle" />
           {maintenanceItems.map((item) => renderItem(item, true))}
         </VStack>
@@ -170,7 +182,13 @@ export const AdminShell = ({ children }: AdminShellProps) => {
       items: [
         { icon: UsersIcon, label: t("users"), path: "/" },
         ...(isSudo
-          ? [{ icon: BanknotesIcon, label: t("header.commerce"), path: "/commerce" }]
+          ? [
+              {
+                icon: BanknotesIcon,
+                label: t("header.commerce"),
+                path: "/commerce",
+              },
+            ]
           : []),
       ],
     },
@@ -179,9 +197,24 @@ export const AdminShell = ({ children }: AdminShellProps) => {
           {
             label: t("admin.infrastructure"),
             items: [
-              { icon: LinkIcon, label: t("header.hostSettings"), path: "/", panel: "hosts" },
-              { icon: SquaresPlusIcon, label: t("header.nodeSettings"), path: "/", panel: "nodes" },
-              { icon: ChartPieIcon, label: t("header.nodesUsage"), path: "/", panel: "node-usage" },
+              {
+                icon: LinkIcon,
+                label: t("header.hostSettings"),
+                path: "/",
+                panel: "hosts",
+              },
+              {
+                icon: SquaresPlusIcon,
+                label: t("header.nodeSettings"),
+                path: "/",
+                panel: "nodes",
+              },
+              {
+                icon: ChartPieIcon,
+                label: t("header.nodesUsage"),
+                path: "/",
+                panel: "node-usage",
+              },
             ],
           },
           {
@@ -193,7 +226,12 @@ export const AdminShell = ({ children }: AdminShellProps) => {
                 path: "/",
                 panel: "subscription-security",
               },
-              { icon: Cog6ToothIcon, label: t("core.title"), path: "/", panel: "core" },
+              {
+                icon: Cog6ToothIcon,
+                label: t("core.title"),
+                path: "/",
+                panel: "core",
+              },
             ],
           },
         ]
@@ -251,11 +289,18 @@ export const AdminShell = ({ children }: AdminShellProps) => {
         label={navigationLabel}
         onNavigate={drawer.onClose}
       />
-      <HStack pt="3" borderTop="1px solid" borderColor="border.subtle" justify="space-between">
+      <HStack
+        pt="3"
+        borderTop="1px solid"
+        borderColor="border.subtle"
+        justify="space-between"
+      >
         <Language />
         <IconButton
           aria-label={t("portal.switchTheme")}
-          icon={<Icon as={colorMode === "light" ? MoonIcon : SunIcon} boxSize="5" />}
+          icon={
+            <Icon as={colorMode === "light" ? MoonIcon : SunIcon} boxSize="5" />
+          }
           minW="11"
           minH="11"
           variant="ghost"
@@ -285,13 +330,22 @@ export const AdminShell = ({ children }: AdminShellProps) => {
         flexShrink="0"
         p="4"
       >
-        <Box layerStyle="glass" h="full" p="4" boxShadow="glass.lg">
+        <LiquidSurface
+          tone="strong"
+          className="glass-surface liquid-shell-surface"
+          rounded="3xl"
+          h="full"
+          p="4"
+        >
           {sidebar}
-        </Box>
+        </LiquidSurface>
       </Box>
 
       <Box flex="1" minW="0">
-        <HStack
+        <LiquidSurface
+          as={HStack}
+          tone="glass"
+          className="glass-surface liquid-topbar"
           display={{ base: "flex", lg: "none" }}
           position="sticky"
           top="0"
@@ -299,7 +353,7 @@ export const AdminShell = ({ children }: AdminShellProps) => {
           justify="space-between"
           px="4"
           py="3"
-          layerStyle="glassTopbar"
+          overflow="visible"
         >
           <HStack>
             <IconButton
@@ -312,7 +366,7 @@ export const AdminShell = ({ children }: AdminShellProps) => {
             />
             <Text fontWeight="bold">Marzban</Text>
           </HStack>
-        </HStack>
+        </LiquidSurface>
         <Box as="main">{children}</Box>
       </Box>
 
@@ -321,14 +375,31 @@ export const AdminShell = ({ children }: AdminShellProps) => {
         placement={i18n.dir() === "rtl" ? "right" : "left"}
         onClose={drawer.onClose}
       >
-        <DrawerOverlay backdropFilter="var(--marzban-glass-filter-subtle)" />
-        <DrawerContent aria-label={navigationLabel} bg="transparent" boxShadow="none" p="3">
-          <Box layerStyle="glass" h="full" p="4" boxShadow="glass.lg">
-            <DrawerCloseButton aria-label={t("close")} minW="11" minH="11" top="5" insetInlineEnd="5" />
+        <DrawerOverlay backdropFilter="var(--marzban-overlay-filter)" />
+        <DrawerContent
+          aria-label={navigationLabel}
+          bg="transparent"
+          boxShadow="none"
+          p="3"
+        >
+          <LiquidSurface
+            tone="strong"
+            className="glass-surface liquid-shell-surface"
+            rounded="3xl"
+            h="full"
+            p="4"
+          >
+            <DrawerCloseButton
+              aria-label={t("close")}
+              minW="11"
+              minH="11"
+              top="5"
+              insetInlineEnd="5"
+            />
             <DrawerBody p="0" pt="2">
               {sidebar}
             </DrawerBody>
-          </Box>
+          </LiquidSurface>
         </DrawerContent>
       </Drawer>
     </Flex>

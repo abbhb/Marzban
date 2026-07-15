@@ -43,32 +43,69 @@ export const DataWorkspace = ({
   emptyTitle,
   emptyDescription,
 }: DataWorkspaceProps) => (
-  <LiquidSurface as={Card} interactive lift={false} tone="strong" className="liquid-glass-workspace" rounded="3xl">
+  <LiquidSurface
+    as={Card}
+    tone="strong"
+    className="liquid-glass-workspace"
+    rounded="3xl"
+  >
     <CardHeader px={{ base: 4, md: 6 }} py="5">
-      <HStack justify="space-between" align={{ base: "start", md: "center" }} flexDir={{ base: "column", md: "row" }} gap="3">
+      <HStack
+        justify="space-between"
+        align={{ base: "stretch", lg: "center" }}
+        flexDir={{ base: "column", lg: "row" }}
+        gap="3"
+      >
         <Box>
           <HStack spacing="3">
-            <Text fontSize="lg" fontWeight="750">{title}</Text>
-            <Text as="span" px="2.5" py="1" rounded="full" fontSize="xs" fontWeight="700" bg="surface.active" color="primary.600">
+            <Text fontSize="lg" fontWeight="750">
+              {title}
+            </Text>
+            <Text
+              as="span"
+              px="2.5"
+              py="1"
+              rounded="full"
+              fontSize="xs"
+              fontWeight="700"
+              bg="surface.active"
+              color="primary.600"
+            >
               {total}
             </Text>
           </HStack>
-          {description && <Text mt="1" fontSize="sm" color="fg.muted">{description}</Text>}
+          {description && (
+            <Text mt="1" fontSize="sm" color="fg.muted">
+              {description}
+            </Text>
+          )}
         </Box>
-        {toolbar}
+        {toolbar && (
+          <Box minW="0" w={{ base: "full", lg: "auto" }}>
+            {toolbar}
+          </Box>
+        )}
       </HStack>
     </CardHeader>
     <CardBody p="0">
       {isLoading ? (
         <VStack align="stretch" spacing="0" px={{ base: 4, md: 6 }} pb="5">
-          {[0, 1, 2, 3, 4].map((row) => <Skeleton key={row} h="56px" my="1" rounded="xl" />)}
+          {[0, 1, 2, 3, 4].map((row) => (
+            <Skeleton key={row} h="56px" my="1" rounded="xl" />
+          ))}
         </VStack>
       ) : isEmpty ? (
         <VStack py="16" px="6" spacing="2" textAlign="center">
           <Text fontWeight="700">{emptyTitle}</Text>
-          {emptyDescription && <Text maxW="520px" color="fg.muted" fontSize="sm">{emptyDescription}</Text>}
+          {emptyDescription && (
+            <Text maxW="520px" color="fg.muted" fontSize="sm">
+              {emptyDescription}
+            </Text>
+          )}
         </VStack>
-      ) : children}
+      ) : (
+        children
+      )}
     </CardBody>
   </LiquidSurface>
 );
@@ -115,15 +152,32 @@ export const PaginationControls = ({
           aria-label={t("itemsPerPage")}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
         >
-          {[10, 20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+          {[10, 20, 50, 100].map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
         </Select>
-        <Text fontSize="sm" color="fg.muted">{t("itemsPerPage")}</Text>
+        <Text fontSize="sm" color="fg.muted">
+          {t("itemsPerPage")}
+        </Text>
       </HStack>
-      <Stack direction={{ base: "column", sm: "row" }} align={{ base: "stretch", sm: "center" }} spacing="3">
-        <Text fontSize="sm" color="fg.muted" whiteSpace={{ base: "normal", sm: "nowrap" }}>
+      <Stack
+        direction={{ base: "column", sm: "row" }}
+        align={{ base: "stretch", sm: "center" }}
+        spacing="3"
+      >
+        <Text
+          fontSize="sm"
+          color="fg.muted"
+          whiteSpace={{ base: "normal", sm: "nowrap" }}
+        >
           {t("commerce.resultRange", { from, to, total })}
         </Text>
-        <HStack spacing="1" justify={{ base: "space-between", sm: "flex-start" }}>
+        <HStack
+          spacing="1"
+          justify={{ base: "space-between", sm: "flex-start" }}
+        >
           <Button
             size="sm"
             minW="10"

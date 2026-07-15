@@ -53,7 +53,6 @@ const StatisticCard: FC<PropsWithChildren<StatisticCardProps>> = ({
   return (
     <LiquidSurface
       as={Card}
-      interactive
       p={{ base: 5, xl: 6 }}
       rounded="2xl"
       width="full"
@@ -121,7 +120,8 @@ export const Statistics: FC<BoxProps> = (props) => {
   const { data: systemData } = useQuery({
     queryKey: StatisticsQueryKey,
     queryFn: () => fetch("/system"),
-    refetchInterval: 5000,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     onSuccess: ({ version: currentVersion }) => {
       if (version !== currentVersion)
         useDashboard.setState({ version: currentVersion });

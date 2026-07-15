@@ -135,7 +135,10 @@ export const MgmaLinkModal: FC = () => {
 
   return (
     <Modal isOpen={isOpen} onClose={close} size="lg" isCentered>
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalOverlay
+        bg="blackAlpha.300"
+        backdropFilter="var(--marzban-overlay-filter)"
+      />
       <ModalContent mx="3">
         <ModalHeader pt={6}>
           <HStack gap={3}>

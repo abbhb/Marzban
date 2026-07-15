@@ -56,7 +56,8 @@ export const useNodesQuery = () => {
   return useQuery({
     queryKey: FetchNodesQueryKey,
     queryFn: useNodes.getState().fetchNodes,
-    refetchInterval: isEditingNodes ? 3000 : undefined,
+    refetchInterval: isEditingNodes ? 10000 : undefined,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 };
