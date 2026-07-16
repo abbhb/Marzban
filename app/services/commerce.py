@@ -89,7 +89,7 @@ def utc_now(value: Optional[datetime] = None) -> datetime:
 
 def account_query(db: Session):
     return db.query(PortalAccount).options(
-        joinedload(PortalAccount.subscription),
+        joinedload(PortalAccount.subscription).joinedload(PortalSubscription.plan),
         joinedload(PortalAccount.proxy_user),
     )
 
@@ -242,7 +242,7 @@ def me_response(account: PortalAccount) -> PortalMeResponse:
         is_active=account.is_active,
         user_id=account.user_id,
         created_at=account.created_at,
-        subscription=account.subscription,
+        subscription=subscription_response(account) if account.subscription else None,
         usage=usage_response(account),
     )
 
@@ -283,7 +283,7 @@ def list_accounts(
     total = query.order_by(None).count()
     items = (
         query.options(
-            joinedload(PortalAccount.subscription),
+            joinedload(PortalAccount.subscription).joinedload(PortalSubscription.plan),
             joinedload(PortalAccount.proxy_user).joinedload(User.usage_logs),
         )
         .order_by(PortalAccount.id.desc())
@@ -780,7 +780,7 @@ def renew_subscription(
         kind="admin_renewal",
         idempotency_key=idempotency_key,
         actor_admin=actor_admin,
-        plan_name=subscription.plan_name,
+        plan_name=plan.name,
         amount_minor=0,
         currency=subscription.currency,
         duration_days=days,
@@ -837,6 +837,10 @@ def disable_subscription(
 
 
 def subscription_response(account: PortalAccount) -> PortalSubscriptionResponse:
-    if not account.subscription:
+    subscription = account.subscription
+    if not subscription:
         raise SubscriptionUnavailable
-    return PortalSubscriptionResponse.model_validate(account.subscription)
+    response = PortalSubscriptionResponse.model_validate(subscription)
+    if subscription.plan:
+        response.plan_name = subscription.plan.name
+    return response

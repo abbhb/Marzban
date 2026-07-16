@@ -139,6 +139,7 @@ export const PlansWorkspace = () => {
         }
       );
       await queryClient.invalidateQueries(["commerce", "plans"]);
+      await queryClient.invalidateQueries(["commerce", "accounts"]);
       toast({
         title: t("commerce.planSaved"),
         status: "success",

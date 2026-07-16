@@ -21,11 +21,16 @@ from app.db.models import (
     PortalInvitationUse,
     PortalPurchase,
     PortalSecurityAttempt,
+    PortalSubscription,
     SubscriptionPlan,
     User,
     WalletTransaction,
 )
-from app.models.commerce import PortalRegister, SubscriptionPlanCreate
+from app.models.commerce import (
+    PortalRegister,
+    SubscriptionPlanCreate,
+    SubscriptionPlanUpdate,
+)
 from app.models.proxy import ProxyTypes
 from app.models.user import UserStatus
 from app.dependencies import get_current_portal_account
@@ -156,6 +161,7 @@ class AccountAndPlanTests(CommerceDatabaseTestCase):
 
 class PaginatedAdminListTests(CommerceDatabaseTestCase):
     def test_accounts_are_paginated_searched_filtered_and_eager_loaded(self) -> None:
+        plan = self.create_plan(name="Original")
         active_user = User(username="portal-123", status=UserStatus.active, used_traffic=123)
         disabled_user = User(username="portal-124", status=UserStatus.disabled, used_traffic=456)
         self.db.add_all([active_user, disabled_user])
@@ -176,7 +182,27 @@ class PaginatedAdminListTests(CommerceDatabaseTestCase):
                 )
             )
         self.db.add_all(accounts)
+        self.db.add(
+            PortalSubscription(
+                account=accounts[123],
+                plan=plan,
+                plan_name=plan.name,
+                price_paid_minor=plan.price_minor,
+                currency=plan.currency,
+                duration_days=plan.duration_days,
+                data_limit=plan.data_limit,
+                inbound_tags=list(plan.inbound_tags),
+                starts_at=datetime(2026, 7, 1),
+                expires_at=datetime(2026, 7, 31),
+                purchased_at=datetime(2026, 7, 1),
+            )
+        )
         self.db.commit()
+        commerce.update_plan(
+            self.db,
+            plan,
+            SubscriptionPlanUpdate(name="Renamed"),
+        )
         self.db.expire_all()
 
         rows, total = commerce.list_accounts(self.db, page=2, page_size=25)
@@ -217,6 +243,7 @@ class PaginatedAdminListTests(CommerceDatabaseTestCase):
         self.db.expunge_all()
         active_response = commerce.admin_account_response(active[0])
         self.assertEqual(123, active_response.usage.lifetime_used_traffic)
+        self.assertEqual("Renamed", active_response.subscription.plan_name)
 
         response = admin_list_accounts(
             page=3,
@@ -727,6 +754,59 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
         self.assertEqual(0, result.account.wallet_balance_minor)
         self.assertEqual(0, self.db.query(WalletTransaction).count())
 
+    def test_plan_rename_is_live_but_entitlements_and_purchase_remain_snapshots(self) -> None:
+        original_data_limit = 100 * 1024**3
+        plan = self.create_plan(
+            name="Free",
+            price_minor=1000,
+            duration_days=30,
+            data_limit=original_data_limit,
+            inbound_tags=["HK01", "HK01-US"],
+        )
+        account = commerce.recharge_wallet(
+            self.db,
+            self.register(),
+            amount_minor=2000,
+            actor_admin="root",
+            note=None,
+            idempotency_key="recharge-plan-rename",
+        )
+        result = commerce.purchase_plan(
+            self.db,
+            account,
+            plan_id=plan.id,
+            idempotency_key="purchase-plan-rename",
+            now=datetime(2026, 7, 1),
+        )
+
+        commerce.update_plan(
+            self.db,
+            plan,
+            SubscriptionPlanUpdate(
+                name="Premium",
+                price_minor=9999,
+                duration_days=90,
+                data_limit=500 * 1024**3,
+                inbound_tags=["HK02", "HK02-US"],
+                is_visible=False,
+            ),
+        )
+        account = commerce.get_account(self.db, result.account.id)
+
+        self.assertEqual("Premium", commerce.me_response(account).subscription.plan_name)
+        self.assertEqual("Premium", commerce.admin_account_response(account).subscription.plan_name)
+        self.assertEqual("Premium", commerce.subscription_response(account).plan_name)
+        self.assertEqual("Free", account.subscription.plan_name)
+        self.assertEqual(1000, account.subscription.price_paid_minor)
+        self.assertEqual(30, account.subscription.duration_days)
+        self.assertEqual(original_data_limit, account.subscription.data_limit)
+        self.assertEqual(["HK01", "HK01-US"], account.subscription.inbound_tags)
+        purchase = self.db.query(PortalPurchase).one()
+        self.assertEqual("Free", purchase.plan_name)
+        self.assertEqual(1000, purchase.amount_minor)
+        self.assertEqual(30, purchase.duration_days)
+        self.assertEqual(original_data_limit, purchase.data_limit)
+
 
 class AdminLifecycleTests(CommerceDatabaseTestCase):
     def test_admin_recharge_is_idempotent_and_rejects_a_changed_amount(self) -> None:
@@ -761,7 +841,7 @@ class AdminLifecycleTests(CommerceDatabaseTestCase):
             )
 
     def test_admin_can_grant_a_hidden_plan_and_renew_without_changing_balance(self) -> None:
-        plan = self.create_plan(is_visible=False)
+        plan = self.create_plan(name="Free", is_visible=False)
         account = self.register()
         grant = commerce.grant_plan(
             self.db,
@@ -770,6 +850,11 @@ class AdminLifecycleTests(CommerceDatabaseTestCase):
             actor_admin="root",
             idempotency_key="grant-0001",
             now=datetime(2026, 7, 1),
+        )
+        commerce.update_plan(
+            self.db,
+            plan,
+            SubscriptionPlanUpdate(name="Premium"),
         )
         renewal = commerce.renew_subscription(
             self.db,
@@ -786,6 +871,11 @@ class AdminLifecycleTests(CommerceDatabaseTestCase):
             ["admin_grant", "admin_renewal"],
             [row.kind for row in self.db.query(PortalPurchase).order_by(PortalPurchase.id)],
         )
+        self.assertEqual(
+            ["Free", "Premium"],
+            [row.plan_name for row in self.db.query(PortalPurchase).order_by(PortalPurchase.id)],
+        )
+        self.assertEqual("Premium", commerce.subscription_response(renewal.account).plan_name)
         self.assertEqual(0, self.db.query(WalletTransaction).count())
 
         replay = commerce.renew_subscription(
