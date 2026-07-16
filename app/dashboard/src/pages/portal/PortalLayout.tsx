@@ -27,10 +27,10 @@ import {
   WalletIcon,
 } from "@heroicons/react/24/outline";
 import { Footer } from "components/Footer";
+import { LogoIcon } from "components/AuthShell";
 import { Language } from "components/Language";
 import { LiquidSurface } from "components/LiquidSurface";
-import { LogoIcon } from "pages/Login";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   NavLink,
@@ -66,9 +66,11 @@ type PortalContext = {
   transactions: WalletTransaction[];
   plansError: boolean;
   transactionsError: boolean;
-  supplementalLoading: boolean;
+  plansLoading: boolean;
+  transactionsLoading: boolean;
   applyPurchase: (result: PortalPurchaseResult) => void;
-  refresh: () => Promise<void>;
+  loadPlans: () => Promise<void>;
+  loadTransactions: () => Promise<void>;
 };
 
 export const usePortalContext = () => useOutletContext<PortalContext>();
@@ -137,61 +139,51 @@ export const PortalLayout = () => {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [plansError, setPlansError] = useState(false);
   const [transactionsError, setTransactionsError] = useState(false);
-  const [supplementalLoading, setSupplementalLoading] = useState(true);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
 
-  const loadSupplemental = useCallback(async () => {
-    setSupplementalLoading(true);
+  const loadPlans = useCallback(async () => {
+    setPlansLoading(true);
     setPlansError(false);
-    setTransactionsError(false);
-    const [visiblePlans, ledger] = await Promise.allSettled([
-      portalFetch<SubscriptionPlan[]>("/portal/plans"),
-      portalFetch<WalletTransaction[]>("/portal/wallet/transactions"),
-    ]);
-    if (visiblePlans.status === "fulfilled") setPlans(visiblePlans.value);
-    if (ledger.status === "fulfilled") setTransactions(ledger.value);
-    setPlansError(visiblePlans.status === "rejected");
-    setTransactionsError(ledger.status === "rejected");
-    if (visiblePlans.status === "rejected" || ledger.status === "rejected") {
+    try {
+      setPlans(
+        await portalFetch<SubscriptionPlan[]>("/portal/plans", {
+          timeout: 15000,
+        })
+      );
+    } catch (error) {
+      setPlansError(true);
       toast({
         title: t("portal.requestFailed"),
         status: "error",
         position: "top",
       });
+    } finally {
+      setPlansLoading(false);
     }
-    setSupplementalLoading(false);
   }, [t, toast]);
 
-  const refresh = useCallback(async () => {
-    setSupplementalLoading(true);
-    setPlansError(false);
+  const loadTransactions = useCallback(async () => {
+    setTransactionsLoading(true);
     setTransactionsError(false);
-    const [profile, visiblePlans, ledger] = await Promise.allSettled([
-      portalFetch<PortalAccount>("/portal/me"),
-      portalFetch<SubscriptionPlan[]>("/portal/plans"),
-      portalFetch<WalletTransaction[]>("/portal/wallet/transactions"),
-    ]);
-    if (profile.status === "fulfilled") setMe(profile.value);
-    if (visiblePlans.status === "fulfilled") setPlans(visiblePlans.value);
-    if (ledger.status === "fulfilled") setTransactions(ledger.value);
-    setPlansError(visiblePlans.status === "rejected");
-    setTransactionsError(ledger.status === "rejected");
-    if (
-      profile.status === "rejected" ||
-      visiblePlans.status === "rejected" ||
-      ledger.status === "rejected"
-    ) {
+    try {
+      setTransactions(
+        await portalFetch<WalletTransaction[]>(
+          "/portal/wallet/transactions",
+          { timeout: 15000 }
+        )
+      );
+    } catch (error) {
+      setTransactionsError(true);
       toast({
         title: t("portal.requestFailed"),
         status: "error",
         position: "top",
       });
+    } finally {
+      setTransactionsLoading(false);
     }
-    setSupplementalLoading(false);
   }, [t, toast]);
-
-  useEffect(() => {
-    loadSupplemental();
-  }, [loadSupplemental]);
 
   const logout = () => {
     removePortalAuthToken();
@@ -220,9 +212,11 @@ export const PortalLayout = () => {
       transactions,
       plansError,
       transactionsError,
-      supplementalLoading,
+      plansLoading,
+      transactionsLoading,
       applyPurchase,
-      refresh,
+      loadPlans,
+      loadTransactions,
     }),
     [
       me,
@@ -230,9 +224,11 @@ export const PortalLayout = () => {
       transactions,
       plansError,
       transactionsError,
-      supplementalLoading,
+      plansLoading,
+      transactionsLoading,
       applyPurchase,
-      refresh,
+      loadPlans,
+      loadTransactions,
     ]
   );
 

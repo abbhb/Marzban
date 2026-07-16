@@ -61,6 +61,7 @@ import { RadioGroup } from "./RadioGroup";
 import { UsageFilter, createUsageConfig } from "./UsageFilter";
 import { ReloadIcon } from "./Filters";
 import classNames from "classnames";
+import "./datePickerSetup";
 
 const AddUserIcon = chakra(UserPlusIcon, {
   baseStyle: {
@@ -242,17 +243,6 @@ export const UserDialog: FC<UserDialogProps> = () => {
     defaultValues: getDefaultValues(),
     resolver: zodResolver(schema),
   });
-
-  useEffect(
-    () =>
-      useDashboard.subscribe(
-        (state) => state.inbounds,
-        () => {
-          form.reset(getDefaultValues());
-        }
-      ),
-    []
-  );
 
   const [dataLimit, userStatus] = useWatch({
     control: form.control,

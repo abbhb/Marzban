@@ -4,6 +4,7 @@ import {
   ChartPieIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
+import { StatisticsQueryKey } from "constants/QueryKeys";
 import { useDashboard } from "contexts/DashboardContext";
 import { FC, PropsWithChildren, ReactElement, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -114,12 +115,13 @@ const StatisticCard: FC<PropsWithChildren<StatisticCardProps>> = ({
     </LiquidSurface>
   );
 };
-export const StatisticsQueryKey = "statistics-query-key";
+export { StatisticsQueryKey } from "constants/QueryKeys";
 export const Statistics: FC<BoxProps> = (props) => {
   const { version } = useDashboard();
   const { data: systemData } = useQuery({
     queryKey: StatisticsQueryKey,
     queryFn: () => fetch("/system"),
+    staleTime: 30000,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
     onSuccess: ({ version: currentVersion }) => {

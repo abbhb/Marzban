@@ -1,4 +1,4 @@
-import { StatisticsQueryKey } from "components/Statistics";
+import { StatisticsQueryKey } from "constants/QueryKeys";
 import { fetch } from "service/http";
 import { User, UserCreate } from "types/User";
 import { queryClient } from "utils/react-query";
@@ -39,6 +39,7 @@ type DashboardStateType = {
     total: number;
   };
   inbounds: Inbounds;
+  inboundsStatus: "idle" | "loading" | "success" | "error";
   loading: boolean;
   filters: FilterType;
   isEditingHosts: boolean;
@@ -66,12 +67,27 @@ type DashboardStateType = {
   revokeSubscription: (user: User) => Promise<void>;
 };
 
-const fetchUsers = (query: FilterType): Promise<User[]> => {
-  for (const key in query) {
-    if (!query[key as keyof FilterType]) delete query[key as keyof FilterType];
+type UsersResponse = {
+  users: User[];
+  total: number;
+};
+
+export const fetchUsers = (
+  query: FilterType,
+  signal?: AbortSignal
+): Promise<UsersResponse> => {
+  const normalizedQuery = { ...query };
+  for (const key in normalizedQuery) {
+    if (!normalizedQuery[key as keyof FilterType]) {
+      delete normalizedQuery[key as keyof FilterType];
+    }
   }
   useDashboard.setState({ loading: true });
-  return fetch("/users", { query })
+  return fetch<UsersResponse>("/users", {
+    query: normalizedQuery,
+    timeout: 15000,
+    signal,
+  })
     .then((users) => {
       useDashboard.setState({ users });
       return users;
@@ -81,16 +97,29 @@ const fetchUsers = (query: FilterType): Promise<User[]> => {
     });
 };
 
-export const fetchInbounds = () => {
-  return fetch("/inbounds")
+let inboundsRequest: Promise<void> | null = null;
+
+export const fetchInbounds = (): Promise<void> => {
+  const current = useDashboard.getState();
+  if (current.inboundsStatus === "success") return Promise.resolve();
+  if (inboundsRequest) return inboundsRequest;
+
+  useDashboard.setState({ inboundsStatus: "loading" });
+  inboundsRequest = fetch("/inbounds", { timeout: 15000 })
     .then((inbounds: Inbounds) => {
       useDashboard.setState({
         inbounds: new Map(Object.entries(inbounds)) as Inbounds,
+        inboundsStatus: "success",
       });
     })
+    .catch((error) => {
+      useDashboard.setState({ inboundsStatus: "error" });
+      throw error;
+    })
     .finally(() => {
-      useDashboard.setState({ loading: false });
+      inboundsRequest = null;
     });
+  return inboundsRequest;
 };
 
 export const useDashboard = create(
@@ -116,9 +145,10 @@ export const useDashboard = create(
       sort: "-created_at",
     },
     inbounds: new Map(),
+    inboundsStatus: "idle",
     isEditingCore: false,
     refetchUsers: () => {
-      fetchUsers(get().filters);
+      void fetchUsers(get().filters);
     },
     resetAllUsage: () => {
       return fetch(`/users/reset`, { method: "POST" }).then(() => {

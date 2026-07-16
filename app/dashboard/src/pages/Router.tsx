@@ -1,28 +1,174 @@
-import { createHashRouter, redirect } from "react-router-dom";
+import {
+    ComponentType,
+    LazyExoticComponent,
+    Suspense,
+    lazy,
+} from "react";
+import {
+    LoaderFunctionArgs,
+    createHashRouter,
+    redirect,
+} from "react-router-dom";
+import { BootReady } from "../components/BootReady";
+import { ChunkLoadBoundary } from "../components/ChunkLoadBoundary";
+import { StatisticsQueryKey } from "../constants/QueryKeys";
 import { fetch, portalFetch } from "../service/http";
 import { getAuthToken } from "../utils/authStorage";
-import { Dashboard } from "./Dashboard";
-import { Login } from "./Login";
-import { CommerceAdmin } from "./CommerceAdmin";
-import { PortalLogin } from "./PortalLogin";
-import { PortalRegister } from "./PortalRegister";
-import { PortalAccess } from "./portal/PortalAccess";
-import { PortalError } from "./portal/PortalError";
-import { PortalLayout } from "./portal/PortalLayout";
-import { PortalOverview } from "./portal/PortalOverview";
-import { PortalPlans } from "./portal/PortalPlans";
-import { PortalWallet } from "./portal/PortalWallet";
-import { removePortalAuthToken } from "utils/portalAuthStorage";
-const fetchAdminLoader = () => {
-    return fetch("/admin", {
-        headers: {
-            Authorization: `Bearer ${getAuthToken()}`,
-        },
-    });
+import { removeAuthToken } from "../utils/authStorage";
+import { queryClient } from "../utils/react-query";
+import { getPortalAuthToken } from "../utils/portalAuthStorage";
+import { removePortalAuthToken } from "../utils/portalAuthStorage";
+
+const Dashboard = lazy(() =>
+    import("./Dashboard").then(({ Dashboard }) => ({ default: Dashboard }))
+);
+const AdminError = lazy(() =>
+    import("./AdminError").then(({ AdminError }) => ({ default: AdminError }))
+);
+const Login = lazy(() =>
+    import("./Login").then(({ Login }) => ({ default: Login }))
+);
+const CommerceAdmin = lazy(() =>
+    import("./CommerceAdmin").then(({ CommerceAdmin }) => ({
+        default: CommerceAdmin,
+    }))
+);
+const PortalLogin = lazy(() =>
+    import("./PortalLogin").then(({ PortalLogin }) => ({ default: PortalLogin }))
+);
+const PortalRegister = lazy(() =>
+    import("./PortalRegister").then(({ PortalRegister }) => ({
+        default: PortalRegister,
+    }))
+);
+const PortalAccess = lazy(() =>
+    import("./portal/PortalAccess").then(({ PortalAccess }) => ({
+        default: PortalAccess,
+    }))
+);
+const PortalError = lazy(() =>
+    import("./portal/PortalError").then(({ PortalError }) => ({
+        default: PortalError,
+    }))
+);
+const PortalLayout = lazy(() =>
+    import("./portal/PortalLayout").then(({ PortalLayout }) => ({
+        default: PortalLayout,
+    }))
+);
+const PortalOverview = lazy(() =>
+    import("./portal/PortalOverview").then(({ PortalOverview }) => ({
+        default: PortalOverview,
+    }))
+);
+const PortalPlans = lazy(() =>
+    import("./portal/PortalPlans").then(({ PortalPlans }) => ({
+        default: PortalPlans,
+    }))
+);
+const PortalWallet = lazy(() =>
+    import("./portal/PortalWallet").then(({ PortalWallet }) => ({
+        default: PortalWallet,
+    }))
+);
+
+export const preloadInitialRoute = async () => {
+    const path =
+        window.location.hash
+            .replace(/^#/, "")
+            .split("?")[0]
+            .replace(/\/+$/, "") || "/";
+
+    if (path === "/login") return import("./Login");
+    if (path === "/portal/login") return import("./PortalLogin");
+    if (path === "/portal/register") return import("./PortalRegister");
+
+    if (path.startsWith("/portal")) {
+        if (!getPortalAuthToken()) return import("./PortalLogin");
+        const leaf =
+            path === "/portal/plans"
+                ? import("./portal/PortalPlans")
+                : path === "/portal/access"
+                ? import("./portal/PortalAccess")
+                : path === "/portal/wallet"
+                ? import("./portal/PortalWallet")
+                : import("./portal/PortalOverview");
+        return Promise.all([import("./portal/PortalLayout"), leaf]);
+    }
+
+    if (!getAuthToken()) return import("./Login");
+    if (path === "/commerce") {
+        return Promise.all([
+            import("./CommerceAdmin"),
+            import("./commerce/PlansWorkspace"),
+        ]);
+    }
+    return Promise.all([
+        import("./Dashboard"),
+        import("../contexts/DashboardContext"),
+    ]);
 };
-const fetchPortalLoader = async () => {
+
+const routeElement = (
+    Page: LazyExoticComponent<ComponentType>,
+    completesBoot = true
+) => (
+    <ChunkLoadBoundary>
+        <Suspense fallback={null}>
+            <Page />
+            {completesBoot ? <BootReady /> : null}
+        </Suspense>
+    </ChunkLoadBoundary>
+);
+
+const fetchAdminLoader = async ({ request }: LoaderFunctionArgs) => {
     try {
-        return await portalFetch("/portal/me");
+        return await fetch("/admin", {
+            timeout: 15000,
+            signal: request.signal,
+            headers: {
+                Authorization: `Bearer ${getAuthToken()}`,
+            },
+        });
+    } catch (error: any) {
+        const status = error?.statusCode || error?.response?.status;
+        if (status === 401 || status === 403) {
+            removeAuthToken();
+            throw redirect("/login");
+        }
+        throw error;
+    }
+};
+
+const fetchDashboardLoader = async (args: LoaderFunctionArgs) => {
+    const admin = await fetchAdminLoader(args);
+    const [{ fetchUsers, useDashboard }] = await Promise.all([
+        import("../contexts/DashboardContext"),
+        import("./Dashboard"),
+    ]);
+
+    const [usersResult] = await Promise.allSettled([
+        fetchUsers(useDashboard.getState().filters, args.request.signal),
+        queryClient.prefetchQuery(
+            StatisticsQueryKey,
+            () =>
+                fetch("/system", {
+                    timeout: 15000,
+                    signal: args.request.signal,
+                }),
+            { staleTime: 30000 }
+        ),
+    ]);
+    if (usersResult.status === "rejected") throw usersResult.reason;
+    return admin;
+};
+
+const fetchPortalLoader = async ({ request }: LoaderFunctionArgs) => {
+    try {
+        return await portalFetch("/portal/me", {
+            timeout: 15000,
+            signal: request.signal,
+        });
     } catch (error: any) {
         const status = error?.statusCode || error?.response?.status;
         if (status === 401) {
@@ -35,38 +181,38 @@ const fetchPortalLoader = async () => {
 export const router = createHashRouter([
     {
         path: "/",
-        element: <Dashboard />,
-        errorElement: <Login />,
-        loader: fetchAdminLoader,
+        element: routeElement(Dashboard),
+        errorElement: routeElement(AdminError),
+        loader: fetchDashboardLoader,
     },
     {
         path: "/commerce/",
-        element: <CommerceAdmin />,
-        errorElement: <Login />,
+        element: routeElement(CommerceAdmin, false),
+        errorElement: routeElement(AdminError),
         loader: fetchAdminLoader,
     },
     {
         path: "/login/",
-        element: <Login />,
+        element: routeElement(Login),
     },
     {
         path: "/portal/",
-        element: <PortalLayout />,
-        errorElement: <PortalError />,
+        element: routeElement(PortalLayout, false),
+        errorElement: routeElement(PortalError),
         loader: fetchPortalLoader,
         children: [
-            { index: true, element: <PortalOverview /> },
-            { path: "plans", element: <PortalPlans /> },
-            { path: "access", element: <PortalAccess /> },
-            { path: "wallet", element: <PortalWallet /> },
+            { index: true, element: routeElement(PortalOverview) },
+            { path: "plans", element: routeElement(PortalPlans, false) },
+            { path: "access", element: routeElement(PortalAccess) },
+            { path: "wallet", element: routeElement(PortalWallet, false) },
         ],
     },
     {
         path: "/portal/login/",
-        element: <PortalLogin />,
+        element: routeElement(PortalLogin),
     },
     {
         path: "/portal/register/",
-        element: <PortalRegister />,
+        element: routeElement(PortalRegister),
     },
 ]);

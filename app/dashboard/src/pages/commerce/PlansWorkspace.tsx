@@ -1,4 +1,7 @@
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
   Badge,
   Box,
   Button,
@@ -26,7 +29,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { DataWorkspace } from "components/DataWorkspace";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
 import { fetch } from "service/http";
@@ -55,7 +58,7 @@ const emptyDraft: Draft = {
   isVisible: true,
 };
 
-export const PlansWorkspace = () => {
+export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
   const { t } = useTranslation();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -63,16 +66,32 @@ export const PlansWorkspace = () => {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const plansQuery = useQuery(["commerce", "plans"], () =>
-    fetch<SubscriptionPlan[]>("/commerce/admin/plans")
+  const plansQuery = useQuery(
+    ["commerce", "plans"],
+    ({ signal }) =>
+      fetch<SubscriptionPlan[]>("/commerce/admin/plans", {
+        timeout: 15000,
+        signal,
+      }),
+    { retry: false }
   );
-  const inboundsQuery = useQuery(["commerce", "inbounds"], () =>
-    fetch<Record<string, Inbound[]>>("/inbounds")
+  const inboundsQuery = useQuery(
+    ["commerce", "inbounds"],
+    ({ signal }) =>
+      fetch<Record<string, Inbound[]>>("/inbounds", {
+        timeout: 15000,
+        signal,
+      }),
+    { retry: false }
   );
   const plans = plansQuery.data || [];
   const inbounds = Object.values(inboundsQuery.data || {})
     .flat()
     .filter((item) => item.protocol === "vless");
+
+  useEffect(() => {
+    if (!plansQuery.isLoading && !inboundsQuery.isLoading) onReady?.();
+  }, [inboundsQuery.isLoading, onReady, plansQuery.isLoading]);
 
   const closeEditor = () => {
     modal.onClose();
@@ -162,6 +181,28 @@ export const PlansWorkspace = () => {
       <VStack py="20">
         <Spinner color="primary.500" />
       </VStack>
+    );
+  }
+
+  if (plansQuery.isError || inboundsQuery.isError) {
+    return (
+      <Alert status="error" rounded="2xl" alignItems="center">
+        <AlertIcon />
+        <AlertDescription flex="1">
+          {t("portal.requestFailed")}
+        </AlertDescription>
+        <Button
+          size="sm"
+          variant="outline"
+          colorScheme="red"
+          onClick={() => {
+            void plansQuery.refetch();
+            void inboundsQuery.refetch();
+          }}
+        >
+          {t("portal.retry")}
+        </Button>
+      </Alert>
     );
   }
 

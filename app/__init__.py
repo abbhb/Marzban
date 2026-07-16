@@ -7,6 +7,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from starlette.datastructures import Headers
+from starlette.middleware.gzip import GZipMiddleware, GZipResponder
+from starlette.types import Message, Receive, Scope, Send
 
 from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
 
@@ -25,6 +28,56 @@ scheduler = BackgroundScheduler(
 )
 logger = logging.getLogger("uvicorn.error")
 
+
+class _EventStreamSafeGZipResponder(GZipResponder):
+    """Backport Starlette's event-stream compression exclusion.
+
+    Starlette 0.40's gzip responder compresses streaming responses, including
+    server-sent events. Compression can buffer SSE messages, so pass those
+    responses through unchanged while retaining Starlette's gzip behavior for
+    ordinary HTTP responses.
+    """
+
+    bypass_compression = False
+
+    async def send_with_gzip(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers = Headers(raw=message["headers"])
+            self.bypass_compression = headers.get("content-type", "").lower().startswith(
+                "text/event-stream"
+            )
+
+        if self.bypass_compression:
+            await self.send(message)
+            return
+
+        await super().send_with_gzip(message)
+
+
+class EventStreamSafeGZipMiddleware(GZipMiddleware):
+    """Starlette gzip middleware that also leaves SSE and WebSockets intact."""
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        if scope["type"] == "http":
+            headers = Headers(scope=scope)
+            if "gzip" in headers.get("Accept-Encoding", ""):
+                responder = _EventStreamSafeGZipResponder(
+                    self.app,
+                    self.minimum_size,
+                    compresslevel=self.compresslevel,
+                )
+                await responder(scope, receive, send)
+                return
+
+        # WebSocket scopes always take this pass-through path.
+        await self.app(scope, receive, send)
+
+
 # Import after ``scheduler`` exists because database models import ``app.xray``
 # and utilities in that path reference the application scheduler.
 from app.middleware.portal_security import PortalSecurityMiddleware  # noqa: E402
@@ -37,6 +90,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(PortalSecurityMiddleware)
+app.add_middleware(
+    EventStreamSafeGZipMiddleware,
+    minimum_size=1024,
+    compresslevel=6,
+)
 from app import dashboard, jobs, routers, telegram  # noqa
 from app.routers import api_router  # noqa
 

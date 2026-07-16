@@ -1,6 +1,8 @@
 import {
   Box,
   Heading,
+  Center,
+  Spinner,
   Tab,
   TabList,
   TabPanel,
@@ -10,17 +12,46 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { AdminShell } from "components/AdminShell";
+import { BootReady } from "components/BootReady";
 import { Footer } from "components/Footer";
-import { useState } from "react";
+import { Suspense, lazy, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AccountsWorkspace } from "./commerce/AccountsWorkspace";
-import { InvitationsWorkspace } from "./commerce/InvitationsWorkspace";
-import { PlansWorkspace } from "./commerce/PlansWorkspace";
-import { SecurityWorkspace } from "./commerce/SecurityWorkspace";
+
+const PlansWorkspace = lazy(() =>
+  import("./commerce/PlansWorkspace").then(({ PlansWorkspace }) => ({
+    default: PlansWorkspace,
+  }))
+);
+const AccountsWorkspace = lazy(() =>
+  import("./commerce/AccountsWorkspace").then(({ AccountsWorkspace }) => ({
+    default: AccountsWorkspace,
+  }))
+);
+const InvitationsWorkspace = lazy(() =>
+  import("./commerce/InvitationsWorkspace").then(
+    ({ InvitationsWorkspace }) => ({ default: InvitationsWorkspace })
+  )
+);
+const SecurityWorkspace = lazy(() =>
+  import("./commerce/SecurityWorkspace").then(({ SecurityWorkspace }) => ({
+    default: SecurityWorkspace,
+  }))
+);
+
+const WorkspaceFallback = () => (
+  <Center minH="240px">
+    <Spinner color="primary.500" thickness="3px" />
+  </Center>
+);
 
 export const CommerceAdmin = () => {
   const { t } = useTranslation();
   const [tabIndex, setTabIndex] = useState(0);
+  const [initialWorkspaceReady, setInitialWorkspaceReady] = useState(false);
+  const markInitialWorkspaceReady = useCallback(
+    () => setInitialWorkspaceReady(true),
+    []
+  );
 
   return (
     <AdminShell>
@@ -63,16 +94,25 @@ export const CommerceAdmin = () => {
           </TabList>
           <TabPanels mt="4">
             <TabPanel px="0" className="liquid-page-enter">
-              <PlansWorkspace />
+              <Suspense fallback={<WorkspaceFallback />}>
+                <PlansWorkspace onReady={markInitialWorkspaceReady} />
+                <BootReady ready={initialWorkspaceReady} />
+              </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
-              <AccountsWorkspace />
+              <Suspense fallback={<WorkspaceFallback />}>
+                <AccountsWorkspace />
+              </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
-              <InvitationsWorkspace />
+              <Suspense fallback={<WorkspaceFallback />}>
+                <InvitationsWorkspace />
+              </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
-              <SecurityWorkspace />
+              <Suspense fallback={<WorkspaceFallback />}>
+                <SecurityWorkspace />
+              </Suspense>
             </TabPanel>
           </TabPanels>
         </Tabs>

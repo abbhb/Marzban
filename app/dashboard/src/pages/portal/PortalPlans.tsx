@@ -25,8 +25,9 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
+import { BootReady } from "components/BootReady";
 import { LiquidSurface } from "components/LiquidSurface";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { portalFetch } from "service/http";
 import { PortalPurchaseResult, SubscriptionPlan } from "types/Commerce";
@@ -36,7 +37,7 @@ import { usePortalContext } from "./PortalLayout";
 const money = (minor: number): string => `¥${(minor / 100).toFixed(2)}`;
 
 export const PortalPlans = () => {
-  const { me, plans, plansError, supplementalLoading, applyPurchase, refresh } =
+  const { me, plans, plansError, plansLoading, applyPurchase, loadPlans } =
     usePortalContext();
   const { t } = useTranslation();
   const toast = useToast();
@@ -61,6 +62,10 @@ export const PortalPlans = () => {
       : sortedPlans.length === 3
       ? "1340px"
       : "full";
+
+  useEffect(() => {
+    void loadPlans();
+  }, [loadPlans]);
 
   const choosePlan = (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
@@ -96,7 +101,7 @@ export const PortalPlans = () => {
         status: "success",
         position: "top",
       });
-      await refresh();
+      await loadPlans();
     } catch (error: any) {
       const detail = error?.data?.detail || error?.response?._data?.detail;
       toast({
@@ -164,14 +169,15 @@ export const PortalPlans = () => {
             size="sm"
             variant="outline"
             colorScheme="red"
-            onClick={refresh}
+            onClick={loadPlans}
           >
             {t("portal.retry")}
           </Button>
         </Alert>
       )}
 
-      {supplementalLoading && !sortedPlans.length ? (
+      <BootReady ready={!plansLoading} />
+      {plansLoading && !sortedPlans.length ? (
         <VStack py="20">
           <Spinner color="primary.500" />
         </VStack>

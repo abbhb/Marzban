@@ -1,15 +1,11 @@
 import { joinPaths } from "@remix-run/router";
 
-import fa from "date-fns/locale/fa-IR";
-import ru from "date-fns/locale/ru";
-import zh from "date-fns/locale/zh-CN";
 import dayjs from "dayjs";
 import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import HttpApi from "i18next-http-backend";
-import { registerLocale } from "react-datepicker";
 import { initReactI18next } from "react-i18next";
-import dashboardPackage from "../../package.json";
+import { version as dashboardVersion } from "../../package.json";
 
 const syncDocumentLanguage = (lng: string) => {
     document.documentElement.lang = lng;
@@ -22,11 +18,12 @@ declare module "i18next" {
     }
 }
 
-i18n
-    .use(LanguageDetector)
-    .use(initReactI18next)
-    .use(HttpApi)
-    .init(
+export const i18nReady = new Promise<void>((resolve, reject) => {
+    i18n
+        .use(LanguageDetector)
+        .use(initReactI18next)
+        .use(HttpApi)
+        .init(
         {
             debug: import.meta.env.NODE_ENV === "development",
             returnNull: false,
@@ -46,32 +43,25 @@ i18n
                     import.meta.env.BASE_URL,
                     `statics/locales/{{lng}}.json`,
                 ]),
-                // Locale files live under public/ and therefore keep stable
-                // filenames across dashboard builds.  A versioned query and
-                // no-store fetch prevent a newly deployed UI from reusing an
-                // older translation catalog from the browser HTTP cache.
+                // The versioned URL makes the stable public filename safe to
+                // cache while still replacing it on every dashboard release.
                 queryStringParams: {
-                    v: dashboardPackage.version,
-                },
-                requestOptions: {
-                    cache: "no-store",
+                    v: dashboardVersion,
                 },
             },
         },
-        function (err, t) {
+        function (err) {
             dayjs.locale(i18n.language);
             syncDocumentLanguage(i18n.language);
+            if (err) reject(err);
+            else resolve();
         }
     );
+});
 
 i18n.on("languageChanged", (lng) => {
     dayjs.locale(lng);
     syncDocumentLanguage(lng);
 });
-
-// DataPicker
-registerLocale("zh-cn", zh);
-registerLocale("ru", ru);
-registerLocale("fa", fa);
 
 export default i18n;

@@ -28,6 +28,7 @@ import ReactDatePicker from "react-datepicker";
 import { useTranslation } from "react-i18next";
 import { generateDistinctColors } from "utils/color";
 import { formatBytes } from "utils/formatByte";
+import "./datePickerSetup";
 
 type DateType = Date | null;
 

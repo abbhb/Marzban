@@ -20,7 +20,9 @@ import {
   Tr,
   VStack,
 } from "@chakra-ui/react";
+import { BootReady } from "components/BootReady";
 import dayjs from "dayjs";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { usePortalContext } from "./PortalLayout";
 
@@ -31,9 +33,19 @@ const signedMoney = (minor: number): string =>
   )}`;
 
 export const PortalWallet = () => {
-  const { me, transactions, transactionsError, supplementalLoading, refresh } =
+  const {
+    me,
+    transactions,
+    transactionsError,
+    transactionsLoading,
+    loadTransactions,
+  } =
     usePortalContext();
   const { t } = useTranslation();
+
+  useEffect(() => {
+    void loadTransactions();
+  }, [loadTransactions]);
 
   return (
     <VStack align="stretch" spacing="6">
@@ -57,6 +69,7 @@ export const PortalWallet = () => {
           {t("portal.walletHistoryHelp")}
         </Text>
       </Box>
+      <BootReady ready={!transactionsLoading} />
       {transactionsError && (
         <Alert status="error" rounded="2xl" alignItems="center">
           <AlertIcon />
@@ -67,13 +80,13 @@ export const PortalWallet = () => {
             size="sm"
             variant="outline"
             colorScheme="red"
-            onClick={refresh}
+            onClick={loadTransactions}
           >
             {t("portal.retry")}
           </Button>
         </Alert>
       )}
-      {supplementalLoading && !transactions.length ? (
+      {transactionsLoading && !transactions.length ? (
         <VStack py="16">
           <Spinner color="primary.500" />
         </VStack>
