@@ -13,7 +13,7 @@ from starlette.types import Message, Receive, Scope, Send
 
 from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
 
-__version__ = "0.8.4-mgma.13"
+__version__ = "0.8.4-mgma.14"
 
 app = FastAPI(
     title="MarzbanAPI",

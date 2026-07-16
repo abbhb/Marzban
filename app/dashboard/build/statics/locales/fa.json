@@ -3,6 +3,8 @@
   "activeUsers": "کاربران فعال",
   "apply": "تایید",
   "cancel": "لغو",
+  "startup.loadErrorTitle": "داشبورد بارگیری نشد",
+  "startup.loadErrorDescription": "ممکن است سرویس موقتاً در دسترس نباشد. دوباره تلاش کنید یا به صفحه ورود بازگردید.",
   "close": "بستن",
   "language": "انتخاب زبان",
   "core.configuration": "پیکربندی",

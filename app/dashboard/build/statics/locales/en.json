@@ -3,6 +3,8 @@
   "activeUsers": "active users",
   "apply": "Apply",
   "cancel": "Cancel",
+  "startup.loadErrorTitle": "The dashboard could not be loaded",
+  "startup.loadErrorDescription": "The service may be temporarily unavailable. Retry shortly or return to sign in.",
   "close": "Close",
   "language": "Choose language",
   "core.configuration": "Configuration",

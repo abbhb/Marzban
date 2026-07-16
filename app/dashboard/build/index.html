@@ -36,12 +36,37 @@
     <meta name="msapplication-TileColor" content="#2b5797" />
     <meta name="msapplication-config" content="/statics/favicon/browserconfig.xml" />
     <meta name="theme-color" content="#3B81F6" />
-    <script type="module" crossorigin src="/statics/index.69b30b9c.js"></script>
-    <link rel="modulepreload" crossorigin href="/statics/vendor.ada2a3e8.js">
-    <link rel="stylesheet" href="/statics/index.1f2aa46e.css">
+    <script>try{document.documentElement.dataset.bt=localStorage.getItem("chakra-ui-color-mode")==="dark"?"d":"l"}catch(e){}window.__MBF=function(){window.__MARZBAN_BOOT__?window.__MARZBAN_BOOT__.fail():window.__MBE=1};addEventListener("error",function(e){var t=e.target;if(!t||t===window||t.tagName==="SCRIPT"&&t.type==="module"||/^(stylesheet|modulepreload)$/.test(t.rel))__MBF()},true);addEventListener("unhandledrejection",__MBF)</script>
+    <style>
+      #mb-boot{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;overflow:hidden;padding:20px;box-sizing:border-box;background:#eaf1fa;color:#182033;font:14px/1.45 system-ui,sans-serif;transition:opacity .2s}
+      #mb-boot:before{content:"";position:absolute;inset:-20%;background:radial-gradient(circle at 18% 22%,#4b8bff40,transparent 28%),radial-gradient(circle at 82% 18%,#2dd4bf30,transparent 25%),radial-gradient(circle at 48% 82%,#8b5cf626,transparent 28%)}
+      .mb-card{position:relative;z-index:1;width:min(340px,calc(100vw - 40px));box-sizing:border-box;padding:24px;border:1px solid #ffffffb3;border-radius:26px;background:#ffffff94;box-shadow:inset 0 1px #ffffffe6,0 20px 55px #1f3c6929;-webkit-backdrop-filter:blur(20px) saturate(120%);backdrop-filter:blur(20px) saturate(120%)}
+      .mb-head{display:flex;align-items:center;gap:11px}.mb-logo{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;color:#fff;background:linear-gradient(145deg,#6fa5ff,#6456e8);font-weight:800}.mb-title{font-weight:750}.mb-status{margin:17px 0 12px;color:#46556d}.mb-track{height:9px;overflow:hidden;display:flex;border-radius:99px;background:#64748b2b}
+      .mb-fill{position:relative;width:var(--mb-p,8%);min-width:9px;border-radius:inherit;background:linear-gradient(90deg,#2875eb,#51b9ff 65%,#80e8dc);box-shadow:0 0 16px #378bf759;transition:width .38s cubic-bezier(.22,1,.36,1)}.mb-fill:before{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 25%,#ffffffa6 48%,transparent 70%);transform:translateX(-120%);animation:mb-s 1.9s ease-in-out infinite}.mb-fill:after{content:"";position:absolute;top:50%;right:-4px;width:13px;height:13px;border-radius:50%;background:#baf8f1;box-shadow:0 0 0 3px #70dcee2e,0 0 14px #2daaf58c;transform:translateY(-50%);animation:mb-d 1.4s ease-in-out infinite}
+      .mb-meta{display:flex;justify-content:space-between;margin-top:8px;color:#536176;font-size:12px}.mb-retry{border:1px solid #2670e859;border-radius:10px;padding:6px 11px;color:#1f5fcb;background:#ffffff73;font:inherit;font-weight:700;cursor:pointer}.mb-retry:focus-visible{outline:2px solid #2670e8;outline-offset:2px}#mb-boot.mb-out{opacity:0;pointer-events:none}
+      [data-bt=d] #mb-boot{background:#080d16;color:#f7fafc}[data-bt=d] .mb-card{border-color:#ffffff21;background:#0b121fb3;box-shadow:inset 0 1px #ffffff29,0 22px 58px #0000006b}[data-bt=d] .mb-status,[data-bt=d] .mb-meta{color:#b0bbcd}[data-bt=d] .mb-track{background:#94a3b833}[data-bt=d] .mb-retry{color:#bfdbfe;background:#ffffff0f}
+      @keyframes mb-s{55%,to{transform:translateX(130%)}}@keyframes mb-d{50%{transform:translateY(-50%) scale(1.18,.82)}}
+      @media(prefers-reduced-transparency:reduce){#mb-boot:before{display:none}.mb-card{background:#fff;-webkit-backdrop-filter:none;backdrop-filter:none}[data-bt=d] .mb-card{background:#111827}}
+      @media(prefers-reduced-motion:reduce){#mb-boot,.mb-fill{transition:none}.mb-fill:before,.mb-fill:after{animation:none}}
+      @media(prefers-contrast:more){.mb-card{border:2px solid currentColor;background:#fff!important}[data-bt=d] .mb-card{background:#080d16!important}.mb-track{outline:1px solid}.mb-status,.mb-meta{color:inherit!important}}
+      @media(forced-colors:active){#mb-boot,.mb-card{background:Canvas;color:CanvasText}.mb-card,.mb-track{border:1px solid CanvasText;box-shadow:none}.mb-fill{background:Highlight;box-shadow:none}}
+    </style>
+    <script type="module" crossorigin src="/statics/index.f39b8ddb.js"></script>
+    <link rel="modulepreload" crossorigin href="/statics/vendor.2bbdce03.js">
+    <link rel="stylesheet" href="/statics/index.a81fd155.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" inert aria-hidden="true"></div>
+    <div id="mb-boot" aria-busy="true">
+      <section class="mb-card" aria-labelledby="mb-title">
+        <div class="mb-head"><b class="mb-logo" aria-hidden="true">M</b><span class="mb-title" id="mb-title">Marzban</span></div>
+        <p class="mb-status" id="mb-status" role="status" aria-live="polite">Loading dashboard…</p>
+        <div class="mb-track" id="mb-track" role="progressbar" aria-label="Loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8"><i class="mb-fill"></i></div>
+        <div class="mb-meta"><span id="mb-value">8%</span><button class="mb-retry" id="mb-retry" type="button" hidden>Reload</button></div>
+      </section>
+    </div>
     
+    <script>(function(){var b=document.getElementById("mb-boot"),o=document.getElementById("root"),t=document.getElementById("mb-track"),s=document.getElementById("mb-status"),v=document.getElementById("mb-value"),r=document.getElementById("mb-retry"),l="en";try{l=(localStorage.getItem("i18nextLng")||navigator.language||l).slice(0,2)}catch(e){}var w=l==="zh"?["正在准备面板…","网络较慢，仍在加载…","资源加载失败","刷新重试","即将完成…","加载进度"]:["Preparing dashboard…","The network is slow. Still loading…","Resources failed to load","Reload","Almost ready…","Loading progress"];s.textContent=w[0];r.textContent=w[3];t.setAttribute("aria-label",w[5]);var c=8,d=0,f=0,h=setTimeout(function(){if(!d&&!f)s.textContent=w[1]},2e4),q=setTimeout(function(){window.__MARZBAN_BOOT__.fail()},45e3);function p(n,m,x){if((d||f)&&!x)return;c=Math.max(c,Math.min(100,Math.round(+n||0)));b.style.setProperty("--mb-p",c+"%");v.textContent=c+"%";t.setAttribute("aria-valuenow",c);if(m)s.textContent=m}var a=window.__MARZBAN_BOOT__={progress:function(n,m){p(n,m)},stage:function(n){var m={styles:25,runtime:65,locale:82,route:92};if(m[n])p(m[n])},fail:function(m){if(d||f)return;f=1;clearTimeout(h);clearTimeout(q);s.textContent=m||w[2];s.setAttribute("role","alert");b.setAttribute("aria-busy","false");t.setAttribute("aria-invalid","true");r.hidden=false;r.focus()},complete:function(){if(d||f)return;d=1;clearTimeout(h);clearTimeout(q);requestAnimationFrame(function(){requestAnimationFrame(function(){p(100,w[4],1);var n=matchMedia("(prefers-reduced-motion:reduce)").matches;setTimeout(function(){b.classList.add("mb-out");b.setAttribute("aria-hidden","true");setTimeout(function(){b.remove();o.inert=false;o.removeAttribute("aria-hidden")},n?0:220)},n?0:180)})})}};a.stage("styles");r.onclick=function(){location.reload()};if(window.__MBE)a.fail()})()</script>
+    <noscript><style>#mb-boot{display:none}</style><main>JavaScript is required to open Marzban.</main></noscript>
   </body>
 </html>

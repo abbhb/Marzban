@@ -3,6 +3,8 @@
   "activeUsers": "Пользователи",
   "apply": "Применить",
   "cancel": "Отмена",
+  "startup.loadErrorTitle": "Не удалось загрузить панель управления",
+  "startup.loadErrorDescription": "Сервис может быть временно недоступен. Повторите попытку или вернитесь ко входу.",
   "close": "Закрыть",
   "language": "Выбрать язык",
   "core.configuration": "Конфигурация",

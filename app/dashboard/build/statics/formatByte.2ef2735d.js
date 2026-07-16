@@ -1,0 +1,1 @@
+function s(t,n=2,B=!1){if(!+t)return"0 B";const r=1024,a=n<0?0:n,e=["B","KB","MB","GB","TB","PB","EB","ZB","YB"],o=Math.floor(Math.log(t)/Math.log(r));return B?[parseFloat((t/Math.pow(r,o)).toFixed(a)),e[o]]:`${parseFloat((t/Math.pow(r,o)).toFixed(a))} ${e[o]}`}const i=t=>{if(t!==null)return t.toString().replace(/\B(?=(\d{3})+(?!\d))/g,",")};export{s as f,i as n};

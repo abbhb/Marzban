@@ -3,6 +3,8 @@
   "activeUsers": "活跃用户",
   "apply": "应用",
   "cancel": "取消",
+  "startup.loadErrorTitle": "暂时无法加载管理面板",
+  "startup.loadErrorDescription": "服务可能暂时不可用，请稍后重试或返回登录页。",
   "close": "关闭",
   "language": "选择语言",
   "core.configuration": "配置",
