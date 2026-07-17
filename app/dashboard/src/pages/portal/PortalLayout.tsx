@@ -187,7 +187,7 @@ export const PortalLayout = () => {
 
   const logout = () => {
     removePortalAuthToken();
-    navigate("/portal/login");
+    navigate("/login");
   };
 
   const switchTheme = () => {

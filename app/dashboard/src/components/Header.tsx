@@ -138,7 +138,7 @@ export const Header: FC<HeaderProps> = ({ actions }) => {
                 </MenuItem>
                 <MenuItem
                   as={Link}
-                  to="/login"
+                  to="/login/admin"
                   minH="9"
                   fontSize="sm"
                   icon={<LogoutIcon />}

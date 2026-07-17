@@ -42,8 +42,8 @@ export const portalFetch = <T = any>(
     const status = error?.statusCode || error?.response?.status;
     if (token && status === 401) {
       removePortalAuthToken();
-      if (!window.location.hash.startsWith("#/portal/login")) {
-        window.location.hash = "/portal/login";
+      if (!/^#\/login\/?(?:\?|$)/.test(window.location.hash)) {
+        window.location.hash = "/login";
       }
     }
     throw error;

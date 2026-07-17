@@ -61,7 +61,7 @@ export const PortalRegister = () => {
         invitation_code: values.invitationCode.trim(),
       },
     })
-      .then(() => navigate("/portal/login", { state: { registered: true } }))
+      .then(() => navigate("/login", { state: { registered: true } }))
       .catch((err: any) =>
         setError(
           err?.data?.detail ||
@@ -81,7 +81,7 @@ export const PortalRegister = () => {
           <Text>{t("portal.haveAccount")}</Text>
           <Link
             as={RouterLink}
-            to="/portal/login"
+            to="/login"
             color="primary.500"
             fontWeight="600"
           >

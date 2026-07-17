@@ -21,7 +21,7 @@ export const AdminError = () => {
         <Button colorScheme="primary" onClick={() => window.location.reload()}>
           {t("portal.retry")}
         </Button>
-        <Button as={Link} to="/login" variant="ghost">
+        <Button as={Link} to="/login/admin" variant="ghost">
           {t("portal.backToLogin")}
         </Button>
       </HStack>

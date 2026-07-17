@@ -83,7 +83,7 @@ export const PortalLogin = () => {
           </HStack>
           <Link
             as={RouterLink}
-            to="/login"
+            to="/login/admin"
             textAlign="center"
             color="fg.subtle"
           >

@@ -51,8 +51,8 @@ export const Login: FC = () => {
   });
   useEffect(() => {
     removeAuthToken();
-    if (location.pathname !== "/login") {
-      navigate("/login", { replace: true });
+    if (location.pathname !== "/login/admin") {
+      navigate("/login/admin", { replace: true });
     }
   }, []);
   const login = (values: FieldValues) => {
@@ -81,7 +81,7 @@ export const Login: FC = () => {
         <Text textAlign="center">
           <Link
             as={RouterLink}
-            to="/portal/login"
+            to="/login"
             color="primary.500"
             fontWeight="600"
           >

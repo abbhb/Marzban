@@ -10,7 +10,7 @@ export const PortalError = () => {
       <Text color="fg.muted">{t("portal.loadErrorDescription")}</Text>
       <HStack spacing="3">
         <Button colorScheme="primary" onClick={() => window.location.reload()}>{t("portal.retry")}</Button>
-        <Button as={Link} to="/portal/login" variant="ghost">{t("portal.backToLogin")}</Button>
+        <Button as={Link} to="/login" variant="ghost">{t("portal.backToLogin")}</Button>
       </HStack>
     </VStack>
   );

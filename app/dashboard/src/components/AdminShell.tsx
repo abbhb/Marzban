@@ -251,7 +251,7 @@ export const AdminShell = ({ children }: AdminShellProps) => {
   const logout = () => {
     removeAuthToken();
     drawer.onClose();
-    navigate("/login");
+    navigate("/login/admin");
   };
 
   const sidebar = (

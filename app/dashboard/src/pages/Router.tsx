@@ -79,7 +79,10 @@ export const preloadInitialRoute = async () => {
             .split("?")[0]
             .replace(/\/+$/, "") || "/";
 
-    if (path === "/login") return import("./Login");
+    if (path === "/login") return import("./PortalLogin");
+    if (path === "/login/admin" || path === "/admin") {
+        return import("./Login");
+    }
     if (path === "/portal/login") return import("./PortalLogin");
     if (path === "/portal/register") return import("./PortalRegister");
 
@@ -96,12 +99,21 @@ export const preloadInitialRoute = async () => {
         return Promise.all([import("./portal/PortalLayout"), leaf]);
     }
 
-    if (!getAuthToken()) return import("./Login");
     if (path === "/commerce") {
+        if (!getAuthToken()) return import("./Login");
         return Promise.all([
             import("./CommerceAdmin"),
             import("./commerce/PlansWorkspace"),
         ]);
+    }
+    if (!getAuthToken()) {
+        if (path === "/" && getPortalAuthToken()) {
+            return Promise.all([
+                import("./portal/PortalLayout"),
+                import("./portal/PortalOverview"),
+            ]);
+        }
+        return import("./PortalLogin");
     }
     return Promise.all([
         import("./Dashboard"),
@@ -134,13 +146,20 @@ const fetchAdminLoader = async ({ request }: LoaderFunctionArgs) => {
         const status = error?.statusCode || error?.response?.status;
         if (status === 401 || status === 403) {
             removeAuthToken();
-            throw redirect("/login");
+            throw redirect("/login/admin");
         }
         throw error;
     }
 };
 
 const fetchDashboardLoader = async (args: LoaderFunctionArgs) => {
+    if (!getAuthToken()) {
+        if (getPortalAuthToken()) {
+            throw redirect("/portal");
+        }
+        throw redirect("/login");
+    }
+
     const admin = await fetchAdminLoader(args);
     const [{ fetchUsers, useDashboard }] = await Promise.all([
         import("../contexts/DashboardContext"),
@@ -173,7 +192,7 @@ const fetchPortalLoader = async ({ request }: LoaderFunctionArgs) => {
         const status = error?.statusCode || error?.response?.status;
         if (status === 401) {
             removePortalAuthToken();
-            return redirect("/portal/login");
+            return redirect("/login");
         }
         throw error;
     }
@@ -193,7 +212,15 @@ export const router = createHashRouter([
     },
     {
         path: "/login/",
+        element: routeElement(PortalLogin),
+    },
+    {
+        path: "/login/admin/",
         element: routeElement(Login),
+    },
+    {
+        path: "/admin/",
+        loader: () => redirect("/login/admin"),
     },
     {
         path: "/portal/",
@@ -209,7 +236,7 @@ export const router = createHashRouter([
     },
     {
         path: "/portal/login/",
-        element: routeElement(PortalLogin),
+        loader: () => redirect("/login"),
     },
     {
         path: "/portal/register/",
