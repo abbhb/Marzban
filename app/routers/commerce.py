@@ -47,6 +47,7 @@ from app.services.mgma import (
     MgmaUserIneligible,
     build_public_subscription_url,
     issue_token,
+    regenerate_subscription,
     revoke_token,
 )
 from app.services.rate_limit import SlidingWindowLimiter
@@ -269,7 +270,11 @@ def portal_issue_mgma(
         raise HTTPException(status_code=503, detail="MGMA is not configured") from None
     response.headers.update(NO_STORE_HEADERS)
     return MgmaIssueResponse(
-        url=build_public_subscription_url(issued.token, base_url=str(request.base_url)),
+        url=build_public_subscription_url(
+            account.proxy_user.subscription_token,
+            issued.token,
+            base_url=str(request.base_url),
+        ),
         issued_at=issued.issued_at,
         expires_at=issued.expires_at,
         ttl_seconds=issued.ttl_seconds,
@@ -286,6 +291,49 @@ def portal_revoke_mgma(
         revoke_token(db, account.proxy_user)
     response.headers.update(NO_STORE_HEADERS)
     return {"detail": "Temporary subscription URL revoked"}
+
+
+@router.post(
+    "/api/portal/subscription/regenerate",
+    response_model=MgmaIssueResponse,
+)
+def portal_regenerate_subscription(
+    request: Request,
+    response: Response,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    """Rotate the complete subscription, then authorize its new stable URL.
+
+    Unlike a normal MGMA refresh, this destructive operation changes the
+    stable path and all proxy credentials.  Existing subscription URLs and
+    imported node credentials stop working immediately.
+    """
+
+    dbuser = account.proxy_user
+    if not dbuser:
+        raise HTTPException(status_code=409, detail="No active subscription")
+    try:
+        issued = regenerate_subscription(db, dbuser)
+    except MgmaUserIneligible:
+        raise HTTPException(status_code=409, detail="Subscription is not active") from None
+    except MgmaConfigurationError:
+        raise HTTPException(status_code=503, detail="MGMA is not configured") from None
+
+    if dbuser.status in (UserStatus.active, UserStatus.on_hold):
+        bg.add_task(xray.operations.update_user_by_id, user_id=dbuser.id)
+    response.headers.update(NO_STORE_HEADERS)
+    return MgmaIssueResponse(
+        url=build_public_subscription_url(
+            dbuser.subscription_token,
+            issued.token,
+            base_url=str(request.base_url),
+        ),
+        issued_at=issued.issued_at,
+        expires_at=issued.expires_at,
+        ttl_seconds=issued.ttl_seconds,
+    )
 
 
 @router.get(

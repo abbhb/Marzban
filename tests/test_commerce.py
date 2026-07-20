@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException, Request, Response
 
 from app.db.base import Base
 from app.db.models import (
@@ -26,6 +26,7 @@ from app.db.models import (
     User,
     WalletTransaction,
 )
+from app.models.admin import Admin as AdminSchema
 from app.models.commerce import (
     PortalRegister,
     SubscriptionPlanCreate,
@@ -39,7 +40,9 @@ from app.routers.commerce import (
     admin_list_invitations,
     admin_list_ip_blocks,
 )
+from app.routers import commerce as commerce_router, mgma as mgma_router
 from app.services import commerce, portal_security
+from app.services.mgma import issue_token, regenerate_subscription
 from app.services.rate_limit import SlidingWindowLimiter
 from app.utils.jwt import create_admin_token, create_portal_token, get_portal_payload
 
@@ -157,6 +160,160 @@ class AccountAndPlanTests(CommerceDatabaseTestCase):
         self.db.commit()
         with self.assertRaises(commerce.AccountExists):
             self.register()
+
+
+class PortalSubscriptionRegenerationTests(CommerceDatabaseTestCase):
+    def test_regenerate_rotates_path_and_proxy_credentials_then_returns_mgma_url(self) -> None:
+        plan = self.create_plan()
+        result = commerce.grant_plan(
+            self.db,
+            self.register(),
+            plan,
+            actor_admin="root",
+            idempotency_key="grant-regenerate-0001",
+            now=datetime(2026, 7, 20, 8, 0),
+        )
+        account = result.account
+        original_path_token = account.proxy_user.subscription_token
+        original_proxy_settings = dict(account.proxy_user.proxies[0].settings)
+        background = BackgroundTasks()
+        response = Response()
+        request = Request(
+            {
+                "type": "http",
+                "asgi": {"version": "3.0", "spec_version": "2.3"},
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "https",
+                "path": "/api/portal/subscription/regenerate",
+                "raw_path": b"/api/portal/subscription/regenerate",
+                "query_string": b"",
+                "root_path": "",
+                "headers": [],
+                "client": ("198.51.100.10", 54321),
+                "server": ("panel.example", 443),
+            }
+        )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"MGMA_TOKEN_PEPPER": "portal-regeneration-test-pepper-longer-than-32-bytes"},
+            ),
+            patch("app.models.user.generate_v2ray_links", return_value=[]),
+        ):
+            grant = commerce_router.portal_regenerate_subscription(
+                request=request,
+                response=response,
+                bg=background,
+                db=self.db,
+                account=account,
+            )
+
+        self.db.refresh(account.proxy_user)
+        regenerated = account.proxy_user
+        self.assertNotEqual(original_path_token, regenerated.subscription_token)
+        self.assertNotEqual(original_proxy_settings, regenerated.proxies[0].settings)
+        self.assertIn(f"/sub/{regenerated.subscription_token}/?token=", grant.url)
+        self.assertEqual(180, grant.ttl_seconds)
+        self.assertEqual("private, no-store, max-age=0", response.headers["Cache-Control"])
+        self.assertEqual(1, len(background.tasks))
+
+    def test_admin_regenerate_uses_the_same_atomic_service_and_returns_new_path(self) -> None:
+        plan = self.create_plan()
+        result = commerce.grant_plan(
+            self.db,
+            self.register(),
+            plan,
+            actor_admin="root",
+            idempotency_key="grant-regenerate-admin-0001",
+            now=datetime(2026, 7, 20, 8, 0),
+        )
+        dbuser = result.user
+        original_path_token = dbuser.subscription_token
+        background = BackgroundTasks()
+        response = Response()
+        request = Request(
+            {
+                "type": "http",
+                "asgi": {"version": "3.0", "spec_version": "2.3"},
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "https",
+                "path": f"/api/user/{dbuser.username}/subscription/regenerate",
+                "raw_path": (
+                    f"/api/user/{dbuser.username}/subscription/regenerate"
+                ).encode(),
+                "query_string": b"",
+                "root_path": "",
+                "headers": [],
+                "client": ("198.51.100.10", 54321),
+                "server": ("panel.example", 443),
+            }
+        )
+
+        with (
+            patch.dict(
+                os.environ,
+                {"MGMA_TOKEN_PEPPER": "admin-regeneration-test-pepper-longer-than-32-bytes"},
+            ),
+            patch("app.models.user.generate_v2ray_links", return_value=[]),
+        ):
+            grant = mgma_router.regenerate_user_subscription(
+                request=request,
+                response=response,
+                bg=background,
+                db=self.db,
+                dbuser=dbuser,
+                admin=AdminSchema(username="root", is_sudo=True),
+            )
+
+        self.db.refresh(dbuser)
+        self.assertNotEqual(original_path_token, dbuser.subscription_token)
+        self.assertIn(f"/sub/{dbuser.subscription_token}/?token=", grant.url)
+        self.assertEqual("private, no-store, max-age=0", response.headers["Cache-Control"])
+        self.assertEqual(2, len(background.tasks))
+
+    def test_failed_regeneration_rolls_back_path_proxy_and_mgma_together(self) -> None:
+        plan = self.create_plan()
+        result = commerce.grant_plan(
+            self.db,
+            self.register(),
+            plan,
+            actor_admin="root",
+            idempotency_key="grant-regenerate-rollback-0001",
+            now=datetime(2026, 7, 20, 8, 0),
+        )
+        dbuser = result.user
+        with patch.dict(
+            os.environ,
+            {"MGMA_TOKEN_PEPPER": "rollback-regeneration-test-pepper-longer-than-32-bytes"},
+        ):
+            issue_token(self.db, dbuser)
+
+        original_path_token = dbuser.subscription_token
+        original_proxy_settings = dict(dbuser.proxies[0].settings)
+        original_digest = dbuser.sub_access_token_digest
+        original_issued_at = dbuser.sub_access_issued_at
+        original_expires_at = dbuser.sub_access_expires_at
+
+        with (
+            patch.dict(
+                os.environ,
+                {"MGMA_TOKEN_PEPPER": "rollback-regeneration-test-pepper-longer-than-32-bytes"},
+            ),
+            patch.object(self.db, "commit", side_effect=RuntimeError("forced commit failure")),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "forced commit failure"):
+                regenerate_subscription(self.db, dbuser)
+
+        self.db.expire_all()
+        persisted = self.db.get(User, dbuser.id)
+        self.assertEqual(original_path_token, persisted.subscription_token)
+        self.assertEqual(original_proxy_settings, persisted.proxies[0].settings)
+        self.assertEqual(original_digest, persisted.sub_access_token_digest)
+        self.assertEqual(original_issued_at, persisted.sub_access_issued_at)
+        self.assertEqual(original_expires_at, persisted.sub_access_expires_at)
 
 
 class PaginatedAdminListTests(CommerceDatabaseTestCase):

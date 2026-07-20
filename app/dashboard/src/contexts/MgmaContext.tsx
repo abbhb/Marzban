@@ -2,6 +2,7 @@ import { fetch } from "service/http";
 import { MgmaGrant } from "types/Mgma";
 import { User } from "types/User";
 import { create } from "zustand";
+import { useDashboard } from "./DashboardContext";
 
 type MgmaState = {
   user: User | null;
@@ -9,10 +10,12 @@ type MgmaState = {
   isOpen: boolean;
   isLoading: boolean;
   isRevoking: boolean;
+  isRegeneratingSubscription: boolean;
   isExpired: boolean;
   error: string | null;
   open: (user: User) => Promise<void>;
   regenerate: () => Promise<void>;
+  regenerateSubscription: () => Promise<void>;
   revoke: () => Promise<void>;
   expire: (expectedUrl: string) => void;
   close: () => void;
@@ -20,32 +23,38 @@ type MgmaState = {
 
 let requestSequence = 0;
 
+const requestGrant = async (user: User): Promise<MgmaGrant> => {
+  const clientRequestedAt = performance.now();
+  const grant = await fetch<MgmaGrant>(
+    `/user/${encodeURIComponent(user.username)}/mgma`,
+    {
+      method: "POST",
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    }
+  );
+  return { ...grant, client_requested_at_ms: clientRequestedAt };
+};
+
 const issueGrant = async (user: User): Promise<void> => {
   const sequence = ++requestSequence;
-  const clientRequestedAt = performance.now();
   useMgma.setState({
     user,
     grant: null,
     isOpen: true,
     isLoading: true,
     isRevoking: false,
+    isRegeneratingSubscription: false,
     isExpired: false,
     error: null,
   });
 
   try {
-    const grant = await fetch<MgmaGrant>(
-      `/user/${encodeURIComponent(user.username)}/mgma`,
-      {
-        method: "POST",
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    const grant = await requestGrant(user);
     if (sequence !== requestSequence) return;
     useMgma.setState({
-      grant: { ...grant, client_requested_at_ms: clientRequestedAt },
+      grant,
       isLoading: false,
     });
   } catch (error) {
@@ -64,12 +73,67 @@ export const useMgma = create<MgmaState>((set, get) => ({
   isOpen: false,
   isLoading: false,
   isRevoking: false,
+  isRegeneratingSubscription: false,
   isExpired: false,
   error: null,
-  open: issueGrant,
+  open: async (user) => {
+    ++requestSequence;
+    set({
+      user,
+      grant: null,
+      isOpen: true,
+      isLoading: false,
+      isRevoking: false,
+      isRegeneratingSubscription: false,
+      isExpired: false,
+      error: null,
+    });
+  },
   regenerate: async () => {
     const user = get().user;
     if (user) await issueGrant(user);
+  },
+  regenerateSubscription: async () => {
+    const user = get().user;
+    if (!user) return;
+    const sequence = ++requestSequence;
+    set({
+      grant: null,
+      isLoading: true,
+      isRevoking: false,
+      isRegeneratingSubscription: true,
+      isExpired: false,
+      error: null,
+    });
+    try {
+      const clientRequestedAt = performance.now();
+      const grant = await fetch<MgmaGrant>(
+        `/user/${encodeURIComponent(user.username)}/subscription/regenerate`,
+        {
+          method: "POST",
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
+      );
+      if (sequence !== requestSequence) return;
+      useDashboard.getState().refetchUsers();
+      set({
+        grant: { ...grant, client_requested_at_ms: clientRequestedAt },
+        isLoading: false,
+        isRegeneratingSubscription: false,
+      });
+    } catch (error) {
+      if (sequence === requestSequence) {
+        set({
+          grant: null,
+          isLoading: false,
+          isRegeneratingSubscription: false,
+          error: "mgma.subscriptionRegenerateError",
+        });
+      }
+      throw error;
+    }
   },
   revoke: async () => {
     const user = get().user;
@@ -107,6 +171,7 @@ export const useMgma = create<MgmaState>((set, get) => ({
       isOpen: false,
       isLoading: false,
       isRevoking: false,
+      isRegeneratingSubscription: false,
       isExpired: false,
       error: null,
     });

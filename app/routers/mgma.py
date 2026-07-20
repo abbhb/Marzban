@@ -1,12 +1,13 @@
 """Authenticated MGMA controls and public short-lived subscription routes."""
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Path, Request, Response
 
+from app import logger, xray
 from app.db import Session, crud, get_db
 from app.dependencies import get_validated_user
 from app.models.admin import Admin
 from app.models.mgma import MgmaIssueResponse, MgmaSettingsResponse, MgmaSettingsUpdate
-from app.models.user import UserResponse
+from app.models.user import UserResponse, UserStatus
 from app.routers.subscription import build_subscription_response
 from app.services.mgma import (
     MgmaConfigurationError,
@@ -16,10 +17,13 @@ from app.services.mgma import (
     get_real_client_ip,
     get_settings_response,
     issue_token,
+    regenerate_subscription,
     revoke_token,
+    token_generation_matches,
     update_settings,
     validate_token,
 )
+from app.utils import report
 from config import XRAY_SUBSCRIPTION_PATH
 
 
@@ -69,6 +73,7 @@ def issue_mgma_url(
     response.headers.update(NO_STORE_HEADERS)
     return MgmaIssueResponse(
         url=build_public_subscription_url(
+            dbuser.subscription_token,
             issued.token,
             base_url=str(request.base_url),
         ),
@@ -88,6 +93,55 @@ def revoke_mgma_url(
     revoke_token(db, dbuser)
     response.headers.update(NO_STORE_HEADERS)
     return {"detail": "Temporary subscription URL revoked"}
+
+
+@router.post(
+    "/api/user/{username}/subscription/regenerate",
+    response_model=MgmaIssueResponse,
+    responses={403: {"description": "Not allowed"}, 404: {"description": "User not found"}},
+)
+def regenerate_user_subscription(
+    request: Request,
+    response: Response,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    dbuser=Depends(get_validated_user),
+    admin: Admin = Depends(Admin.get_current),
+):
+    """Atomically rotate a user's path, proxy credentials, and MGMA bearer."""
+
+    try:
+        issued = regenerate_subscription(db, dbuser)
+    except MgmaUserIneligible:
+        raise HTTPException(
+            status_code=409,
+            detail="Only active or on-hold users can regenerate a subscription",
+        ) from None
+    except MgmaConfigurationError:
+        raise HTTPException(status_code=503, detail="MGMA is not configured") from None
+
+    if dbuser.status in (UserStatus.active, UserStatus.on_hold):
+        bg.add_task(xray.operations.update_user_by_id, user_id=dbuser.id)
+    user = UserResponse.model_validate(dbuser)
+    bg.add_task(
+        report.user_subscription_revoked,
+        user=user,
+        user_admin=dbuser.admin,
+        by=admin,
+    )
+    logger.info(f'User "{dbuser.username}" subscription regenerated')
+
+    response.headers.update(NO_STORE_HEADERS)
+    return MgmaIssueResponse(
+        url=build_public_subscription_url(
+            dbuser.subscription_token,
+            issued.token,
+            base_url=str(request.base_url),
+        ),
+        issued_at=issued.issued_at,
+        expires_at=issued.expires_at,
+        ttl_seconds=issued.ttl_seconds,
+    )
 
 
 @router.get("/api/subscription/settings", response_model=MgmaSettingsResponse)
@@ -134,6 +188,8 @@ def mgma_subscription(
 ):
     dbuser = _validated_mgma_user(request, token, db)
     user = UserResponse.model_validate(dbuser)
+    if not token_generation_matches(db, dbuser.id, token):
+        raise _not_found()
     crud.update_user_sub(db, dbuser, user_agent)
     return build_subscription_response(
         user=user,
@@ -155,6 +211,8 @@ def mgma_subscription_with_client_type(
 ):
     dbuser = _validated_mgma_user(request, token, db)
     user = UserResponse.model_validate(dbuser)
+    if not token_generation_matches(db, dbuser.id, token):
+        raise _not_found()
     crud.update_user_sub(db, dbuser, user_agent)
     return build_subscription_response(
         user=user,

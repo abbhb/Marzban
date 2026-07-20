@@ -2,6 +2,7 @@
 Functions for managing proxy hosts, users, user templates, nodes, and administrative tasks.
 """
 
+import secrets
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
@@ -614,6 +615,10 @@ def revoke_user_sub(db: Session, dbuser: User) -> User:
         User: The updated user object.
     """
     dbuser.sub_revoked_at = datetime.utcnow()
+    # The stable path identifies one complete subscription generation.  A
+    # destructive subscription revoke rotates it together with every proxy
+    # credential; issuing another MGMA token alone must never change it.
+    dbuser.subscription_token = secrets.token_urlsafe(32)
     # Revoking a subscription must also revoke the latest short-lived MGMA
     # bearer.  These fields flush in the same transaction as the rotated proxy
     # credentials below, so an old temporary URL cannot fetch the new secrets.

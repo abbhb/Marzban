@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -24,7 +25,7 @@ from starlette.requests import Request
 
 from app.db.base import Base
 from app.db import crud
-from app.db.models import Admin, MgmaSettings, NextPlan, User
+from app.db.models import Admin, MgmaSettings, Proxy, User
 from app.dependencies import get_validated_sub, get_validated_user
 from app.models.admin import Admin as AdminSchema
 from app.models.mgma import MgmaSettingsUpdate
@@ -36,6 +37,7 @@ from app.services.mgma import (
     MgmaTokenRejected,
     MgmaUserIneligible,
     _parse_cidrs,
+    build_public_subscription_url,
     digest_token,
     get_real_client_ip,
     issue_token,
@@ -44,6 +46,7 @@ from app.services.mgma import (
     source_allowed,
     validate_token,
 )
+from app.utils.jwt import create_subscription_token
 
 
 UTC = timezone.utc
@@ -98,17 +101,10 @@ class MgmaDatabaseTestCase(unittest.TestCase):
             expire_on_commit=False,
         )
 
-        # These are the only physical tables used by MGMA.  ``admins`` is
-        # included because ``users.admin_id`` has a foreign-key dependency.
-        Base.metadata.create_all(
-            self.engine,
-            tables=[
-                Admin.__table__,
-                User.__table__,
-                NextPlan.__table__,
-                MgmaSettings.__table__,
-            ],
-        )
+        # Public subscription guards now materialize a complete immutable user
+        # snapshot before their final generation check, including proxies,
+        # inbound exclusions, and lifetime usage relations.
+        Base.metadata.create_all(self.engine)
         self.db = self.Session()
         self.addCleanup(self.db.close)
         self.settings = MgmaSettings(
@@ -134,6 +130,12 @@ class MgmaDatabaseTestCase(unittest.TestCase):
         }
         values.update(overrides)
         user = User(**values)
+        user.proxies.append(
+            Proxy(
+                type=ProxyTypes.VLESS,
+                settings=VLESSSettings().dict(no_obj=True),
+            )
+        )
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
@@ -145,6 +147,43 @@ class MgmaDatabaseTestCase(unittest.TestCase):
 
 
 class TokenLifecycleTests(MgmaDatabaseTestCase):
+    def test_each_user_has_a_stable_random_subscription_path_token(self) -> None:
+        alice = self.create_user("alice")
+        bob = self.create_user("bob")
+
+        self.assertRegex(alice.subscription_token, re.compile(r"^[A-Za-z0-9_-]{43}$"))
+        self.assertRegex(bob.subscription_token, re.compile(r"^[A-Za-z0-9_-]{43}$"))
+        self.assertNotEqual(alice.subscription_token, bob.subscription_token)
+
+        persisted = self.db.get(User, alice.id)
+        self.assertEqual(alice.subscription_token, persisted.subscription_token)
+
+    def test_reissuing_mgma_changes_only_the_query_bearer(self) -> None:
+        user = self.create_user()
+        stable_token = user.subscription_token
+        first = issue_token(self.db, user)
+        first_url = build_public_subscription_url(
+            user.subscription_token,
+            first.token,
+            base_url="https://panel.example",
+        )
+        second = issue_token(self.db, user)
+        second_url = build_public_subscription_url(
+            user.subscription_token,
+            second.token,
+            base_url="https://panel.example",
+        )
+
+        first_parts = urlsplit(first_url)
+        second_parts = urlsplit(second_url)
+        self.assertEqual(f"/sub/{stable_token}/", first_parts.path)
+        self.assertEqual(first_parts.path, second_parts.path)
+        self.assertNotEqual(
+            parse_qs(first_parts.query)["token"],
+            parse_qs(second_parts.query)["token"],
+        )
+        self.assertEqual(stable_token, user.subscription_token)
+
     def test_pepper_status_uses_the_same_utf8_byte_boundary_as_issuance(self) -> None:
         with patch.dict(os.environ, {"MGMA_TOKEN_PEPPER": "短" * 10}):
             self.assertFalse(pepper_is_configured())  # 30 UTF-8 bytes
@@ -218,6 +257,7 @@ class TokenLifecycleTests(MgmaDatabaseTestCase):
 
     def test_revoke_subscription_clears_mgma_before_rotating_credentials(self) -> None:
         user = self.create_user()
+        original_subscription_token = user.subscription_token
         issued = issue_token(self.db, user)
         vless = VLESSSettings()
         original_vless_id = vless.id
@@ -242,12 +282,37 @@ class TokenLifecycleTests(MgmaDatabaseTestCase):
             revoked = crud.revoke_user_sub(self.db, user)
 
         self.assertIsNotNone(revoked.sub_revoked_at)
+        self.assertNotEqual(original_subscription_token, revoked.subscription_token)
         self.assertIsNone(revoked.sub_access_token_digest)
         self.assertIsNone(revoked.sub_access_issued_at)
         self.assertIsNone(revoked.sub_access_expires_at)
         self.assertIsNone(revoked.sub_access_consumed_at)
         self.assertNotEqual(original_vless_id, captured["vless_id"])
         self.assert_token_rejected(issued.token, consume=False)
+
+    def test_mgma_bearer_must_belong_to_the_stable_path_user(self) -> None:
+        alice = self.create_user("alice")
+        bob = self.create_user("bob")
+        issued = issue_token(self.db, alice)
+
+        with self.assertRaises(MgmaTokenRejected):
+            validate_token(
+                self.db,
+                issued.token,
+                "203.0.113.9",
+                consume=False,
+                expected_user_id=bob.id,
+            )
+        self.assertEqual(
+            alice.id,
+            validate_token(
+                self.db,
+                issued.token,
+                "203.0.113.9",
+                consume=False,
+                expected_user_id=alice.id,
+            ).id,
+        )
 
     def test_ttl_schema_bounds_and_exact_expiry_boundary(self) -> None:
         for ttl in (30, 900):
@@ -437,20 +502,207 @@ class EligibilityTests(MgmaDatabaseTestCase):
 
 
 class DependencyModeTests(MgmaDatabaseTestCase):
-    def test_ephemeral_mode_rejects_legacy_dependency_before_decoding_token(self) -> None:
+    def test_ephemeral_mode_requires_mgma_query_for_stable_path(self) -> None:
         self.settings.mode = "ephemeral"
         self.db.commit()
+        user = self.create_user()
         request = _request(client=("203.0.113.9", 12345))
-        with patch("app.dependencies.get_subscription_payload") as decode:
+        with self.assertRaises(HTTPException) as caught:
+            get_validated_sub(
+                subscription_token=user.subscription_token,
+                token=None,
+                request=request,
+                db=self.db,
+            )
+        self.assertEqual(404, caught.exception.status_code)
+        self.assertEqual("Not Found", caught.exception.detail)
+        self.assertEqual("private, no-store, max-age=0", caught.exception.headers["Cache-Control"])
+
+    def test_valid_query_authorizes_only_its_matching_stable_path(self) -> None:
+        self.settings.mode = "ephemeral"
+        self.db.commit()
+        alice = self.create_user("alice")
+        bob = self.create_user("bob")
+        issued = issue_token(self.db, alice)
+        request = _request(client=("203.0.113.9", 12345))
+
+        resolved = get_validated_sub(
+            subscription_token=alice.subscription_token,
+            token=issued.token,
+            request=request,
+            db=self.db,
+        )
+        self.assertEqual(alice.id, resolved.id)
+        self.assertTrue(request.state.mgma_authorized)
+
+        mismatch_request = _request(client=("203.0.113.9", 12345))
+        with self.assertRaises(HTTPException) as caught:
+            get_validated_sub(
+                subscription_token=bob.subscription_token,
+                token=issued.token,
+                request=mismatch_request,
+                db=self.db,
+            )
+        self.assertEqual(404, caught.exception.status_code)
+
+    def test_generation_change_after_snapshot_rejects_old_authorization(self) -> None:
+        user = self.create_user()
+        issued = issue_token(self.db, user)
+        original_path = user.subscription_token
+
+        def rotate_generation(_dbuser):
+            user.subscription_token = secrets.token_urlsafe(32)
+            user.sub_access_token_digest = digest_token(secrets.token_urlsafe(32))
+            self.db.commit()
+            return SimpleNamespace(username=user.username)
+
+        with patch(
+            "app.dependencies.UserResponse.model_validate",
+            side_effect=rotate_generation,
+        ):
             with self.assertRaises(HTTPException) as caught:
                 get_validated_sub(
-                    token="legacy-permanent-token",
-                    request=request,
+                    subscription_token=original_path,
+                    token=issued.token,
+                    request=_request(client=("203.0.113.9", 12345)),
                     db=self.db,
                 )
         self.assertEqual(404, caught.exception.status_code)
-        self.assertEqual("Not Found", caught.exception.detail)
-        decode.assert_not_called()
+        self.assertEqual(
+            "private, no-store, max-age=0",
+            caught.exception.headers["Cache-Control"],
+        )
+
+    def test_invalid_query_never_falls_back_to_dual_long_lived_access(self) -> None:
+        user = self.create_user()
+        request = _request(client=("203.0.113.9", 12345))
+        with self.assertRaises(HTTPException) as caught:
+            get_validated_sub(
+                subscription_token=user.subscription_token,
+                token="invalid-temporary-token",
+                request=request,
+                db=self.db,
+            )
+        self.assertEqual(404, caught.exception.status_code)
+        self.assertEqual("private, no-store, max-age=0", caught.exception.headers["Cache-Control"])
+
+    def test_expired_query_never_falls_back_to_dual_long_lived_access(self) -> None:
+        user = self.create_user()
+        issued = issue_token(self.db, user)
+        user.sub_access_expires_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=1)
+        self.db.commit()
+        request = _request(client=("203.0.113.9", 12345))
+
+        with self.assertRaises(HTTPException) as caught:
+            get_validated_sub(
+                subscription_token=user.subscription_token,
+                token=issued.token,
+                request=request,
+                db=self.db,
+            )
+        self.assertEqual(404, caught.exception.status_code)
+        self.assertEqual("private, no-store, max-age=0", caught.exception.headers["Cache-Control"])
+
+    def test_stable_path_without_query_is_rejected_in_every_mode(self) -> None:
+        user = self.create_user()
+        for mode in ("legacy", "dual", "ephemeral"):
+            with self.subTest(mode=mode):
+                self.settings.mode = mode
+                self.db.commit()
+                request = _request(client=("203.0.113.9", 12345))
+                with self.assertRaises(HTTPException) as caught:
+                    get_validated_sub(
+                        subscription_token=user.subscription_token,
+                        token=None,
+                        request=request,
+                        db=self.db,
+                    )
+                self.assertEqual(404, caught.exception.status_code)
+                self.assertEqual(
+                    "private, no-store, max-age=0",
+                    caught.exception.headers["Cache-Control"],
+                )
+
+    def test_only_pre_upgrade_signed_path_keeps_no_query_compatibility(self) -> None:
+        user = self.create_user()
+        with patch("app.utils.jwt.get_secret_key", return_value="legacy-test-secret"):
+            legacy_token = create_subscription_token(user.username)
+
+            for mode in ("legacy", "dual"):
+                with self.subTest(mode=mode):
+                    self.settings.mode = mode
+                    self.db.commit()
+                    request = _request(client=("203.0.113.9", 12345))
+                    resolved = get_validated_sub(
+                        subscription_token=legacy_token,
+                        token=None,
+                        request=request,
+                        db=self.db,
+                    )
+                    self.assertEqual(user.id, resolved.id)
+                    self.assertFalse(request.state.mgma_authorized)
+
+            self.settings.mode = "ephemeral"
+            self.db.commit()
+            with self.assertRaises(HTTPException) as caught:
+                get_validated_sub(
+                    subscription_token=legacy_token,
+                    token=None,
+                    request=_request(client=("203.0.113.9", 12345)),
+                    db=self.db,
+                )
+        self.assertEqual(404, caught.exception.status_code)
+
+    def test_same_second_regeneration_revokes_ceil_timestamp_legacy_path(self) -> None:
+        base_timestamp = 1_800_000_000
+        user = self.create_user(
+            created_at=datetime.fromtimestamp(base_timestamp - 60, UTC).replace(
+                tzinfo=None
+            )
+        )
+        user.sub_revoked_at = datetime.fromtimestamp(
+            base_timestamp + 0.2,
+            UTC,
+        ).replace(tzinfo=None)
+        self.db.commit()
+
+        with (
+            patch("app.utils.jwt.get_secret_key", return_value="legacy-test-secret"),
+            patch("app.utils.jwt.time.time", return_value=base_timestamp + 0.1),
+        ):
+            legacy_token = create_subscription_token(user.username)
+            with self.assertRaises(HTTPException) as caught:
+                get_validated_sub(
+                    subscription_token=legacy_token,
+                    token=None,
+                    request=_request(client=("203.0.113.9", 12345)),
+                    db=self.db,
+                )
+        self.assertEqual(404, caught.exception.status_code)
+
+    def test_html_query_is_rejected_without_consuming_single_use_token(self) -> None:
+        self.settings.mode = "ephemeral"
+        self.settings.single_use = True
+        self.db.commit()
+        user = self.create_user()
+        issued = issue_token(self.db, user)
+        request = _request(client=("203.0.113.9", 12345))
+        request.scope["headers"] = [(b"accept", b"text/html")]
+
+        with self.assertRaises(HTTPException) as caught:
+            get_validated_sub(
+                subscription_token=user.subscription_token,
+                token=issued.token,
+                request=request,
+                db=self.db,
+            )
+        self.assertEqual(404, caught.exception.status_code)
+        validate_token(
+            self.db,
+            issued.token,
+            "203.0.113.9",
+            consume=False,
+        )
 
     def test_legacy_route_applies_source_policy_before_decoding_token(self) -> None:
         self.settings.mode = "dual"
@@ -462,7 +714,8 @@ class DependencyModeTests(MgmaDatabaseTestCase):
         with patch("app.dependencies.get_subscription_payload") as decode:
             with self.assertRaises(HTTPException) as caught:
                 get_validated_sub(
-                    token="legacy-permanent-token",
+                    subscription_token="legacy-permanent-token",
+                    token=None,
                     request=denied_request,
                     db=self.db,
                 )
@@ -490,7 +743,7 @@ class RouteRegistrationTests(unittest.TestCase):
         from app import app as marzban_app
 
         paths = [route.path for route in marzban_app.routes]
-        self.assertLess(paths.index("/sub/mgma"), paths.index("/sub/{token}"))
+        self.assertLess(paths.index("/sub/mgma"), paths.index("/sub/{subscription_token}"))
 
     def test_settings_read_and_write_both_require_sudo_dependency(self) -> None:
         from app import app as marzban_app
@@ -509,10 +762,10 @@ class RouteRegistrationTests(unittest.TestCase):
         from app import app as marzban_app
 
         guarded_paths = {
-            "/sub/{token}",
-            "/sub/{token}/info",
-            "/sub/{token}/usage",
-            "/sub/{token}/{client_type}",
+            "/sub/{subscription_token}",
+            "/sub/{subscription_token}/info",
+            "/sub/{subscription_token}/usage",
+            "/sub/{subscription_token}/{client_type}",
         }
         seen = set()
         for route in marzban_app.routes:
@@ -589,6 +842,26 @@ class PublicRouteTests(MgmaDatabaseTestCase):
             "203.0.113.9",
             consume=False,
         )
+
+    def test_legacy_alias_rechecks_generation_after_materializing_snapshot(self) -> None:
+        user = self.create_user()
+        issued = issue_token(self.db, user)
+
+        def rotate_generation(_dbuser):
+            user.subscription_token = secrets.token_urlsafe(32)
+            user.sub_access_token_digest = digest_token(secrets.token_urlsafe(32))
+            self.db.commit()
+            return SimpleNamespace(username=user.username)
+
+        with patch.object(
+            mgma_router.UserResponse,
+            "model_validate",
+            side_effect=rotate_generation,
+        ):
+            with self.assertRaises(HTTPException) as caught:
+                self.call_public_route(issued.token)
+        self.assertEqual(404, caught.exception.status_code)
+        self.assertEqual(mgma_router.NO_STORE_HEADERS, caught.exception.headers)
 
     def test_public_subscription_has_no_store_and_never_reflects_token(self) -> None:
         issued = issue_token(self.db, self.create_user())

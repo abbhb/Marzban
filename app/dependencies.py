@@ -1,4 +1,5 @@
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
+from sqlalchemy import select
 from app.models.admin import AdminInDB, AdminValidationResult, Admin
 from app.models.user import UserResponse, UserStatus
 from app.db import Session, crud, get_db
@@ -8,8 +9,15 @@ from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime, timezone, timedelta
 from app.utils.jwt import get_portal_payload, get_subscription_payload
 from app.models.mgma import MgmaAccessMode
-from app.services.mgma import get_real_client_ip, get_settings, source_allowed
-from app.db.models import PortalAccount
+from app.services.mgma import (
+    MgmaTokenRejected,
+    get_real_client_ip,
+    get_settings,
+    source_allowed,
+    token_generation_matches,
+    validate_token,
+)
+from app.db.models import PortalAccount, User
 from app.services import commerce
 
 
@@ -106,30 +114,167 @@ def get_current_portal_account(
     return account
 
 
+MGMA_NO_STORE_HEADERS = {
+    "Cache-Control": "private, no-store, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Referrer-Policy": "no-referrer",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+}
+
+
+def _subscription_not_found(*, no_store: bool = False) -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail="Not Found",
+        headers=MGMA_NO_STORE_HEADERS if no_store else None,
+    )
+
+
+def _resolve_subscription_path(
+    db: Session,
+    subscription_token: str,
+) -> Optional[Tuple[User, str, Optional[datetime]]]:
+    """Resolve a subscription path and identify its authentication source."""
+
+    dbuser = (
+        db.query(User)
+        .filter(User.subscription_token == subscription_token)
+        .first()
+    )
+    if dbuser:
+        return dbuser, "stable", None
+
+    sub = get_subscription_payload(subscription_token)
+    if not sub:
+        return None
+    dbuser = crud.get_user(db, sub["username"])
+    if not dbuser or dbuser.created_at > sub["created_at"]:
+        return None
+    # The pre-v0.8.4 custom subscription format encoded ``ceil(time.time())``.
+    # Its recorded creation can therefore be almost one second later than the
+    # actual issuance.  Include that precision window so a same-second full
+    # regeneration cannot leave the old permanent URL authorized.
+    if _legacy_path_revoked(dbuser.sub_revoked_at, sub["created_at"]):
+        return None
+    return dbuser, "legacy", sub["created_at"]
+
+
+def _legacy_path_revoked(
+    revoked_at: Optional[datetime],
+    token_created_at: datetime,
+) -> bool:
+    return bool(
+        revoked_at
+        and revoked_at + timedelta(seconds=1) > token_created_at
+    )
+
+
+def _capture_subscription_snapshot(
+    db: Session,
+    request: Request,
+    dbuser: User,
+    *,
+    path_source: str,
+    subscription_token: str,
+    query_token: Optional[str],
+    legacy_created_at: Optional[datetime],
+) -> None:
+    """Materialize credentials, then reject if their generation changed."""
+
+    snapshot = UserResponse.model_validate(dbuser)
+    if query_token is not None:
+        stable_path = subscription_token if path_source == "stable" else None
+        if not token_generation_matches(
+            db,
+            dbuser.id,
+            query_token,
+            subscription_token=stable_path,
+        ):
+            raise _subscription_not_found(no_store=True)
+    else:
+        row = db.execute(
+            select(User.id, User.sub_revoked_at).where(User.id == dbuser.id)
+        ).one_or_none()
+        if (
+            row is None
+            or legacy_created_at is None
+            or _legacy_path_revoked(row.sub_revoked_at, legacy_created_at)
+        ):
+            raise _subscription_not_found(no_store=True)
+
+    request.state.subscription_user_snapshot = snapshot
+    request.state.subscription_dbuser = dbuser
+
+
 def get_validated_sub(
-        token: str,
-        request: Request,
-        db: Session = Depends(get_db)
+    subscription_token: str,
+    request: Request,
+    token: Optional[str] = None,
+    db: Session = Depends(get_db),
 ) -> UserResponse:
     settings = get_settings(db)
+    has_mgma_query = token is not None
+    no_store = has_mgma_query or settings.mode == MgmaAccessMode.ephemeral.value
+    source_ip = get_real_client_ip(request)
+    if not source_allowed(source_ip, settings):
+        raise _subscription_not_found(no_store=no_store)
+
+    resolved_path = _resolve_subscription_path(db, subscription_token)
+    if resolved_path is None:
+        raise _subscription_not_found(no_store=no_store)
+    path_user, path_source, legacy_created_at = resolved_path
+
+    if has_mgma_query:
+        # Do this before validating/consuming a single-use bearer, preserving
+        # the same opaque browser behavior as the legacy /sub/mgma alias.
+        if "text/html" in request.headers.get("accept", "").lower():
+            raise _subscription_not_found(no_store=True)
+        try:
+            dbuser = validate_token(
+                db,
+                token or "",
+                source_ip,
+                expected_user_id=path_user.id,
+            )
+        except MgmaTokenRejected:
+            # An explicitly supplied invalid/expired bearer must never fall
+            # back to legacy long-lived access in legacy or dual mode.
+            raise _subscription_not_found(no_store=True) from None
+        _capture_subscription_snapshot(
+            db,
+            request,
+            dbuser,
+            path_source=path_source,
+            subscription_token=subscription_token,
+            query_token=token,
+            legacy_created_at=legacy_created_at,
+        )
+        request.state.mgma_authorized = True
+        return dbuser
+
+    # The new stable path is only an opaque user identifier, never an
+    # authorization credential. It always requires a valid short-lived MGMA
+    # bearer, including while the migration mode is ``legacy`` or ``dual``.
+    # Only the old signed subscription token keeps its historical no-query
+    # behavior during the compatibility window.
     if (
-        settings.mode == MgmaAccessMode.ephemeral.value
-        or not source_allowed(get_real_client_ip(request), settings)
+        path_source == "stable"
+        or settings.mode == MgmaAccessMode.ephemeral.value
     ):
-        raise HTTPException(status_code=404, detail="Not Found")
+        raise _subscription_not_found(no_store=True)
 
-    sub = get_subscription_payload(token)
-    if not sub:
-        raise HTTPException(status_code=404, detail="Not Found")
-
-    dbuser = crud.get_user(db, sub['username'])
-    if not dbuser or dbuser.created_at > sub['created_at']:
-        raise HTTPException(status_code=404, detail="Not Found")
-
-    if dbuser.sub_revoked_at and dbuser.sub_revoked_at > sub['created_at']:
-        raise HTTPException(status_code=404, detail="Not Found")
-
-    return dbuser
+    _capture_subscription_snapshot(
+        db,
+        request,
+        path_user,
+        path_source=path_source,
+        subscription_token=subscription_token,
+        query_token=None,
+        legacy_created_at=legacy_created_at,
+    )
+    request.state.mgma_authorized = False
+    return path_user
 
 
 def get_validated_user(

@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence, Union
 from urllib.parse import quote
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.requests import Request
@@ -36,6 +36,7 @@ from app.models.mgma import (
     MgmaSourceMode,
     MgmaTokenIssue,
 )
+from app.models.proxy import ProxySettings
 from app.models.user import UserStatus
 from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
 
@@ -43,6 +44,7 @@ from config import XRAY_SUBSCRIPTION_PATH, XRAY_SUBSCRIPTION_URL_PREFIX
 MGMA_TOKEN_PEPPER_ENV = "MGMA_TOKEN_PEPPER"
 MGMA_TOKEN_BYTES = 32
 MGMA_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+SUBSCRIPTION_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 MGMA_SETTINGS_ID = 1
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -210,12 +212,28 @@ def digest_token(token: str, pepper: Optional[str] = None) -> str:
     ).hexdigest()
 
 
-def build_public_subscription_url(token: str, base_url: Optional[str] = None) -> str:
-    """Build the only response value that contains a clear-text MGMA token."""
+def build_public_subscription_url(
+    subscription_token: str,
+    token: str,
+    base_url: Optional[str] = None,
+) -> str:
+    """Build a stable subscription path with a short-lived MGMA bearer.
+
+    Only the query token changes when MGMA is reissued.  A wildcard in the
+    configured prefix is derived from the stable path token rather than fresh
+    randomness so it cannot accidentally change the effective subscription
+    URL on every authorization.
+    """
+
+    if not SUBSCRIPTION_TOKEN_RE.fullmatch(subscription_token or ""):
+        raise MgmaConfigurationError("user subscription token is unavailable")
 
     prefix = XRAY_SUBSCRIPTION_URL_PREFIX.rstrip("/")
     if prefix:
-        prefix = prefix.replace("*", secrets.token_hex(8))
+        stable_host_label = hashlib.sha256(
+            subscription_token.encode("ascii")
+        ).hexdigest()[:16]
+        prefix = prefix.replace("*", stable_host_label)
     elif base_url:
         prefix = base_url.rstrip("/")
     else:
@@ -223,7 +241,8 @@ def build_public_subscription_url(token: str, base_url: Optional[str] = None) ->
             "XRAY_SUBSCRIPTION_URL_PREFIX is required outside an HTTP request"
         )
     return (
-        f"{prefix}/{XRAY_SUBSCRIPTION_PATH}/mgma"
+        f"{prefix}/{XRAY_SUBSCRIPTION_PATH}/"
+        f"{quote(subscription_token, safe='')}/"
         f"?token={quote(token, safe='')}"
     )
 
@@ -344,6 +363,20 @@ def _eligible_user(user: User, current_time: datetime) -> bool:
     return True
 
 
+def ensure_token_issuable(
+    db: Session,
+    user: User,
+    now: Optional[datetime] = None,
+) -> None:
+    """Validate MGMA issuance without changing the current bearer."""
+
+    issued_at = _utc_naive(now)
+    if not _eligible_user(user, issued_at):
+        raise MgmaUserIneligible("only active or on-hold users can receive an MGMA token")
+    get_settings(db)
+    require_token_pepper()
+
+
 def issue_token(
     db: Session,
     user: User,
@@ -351,10 +384,8 @@ def issue_token(
 ) -> MgmaTokenIssue:
     """Issue a token and atomically make every prior token for ``user`` stale."""
 
+    ensure_token_issuable(db, user, now=now)
     issued_at = _utc_naive(now)
-    if not _eligible_user(user, issued_at):
-        raise MgmaUserIneligible("only active or on-hold users can receive an MGMA token")
-
     settings = get_settings(db)
     pepper = require_token_pepper()
     expires_at = issued_at + timedelta(seconds=settings.ttl_seconds)
@@ -391,6 +422,71 @@ def revoke_token(db: Session, user: User) -> None:
     except Exception:
         db.rollback()
         raise
+
+
+def regenerate_subscription(
+    db: Session,
+    user: User,
+    now: Optional[datetime] = None,
+) -> MgmaTokenIssue:
+    """Atomically rotate a complete subscription and issue its MGMA bearer.
+
+    The stable path, every proxy credential, and all MGMA lifecycle fields are
+    changed in one database transaction with exactly one commit.  Any failure
+    rolls the session back so the previous subscription remains usable.
+    """
+
+    issued_at = _utc_naive(now)
+    if not _eligible_user(user, issued_at):
+        raise MgmaUserIneligible("only active or on-hold users can receive an MGMA token")
+
+    pepper = require_token_pepper()
+    settings = db.get(MgmaSettings, MGMA_SETTINGS_ID)
+    if settings is None:
+        # Keep singleton initialization inside the same transaction as the
+        # rotation instead of calling get_settings(), which commits eagerly.
+        settings = MgmaSettings(
+            id=MGMA_SETTINGS_ID,
+            mode=MgmaAccessMode.legacy.value,
+            ttl_seconds=180,
+            single_use=False,
+            source_mode=MgmaSourceMode.any.value,
+            custom_cidrs=[],
+        )
+        db.add(settings)
+
+    token = secrets.token_urlsafe(MGMA_TOKEN_BYTES)
+    stable_token = secrets.token_urlsafe(MGMA_TOKEN_BYTES)
+    ttl_seconds = settings.ttl_seconds
+    expires_at = issued_at + timedelta(seconds=ttl_seconds)
+
+    try:
+        user.sub_revoked_at = issued_at
+        user.subscription_token = stable_token
+        user.sub_access_token_digest = digest_token(token, pepper)
+        user.sub_access_issued_at = issued_at
+        user.sub_access_expires_at = expires_at
+        user.sub_access_consumed_at = None
+        user.edit_at = issued_at
+
+        for dbproxy in user.proxies:
+            proxy_settings = ProxySettings.from_dict(dbproxy.type, dbproxy.settings)
+            proxy_settings.revoke()
+            dbproxy.settings = proxy_settings.dict(no_obj=True)
+
+        db.add(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    db.refresh(user)
+    return MgmaTokenIssue(
+        token=token,
+        issued_at=_utc_aware(issued_at),
+        expires_at=_utc_aware(expires_at),
+        ttl_seconds=ttl_seconds,
+    )
 
 
 def normalize_ip(value: object) -> Optional[IPAddress]:
@@ -470,6 +566,44 @@ def source_allowed(
     return china_match or custom_match
 
 
+def token_generation_matches(
+    db: Session,
+    user_id: int,
+    token: str,
+    *,
+    subscription_token: Optional[str] = None,
+) -> bool:
+    """Recheck that a materialized subscription still belongs to this grant.
+
+    Callers first build an immutable response snapshot and then invoke this
+    function.  A concurrent full regeneration is therefore handled safely:
+    either the old snapshot is returned, or this check observes the new
+    generation and rejects the request before any new credentials are sent.
+    """
+
+    if not isinstance(token, str) or not MGMA_TOKEN_RE.fullmatch(token):
+        return False
+    try:
+        expected_digest = digest_token(token)
+    except (UnicodeError, MgmaConfigurationError):
+        return False
+
+    row = db.execute(
+        select(User.subscription_token, User.sub_access_token_digest).where(
+            User.id == user_id
+        )
+    ).one_or_none()
+    if row is None:
+        return False
+    current_subscription_token, current_digest = row
+    if subscription_token is not None and not hmac.compare_digest(
+        current_subscription_token or "",
+        subscription_token,
+    ):
+        return False
+    return hmac.compare_digest(current_digest or "", expected_digest)
+
+
 def validate_token(
     db: Session,
     token: str,
@@ -477,6 +611,7 @@ def validate_token(
     *,
     consume: Optional[bool] = None,
     now: Optional[datetime] = None,
+    expected_user_id: Optional[int] = None,
 ) -> User:
     """Validate an MGMA token and optionally consume it atomically.
 
@@ -500,13 +635,14 @@ def validate_token(
     current_time = _utc_naive(now)
     if (
         user is None
+        or (expected_user_id is not None and user.id != expected_user_id)
         or not hmac.compare_digest(user.sub_access_token_digest or "", digest)
         or user.sub_access_issued_at is None
         or user.sub_access_expires_at is None
         or user.sub_access_expires_at <= current_time
         or (
             user.sub_revoked_at is not None
-            and user.sub_access_issued_at <= user.sub_revoked_at
+            and user.sub_access_issued_at < user.sub_revoked_at
         )
         or not _eligible_user(user, current_time)
     ):

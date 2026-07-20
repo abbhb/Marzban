@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Header, Path, Request, Response
 from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
-from app.dependencies import get_validated_sub, validate_dates
+from app.dependencies import MGMA_NO_STORE_HEADERS, get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
@@ -138,8 +138,17 @@ def build_subscription_response(
     return Response(content=conf, media_type="text/plain", headers=response_headers)
 
 
-@router.get("/{token}/")
-@router.get("/{token}", include_in_schema=False)
+def _is_mgma_authorized(request: Request) -> bool:
+    return bool(getattr(request.state, "mgma_authorized", False))
+
+
+def _subscription_snapshot(request: Request, dbuser) -> UserResponse:
+    snapshot = getattr(request.state, "subscription_user_snapshot", None)
+    return snapshot or UserResponse.model_validate(dbuser)
+
+
+@router.get("/{subscription_token}/")
+@router.get("/{subscription_token}", include_in_schema=False)
 def user_subscription(
     request: Request,
     db: Session = Depends(get_db),
@@ -147,8 +156,9 @@ def user_subscription(
     user_agent: str = Header(default="")
 ):
     """Provides a subscription link based on the user agent (Clash, V2Ray, etc.)."""
-    user: UserResponse = UserResponse.model_validate(dbuser)
+    user = _subscription_snapshot(request, dbuser)
 
+    ephemeral = _is_mgma_authorized(request)
     accept_header = request.headers.get("Accept", "")
     if "text/html" in accept_header:
         return HTMLResponse(
@@ -162,20 +172,27 @@ def user_subscription(
     return build_subscription_response(
         user=user,
         user_agent=user_agent,
-        profile_url=str(request.url),
+        profile_url=None if ephemeral else str(request.url),
+        ephemeral=ephemeral,
     )
 
 
-@router.get("/{token}/info", response_model=SubscriptionUserResponse)
+@router.get("/{subscription_token}/info", response_model=SubscriptionUserResponse)
 def user_subscription_info(
+    request: Request,
+    response: Response,
     dbuser: UserResponse = Depends(get_validated_sub),
 ):
     """Retrieves detailed information about the user's subscription."""
-    return dbuser
+    if _is_mgma_authorized(request):
+        response.headers.update(MGMA_NO_STORE_HEADERS)
+    return _subscription_snapshot(request, dbuser)
 
 
-@router.get("/{token}/usage")
+@router.get("/{subscription_token}/usage")
 def user_get_usage(
+    request: Request,
+    response: Response,
     dbuser: UserResponse = Depends(get_validated_sub),
     start: str = "",
     end: str = "",
@@ -186,10 +203,16 @@ def user_get_usage(
 
     usages = crud.get_user_usages(db, dbuser, start, end)
 
-    return {"usages": usages, "username": dbuser.username}
+    if _is_mgma_authorized(request):
+        response.headers.update(MGMA_NO_STORE_HEADERS)
+
+    return {
+        "usages": usages,
+        "username": _subscription_snapshot(request, dbuser).username,
+    }
 
 
-@router.get("/{token}/{client_type}")
+@router.get("/{subscription_token}/{client_type}")
 def user_subscription_with_client_type(
     request: Request,
     dbuser: UserResponse = Depends(get_validated_sub),
@@ -198,11 +221,13 @@ def user_subscription_with_client_type(
     user_agent: str = Header(default="")
 ):
     """Provides a subscription link based on the specified client type (e.g., Clash, V2Ray)."""
-    user: UserResponse = UserResponse.model_validate(dbuser)
+    user = _subscription_snapshot(request, dbuser)
 
+    ephemeral = _is_mgma_authorized(request)
     return build_subscription_response(
         user=user,
         user_agent=user_agent,
         client_type=client_type,
-        profile_url=str(request.url),
+        profile_url=None if ephemeral else str(request.url),
+        ephemeral=ephemeral,
     )

@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime
 
 from sqlalchemy import (
@@ -82,6 +83,17 @@ class User(Base):
     sub_revoked_at = Column(DateTime, nullable=True, default=None)
     sub_updated_at = Column(DateTime, nullable=True, default=None)
     sub_last_user_agent = Column(String(512), nullable=True, default=None)
+    # Stable opaque path component for this user's subscription URL.  MGMA
+    # bearer tokens remain short-lived query parameters and are stored only as
+    # keyed digests below; rotating the complete subscription replaces this
+    # path token as well as the proxy credentials.
+    subscription_token = Column(
+        String(43),
+        nullable=False,
+        unique=True,
+        index=True,
+        default=lambda: secrets.token_urlsafe(32),
+    )
     # MGMA subscription access tokens are deliberately stored as keyed digests.
     # The clear-text token is returned once by the issuance endpoint and must
     # never be persisted.

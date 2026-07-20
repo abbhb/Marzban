@@ -38,7 +38,7 @@ def get_link(
         dbuser = utils.get_user(db, username)
         try:
             issued = issue_token(db, dbuser)
-            print(build_public_subscription_url(issued.token))
+            print(build_public_subscription_url(dbuser.subscription_token, issued.token))
         except (MgmaConfigurationError, MgmaUserIneligible) as exc:
             utils.error(str(exc))
 
