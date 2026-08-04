@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     Table,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -328,6 +329,179 @@ class MgmaSettings(Base):
     )
 
 
+class ExternalSubscriptionBudgetLock(Base):
+    """Singleton transaction mutex for external plan/snapshot budget changes."""
+
+    __tablename__ = "external_subscription_budget_lock"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_external_budget_lock_singleton"),
+    )
+
+    id = Column(Integer, primary_key=True, default=1)
+    version = Column(Integer, nullable=False, default=0, server_default="0")
+
+
+class ExternalSubscriptionSource(Base):
+    """A write-only upstream Clash subscription and its refresh metadata."""
+
+    __tablename__ = "external_subscription_sources"
+    __table_args__ = (
+        CheckConstraint(
+            "refresh_interval_minutes >= 15",
+            name="ck_external_sources_refresh_interval",
+        ),
+        CheckConstraint(
+            "status IN ('empty', 'ready', 'auth_required', 'error', 'disabled')",
+            name="ck_external_sources_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128), nullable=False, unique=True)
+    # Group names are immutable after creation so existing client-side group
+    # references do not silently change on the next subscription update.
+    group_name = Column(String(128), nullable=False, unique=True)
+    url_ciphertext = Column(Text, nullable=True)
+    url_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    enabled = Column(Boolean, nullable=False, default=True, server_default="1")
+    refresh_interval_minutes = Column(
+        Integer,
+        nullable=False,
+        default=360,
+        server_default="360",
+    )
+    next_refresh_at = Column(DateTime, nullable=True, index=True)
+    etag = Column(String(512), nullable=True)
+    last_modified = Column(String(128), nullable=True)
+    refresh_lease_until = Column(DateTime, nullable=True)
+    refresh_lease_token = Column(String(43), nullable=True)
+    status = Column(String(24), nullable=False, default="empty", server_default="empty")
+    last_attempt_at = Column(DateTime, nullable=True)
+    last_success_at = Column(DateTime, nullable=True)
+    last_error_code = Column(String(64), nullable=True)
+    node_count = Column(Integer, nullable=False, default=0, server_default="0")
+    skipped_node_count = Column(Integer, nullable=False, default=0, server_default="0")
+    created_by = Column(String(34), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    nodes = relationship(
+        "ExternalSubscriptionNode",
+        back_populates="source",
+        cascade="all, delete-orphan",
+    )
+    plan_selections = relationship(
+        "SubscriptionPlanExternalSelection",
+        back_populates="source",
+        passive_deletes="all",
+    )
+
+    @property
+    def credential_configured(self) -> bool:
+        return bool(self.url_ciphertext)
+
+
+class ExternalSubscriptionNode(Base):
+    """One normalized upstream proxy with an encrypted Clash payload."""
+
+    __tablename__ = "external_subscription_nodes"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "external_key",
+            name="uq_external_nodes_source_key",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    source_id = Column(
+        Integer,
+        ForeignKey("external_subscription_sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    external_key = Column(String(64), nullable=False)
+    name = Column(String(256), nullable=False)
+    proxy_type = Column(String(32), nullable=False)
+    payload_ciphertext = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False, default=0, server_default="0")
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    first_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    source = relationship("ExternalSubscriptionSource", back_populates="nodes")
+
+
+plan_external_selected_nodes = Table(
+    "plan_external_selected_nodes",
+    Base.metadata,
+    Column(
+        "selection_id",
+        ForeignKey("plan_external_source_selections.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "node_id",
+        ForeignKey("external_subscription_nodes.id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+)
+
+
+class SubscriptionPlanExternalSelection(Base):
+    """A plan's all-nodes or selected-nodes grant for one external source."""
+
+    __tablename__ = "plan_external_source_selections"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_id",
+            "source_id",
+            name="uq_plan_external_selection_source",
+        ),
+        CheckConstraint(
+            "mode IN ('all', 'selected')",
+            name="ck_plan_external_selection_mode",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    plan_id = Column(
+        Integer,
+        ForeignKey("subscription_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_id = Column(
+        Integer,
+        ForeignKey("external_subscription_sources.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    mode = Column(String(16), nullable=False)
+
+    plan = relationship("SubscriptionPlan", back_populates="external_selections")
+    source = relationship("ExternalSubscriptionSource", back_populates="plan_selections")
+    selected_nodes = relationship(
+        "ExternalSubscriptionNode",
+        secondary=plan_external_selected_nodes,
+    )
+
+    @property
+    def node_ids(self) -> list[int]:
+        return [node.id for node in self.selected_nodes]
+
+
 class SubscriptionPlan(Base):
     """A VLESS plan globally visible to portal accounts when enabled."""
 
@@ -357,6 +531,11 @@ class SubscriptionPlan(Base):
 
     subscriptions = relationship("PortalSubscription", back_populates="plan")
     purchases = relationship("PortalPurchase", back_populates="plan")
+    external_selections = relationship(
+        "SubscriptionPlanExternalSelection",
+        back_populates="plan",
+        cascade="all, delete-orphan",
+    )
 
 
 class PortalAccount(Base):

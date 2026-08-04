@@ -7,9 +7,59 @@ export type SubscriptionPlan = {
   duration_days: number;
   data_limit: number;
   inbound_tags: string[];
+  /** Present only on sudo administrator plan responses. */
+  external_selections?: PlanExternalSelection[];
   is_visible: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type ExternalSelectionMode = "all" | "selected";
+
+export type PlanExternalSelection = {
+  source_id: number;
+  mode: ExternalSelectionMode;
+  node_ids: number[];
+};
+
+export type ExternalSubscriptionStatus =
+  | "empty"
+  | "ready"
+  | "auth_required"
+  | "error"
+  | "disabled"
+  | string;
+
+/**
+ * Safe administrator-facing projection. The upstream URL and proxy
+ * credentials deliberately do not exist on this type, so list/detail queries
+ * cannot accidentally put them into React Query or the rendered DOM.
+ */
+export type ExternalSubscriptionSource = {
+  id: number;
+  name: string;
+  group_name: string;
+  enabled: boolean;
+  refresh_interval_minutes: number;
+  credential_configured: boolean;
+  node_count: number;
+  skipped_node_count: number;
+  status: ExternalSubscriptionStatus;
+  last_attempt_at?: string | null;
+  last_success_at?: string | null;
+  next_refresh_at?: string | null;
+  last_error_code?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+/** Credential-free node metadata used only for selection and status views. */
+export type ExternalSubscriptionNode = {
+  id: number;
+  name: string;
+  proxy_type: string;
+  is_active: boolean;
+  position: number;
 };
 
 export type PortalSubscription = {

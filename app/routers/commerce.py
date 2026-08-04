@@ -2,18 +2,41 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 from app import xray
 from app.db import Session, get_db
-from app.db.models import PortalAccount, SubscriptionPlan
+from app.db.models import (
+    ExternalSubscriptionNode,
+    ExternalSubscriptionSource,
+    PortalAccount,
+    SubscriptionPlan,
+)
 from app.dependencies import get_current_portal_account
 from app.models.admin import Admin
 from app.models.commerce import (
     AdminGrantPlanRequest,
     AdminRenewSubscriptionRequest,
+    ExternalSubscriptionCredentialUpdate,
+    ExternalSubscriptionNodeResponse,
+    ExternalSubscriptionSourceCreate,
+    ExternalSubscriptionSourceResponse,
+    ExternalSubscriptionSourceUpdate,
     IPBlockListSource,
     IPBlockListStatus,
     IPBlockCreate,
@@ -34,6 +57,7 @@ from app.models.commerce import (
     PortalSecuritySettingsResponse,
     PortalSecuritySettingsUpdate,
     SubscriptionPlanCreate,
+    SubscriptionPlanAdminResponse,
     SubscriptionPlanResponse,
     SubscriptionPlanUpdate,
     WalletRechargeRequest,
@@ -41,7 +65,7 @@ from app.models.commerce import (
 )
 from app.models.mgma import MgmaIssueResponse
 from app.models.user import UserStatus
-from app.services import commerce, portal_security
+from app.services import commerce, external_subscriptions, portal_security
 from app.services.mgma import (
     MgmaConfigurationError,
     MgmaUserIneligible,
@@ -106,6 +130,52 @@ def _get_plan_or_404(db: Session, plan_id: int) -> SubscriptionPlan:
     if not plan:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
     return plan
+
+
+def _get_external_source_or_404(
+    db: Session,
+    source_id: int,
+) -> ExternalSubscriptionSource:
+    source = db.get(ExternalSubscriptionSource, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="External subscription not found")
+    return source
+
+
+def _external_error(exc: external_subscriptions.ExternalSubscriptionError) -> HTTPException:
+    if exc.code in {
+        "encryption_key_unavailable",
+        "encrypted_data_unavailable",
+        "internal_error",
+        "overlay_limit_exceeded",
+    }:
+        return HTTPException(status_code=503, detail=exc.code)
+    if exc.code == "source_not_found":
+        return HTTPException(status_code=404, detail=exc.code)
+    if exc.code in {
+        "credential_not_configured",
+        "refresh_in_progress",
+        "source_disabled",
+    }:
+        return HTTPException(status_code=409, detail=exc.code)
+    return HTTPException(status_code=422, detail=exc.code)
+
+
+def _refresh_external_source_for_admin(
+    db: Session,
+    source_id: int,
+) -> ExternalSubscriptionSource:
+    try:
+        return external_subscriptions.refresh_source(db, source_id)
+    except external_subscriptions.ExternalSubscriptionConfigurationError as exc:
+        raise _external_error(exc) from None
+    except (
+        external_subscriptions.ExternalSubscriptionFetchError,
+        external_subscriptions.ExternalSubscriptionParseError,
+    ):
+        # Refresh metadata and the last-known-good node set were committed by
+        # the service. Return only the stable status code projection.
+        return _get_external_source_or_404(db, source_id)
 
 
 def _get_invitation_or_404(db: Session, invitation_id: int):
@@ -338,7 +408,7 @@ def portal_regenerate_subscription(
 
 @router.get(
     "/api/commerce/admin/plans",
-    response_model=List[SubscriptionPlanResponse],
+    response_model=List[SubscriptionPlanAdminResponse],
 )
 def admin_list_plans(
     db: Session = Depends(get_db),
@@ -349,7 +419,7 @@ def admin_list_plans(
 
 @router.post(
     "/api/commerce/admin/plans",
-    response_model=SubscriptionPlanResponse,
+    response_model=SubscriptionPlanAdminResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def admin_create_plan(
@@ -362,6 +432,9 @@ def admin_create_plan(
     except commerce.PlanConfigurationError as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Plan name already exists") from None
@@ -369,7 +442,7 @@ def admin_create_plan(
 
 @router.put(
     "/api/commerce/admin/plans/{plan_id}",
-    response_model=SubscriptionPlanResponse,
+    response_model=SubscriptionPlanAdminResponse,
 )
 def admin_update_plan(
     plan_id: int,
@@ -383,9 +456,260 @@ def admin_update_plan(
     except commerce.PlanConfigurationError as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Plan name already exists") from None
+
+
+@router.get(
+    "/api/commerce/admin/external-subscriptions",
+    response_model=List[ExternalSubscriptionSourceResponse],
+)
+def admin_list_external_subscriptions(
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return (
+        db.query(ExternalSubscriptionSource)
+        .order_by(ExternalSubscriptionSource.id.desc())
+        .all()
+    )
+
+
+@router.post(
+    "/api/commerce/admin/external-subscriptions",
+    response_model=ExternalSubscriptionSourceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def admin_create_external_subscription(
+    values: ExternalSubscriptionSourceCreate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    credential = values.url.get_secret_value() if values.url else None
+    try:
+        source = external_subscriptions.create_source(
+            db,
+            name=values.name,
+            group_name=values.group_name or values.name,
+            created_by=admin.username,
+            enabled=values.enabled,
+            refresh_interval_minutes=values.refresh_interval_minutes,
+            url=credential,
+        )
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="External subscription name or group already exists",
+        ) from None
+    if credential and source.enabled:
+        return _refresh_external_source_for_admin(db, source.id)
+    return source
+
+
+@router.put(
+    "/api/commerce/admin/external-subscriptions/{source_id}",
+    response_model=ExternalSubscriptionSourceResponse,
+)
+def admin_update_external_subscription(
+    source_id: int,
+    values: ExternalSubscriptionSourceUpdate,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    source = _get_external_source_or_404(db, source_id)
+    try:
+        return external_subscriptions.update_source(
+            db,
+            source,
+            name=values.name,
+            enabled=values.enabled,
+            refresh_interval_minutes=values.refresh_interval_minutes,
+        )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="External subscription name already exists",
+        ) from None
+
+
+@router.post(
+    "/api/commerce/admin/external-subscriptions/{source_id}/credential",
+    response_model=ExternalSubscriptionSourceResponse,
+)
+def admin_replace_external_subscription_credential(
+    source_id: int,
+    values: ExternalSubscriptionCredentialUpdate,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    source = _get_external_source_or_404(db, source_id)
+    try:
+        source = external_subscriptions.replace_source_url(
+            db,
+            source,
+            values.url.get_secret_value(),
+        )
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
+    if source.enabled:
+        return _refresh_external_source_for_admin(db, source.id)
+    return source
+
+
+@router.delete(
+    "/api/commerce/admin/external-subscriptions/{source_id}/credential",
+    response_model=ExternalSubscriptionSourceResponse,
+)
+def admin_delete_external_subscription_credential(
+    source_id: int,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    source = _get_external_source_or_404(db, source_id)
+    try:
+        return external_subscriptions.replace_source_url(db, source, None)
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
+
+
+@router.post(
+    "/api/commerce/admin/external-subscriptions/{source_id}/refresh",
+    response_model=ExternalSubscriptionSourceResponse,
+)
+def admin_refresh_external_subscription(
+    source_id: int,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    _get_external_source_or_404(db, source_id)
+    return _refresh_external_source_for_admin(db, source_id)
+
+
+@router.post(
+    "/api/commerce/admin/external-subscriptions/{source_id}/snapshot",
+    response_model=ExternalSubscriptionSourceResponse,
+)
+async def admin_import_external_subscription_snapshot(
+    source_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    source = _get_external_source_or_404(db, source_id)
+    content = await file.read(external_subscriptions.MAX_SOURCE_BYTES + 1)
+    try:
+        return external_subscriptions.import_snapshot(db, source, content)
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
+
+
+def _parse_node_ids_filter(value: Optional[str]) -> Optional[list[int]]:
+    if value is None:
+        return None
+    try:
+        node_ids = [int(item) for item in value.split(",") if item]
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid node IDs") from None
+    if (
+        not node_ids
+        or len(node_ids) > 1000
+        or any(node_id <= 0 for node_id in node_ids)
+        or len(set(node_ids)) != len(node_ids)
+    ):
+        raise HTTPException(status_code=422, detail="Invalid node IDs")
+    return node_ids
+
+
+@router.get(
+    "/api/commerce/admin/external-subscriptions/{source_id}/nodes",
+    response_model=PaginatedResponse[ExternalSubscriptionNodeResponse],
+)
+def admin_list_external_subscription_nodes(
+    source_id: int,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: Optional[str] = Query(default=None, max_length=256),
+    active: Optional[bool] = Query(default=None),
+    ids: Optional[str] = Query(default=None, max_length=12_000),
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    _get_external_source_or_404(db, source_id)
+    node_ids = _parse_node_ids_filter(ids)
+    query = db.query(ExternalSubscriptionNode).filter(
+        ExternalSubscriptionNode.source_id == source_id
+    )
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                ExternalSubscriptionNode.name.ilike(pattern),
+                ExternalSubscriptionNode.proxy_type.ilike(pattern),
+            )
+        )
+    if active is not None:
+        query = query.filter(ExternalSubscriptionNode.is_active.is_(active))
+    if node_ids is not None:
+        query = query.filter(ExternalSubscriptionNode.id.in_(node_ids))
+    total = query.count()
+    items = (
+        query.order_by(
+            ExternalSubscriptionNode.position.asc(),
+            ExternalSubscriptionNode.id.asc(),
+        )
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return PaginatedResponse[ExternalSubscriptionNodeResponse](
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.delete(
+    "/api/commerce/admin/external-subscriptions/{source_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def admin_delete_external_subscription(
+    source_id: int,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    try:
+        source = external_subscriptions.lock_external_sources_for_update(
+            db,
+            [source_id],
+        )[source_id]
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        raise _external_error(exc) from None
+    if source.plan_selections:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="source_in_use",
+        )
+    try:
+        db.delete(source)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="source_in_use") from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

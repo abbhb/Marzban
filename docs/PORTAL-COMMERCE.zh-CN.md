@@ -2,6 +2,8 @@
 
 本文定义 Marzban MGMA fork 的自助用户门户。实现必须遵循这里的数据、权限和事务契约，不能把门户用户当成面板管理员，也不能把钱包余额当作可直接覆盖的普通字段。
 
+第三方 Clash/Mihomo 节点的只写导入、套餐引用、安全边界和迁移方式见 [`EXTERNAL-CLASH-SUBSCRIPTIONS.zh-CN.md`](EXTERNAL-CLASH-SUBSCRIPTIONS.zh-CN.md)。
+
 ## 1. 范围与角色
 
 - 门户用户可以注册、登录，查看余额、钱包流水、当前套餐、可购买套餐、本人流量，并获取或撤销本人的 MGMA 临时订阅链接。

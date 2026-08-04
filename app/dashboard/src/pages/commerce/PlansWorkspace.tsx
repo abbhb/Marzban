@@ -29,11 +29,12 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { DataWorkspace } from "components/DataWorkspace";
+import { ExternalPlanSelection } from "./ExternalPlanSelection";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
 import { fetch } from "service/http";
-import { SubscriptionPlan } from "types/Commerce";
+import { PlanExternalSelection, SubscriptionPlan } from "types/Commerce";
 import { formatBytes } from "utils/formatByte";
 import { money } from "./shared";
 
@@ -45,6 +46,7 @@ type Draft = {
   durationDays: string;
   dataLimitGb: string;
   inboundTags: string[];
+  externalSelections: PlanExternalSelection[];
   isVisible: boolean;
 };
 
@@ -55,6 +57,7 @@ const emptyDraft: Draft = {
   durationDays: "30",
   dataLimitGb: "100",
   inboundTags: [],
+  externalSelections: [],
   isVisible: true,
 };
 
@@ -114,6 +117,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       durationDays: String(plan.duration_days),
       dataLimitGb: String(plan.data_limit / 1024 ** 3),
       inboundTags: plan.inbound_tags,
+      externalSelections: plan.external_selections || [],
       isVisible: plan.is_visible,
     });
     modal.onOpen();
@@ -128,7 +132,11 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       !Number.isFinite(priceMinor) ||
       !Number.isFinite(durationDays) ||
       !Number.isFinite(dataLimit) ||
-      !draft.inboundTags.length
+      (!draft.inboundTags.length && !draft.externalSelections.length) ||
+      draft.externalSelections.some(
+        (selection) =>
+          selection.mode === "selected" && !selection.node_ids.length
+      )
     ) {
       toast({
         title: t("commerce.invalidPlan"),
@@ -153,6 +161,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
             duration_days: durationDays,
             data_limit: dataLimit,
             inbound_tags: draft.inboundTags,
+            external_selections: draft.externalSelections,
             is_visible: draft.isVisible,
           },
         }
@@ -254,6 +263,13 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
                     <Text mt="3" fontSize="xs" color="fg.subtle" noOfLines={1}>
                       {plan.inbound_tags.join(" · ")}
                     </Text>
+                    {!!plan.external_selections?.length && (
+                      <Text mt="1" fontSize="xs" color="fg.subtle">
+                        {t("commerce.externalPlanSourceCount", {
+                          count: plan.external_selections.length,
+                        })}
+                      </Text>
+                    )}
                   </Box>
                   <Button size="sm" variant="ghost" onClick={() => edit(plan)}>
                     {t("commerce.edit")}
@@ -362,6 +378,27 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
                     </Checkbox>
                   ))}
                 </SimpleGrid>
+              </FormControl>
+              <FormControl gridColumn={{ md: "1 / -1" }}>
+                <FormLabel>{t("commerce.externalPlanSources")}</FormLabel>
+                <Text mb="3" color="fg.muted" fontSize="sm">
+                  {t("commerce.externalPlanSourcesHelp")}
+                </Text>
+                <Box
+                  maxH="420px"
+                  overflowY="auto"
+                  p="3"
+                  layerStyle="glassSubtle"
+                  rounded="2xl"
+                >
+                  <ExternalPlanSelection
+                    isActive={modal.isOpen}
+                    value={draft.externalSelections}
+                    onChange={(externalSelections) =>
+                      setDraft({ ...draft, externalSelections })
+                    }
+                  />
+                </Box>
               </FormControl>
               <Checkbox
                 isChecked={draft.isVisible}

@@ -1,12 +1,23 @@
 import copy
+import hashlib
 import json
+import math
+import re
+import unicodedata
+from collections import Counter
 from random import choice
+from typing import Any
 from uuid import UUID
 
 import yaml
 from jinja2.exceptions import TemplateNotFound
 
 from app.subscription.funcs import get_grpc_gun
+from app.subscription.external_policy import (
+    EXTERNAL_PROXY_TYPE_RE,
+    LEGACY_EXTERNAL_PROXY_TYPES,
+    MIHOMO_EXTERNAL_PROXY_TYPES,
+)
 from app.templates import render_template
 from app.utils.helpers import yml_uuid_representer
 from config import (
@@ -15,6 +26,367 @@ from config import (
     MUX_TEMPLATE,
     USER_AGENT_TEMPLATE,
 )
+
+
+EXTERNAL_AGGREGATE_GROUP_NAME = "MGMA · External"
+EXTERNAL_NODE_NAME_PREFIX = "MGMA-EXT · "
+EXTERNAL_NODE_EXCLUDE_PATTERN = r"^MGMA-EXT · "
+PRIMARY_PROXY_GROUP_NAME = "🚀 节点选择"
+
+CLASH_RESERVED_PROXY_NAMES = frozenset({
+    "COMPATIBLE",
+    "DIRECT",
+    "GLOBAL",
+    "PASS",
+    "REJECT",
+    "REJECT-DROP",
+})
+
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]+")
+_MAX_EXTERNAL_NAME_LENGTH = 200
+_MAX_EXTERNAL_STRING_LENGTH = 65536
+_MAX_EXTERNAL_COLLECTION_LENGTH = 2048
+_MAX_EXTERNAL_VALUE_DEPTH = 12
+_MAX_EXTERNAL_NODE_BYTES = 262144
+
+
+def _clean_external_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = unicodedata.normalize("NFKC", value)
+    value = "".join(
+        " " if unicodedata.category(char) in {"Cc", "Cf", "Zl", "Zp"} else char
+        for char in value
+    )
+    value = " ".join(_CONTROL_CHAR_RE.sub(" ", value).split()).strip()
+    if not value:
+        return None
+    return value[:_MAX_EXTERNAL_NAME_LENGTH].rstrip()
+
+
+def _is_safe_external_value(value: Any, *, depth: int = 0) -> bool:
+    """Accept only bounded JSON-like values in a materialized proxy node."""
+
+    if depth > _MAX_EXTERNAL_VALUE_DEPTH:
+        return False
+    if value is None or isinstance(value, (bool, int)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, str):
+        return len(value) <= _MAX_EXTERNAL_STRING_LENGTH
+    if isinstance(value, list):
+        return (
+            len(value) <= _MAX_EXTERNAL_COLLECTION_LENGTH
+            and all(_is_safe_external_value(item, depth=depth + 1) for item in value)
+        )
+    if isinstance(value, dict):
+        return (
+            len(value) <= _MAX_EXTERNAL_COLLECTION_LENGTH
+            and all(
+                isinstance(key, str)
+                and len(key) <= 256
+                and _is_safe_external_value(item, depth=depth + 1)
+                for key, item in value.items()
+            )
+        )
+    return False
+
+
+def _canonical_external_node(node: dict) -> str | None:
+    try:
+        value = json.dumps(
+            node,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError):
+        return None
+    if len(value.encode("utf-8")) > _MAX_EXTERNAL_NODE_BYTES:
+        return None
+    return value
+
+
+def _sanitize_external_node(raw_node: Any, *, is_meta: bool) -> tuple[dict, str] | None:
+    if not isinstance(raw_node, dict) or not _is_safe_external_value(raw_node):
+        return None
+    # Upstream group/provider definitions are intentionally never imported.
+    # A node that depends on one of those names would therefore be dangling or
+    # could unexpectedly chain through a local group with the same name.
+    if "dialer-proxy" in raw_node:
+        return None
+
+    original_name = _clean_external_name(raw_node.get("name"))
+    raw_type = raw_node.get("type")
+    server = raw_node.get("server")
+    port = raw_node.get("port")
+    if (
+        original_name is None
+        or not isinstance(raw_type, str)
+        or not isinstance(server, str)
+        or not server.strip()
+    ):
+        return None
+
+    proxy_type = raw_type.strip().lower()
+    if (
+        not EXTERNAL_PROXY_TYPE_RE.fullmatch(proxy_type)
+        or proxy_type not in MIHOMO_EXTERNAL_PROXY_TYPES
+    ):
+        return None
+    if not is_meta and proxy_type not in LEGACY_EXTERNAL_PROXY_TYPES:
+        return None
+
+    if isinstance(port, str) and port.isascii() and port.isdigit():
+        port = int(port)
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        return None
+
+    node = copy.deepcopy(raw_node)
+    node["name"] = original_name
+    node["type"] = proxy_type
+    node["server"] = server.strip()
+    node["port"] = port
+    canonical = _canonical_external_node(node)
+    if canonical is None:
+        return None
+    return node, canonical
+
+
+def _truncate_external_name(base: str, suffix: str) -> str:
+    available = max(1, _MAX_EXTERNAL_NAME_LENGTH - len(suffix))
+    return f"{base[:available].rstrip()}{suffix}"
+
+
+def _allocate_stable_name(base: str, used_names: set[str], stable_key: str) -> str:
+    """Allocate a deterministic name without depending on overlay ordering."""
+
+    digest = hashlib.sha256(stable_key.encode("utf-8")).hexdigest()
+    for length in (8, 12, 16, 24, 32, 64):
+        suffix = f" [{digest[:length]}]"
+        candidate = _truncate_external_name(base, suffix)
+        if candidate not in used_names:
+            return candidate
+
+    # A custom template would have to reserve every digest-width candidate to
+    # reach this path.  The counter remains deterministic for that document.
+    counter = 2
+    while True:
+        suffix = f" [{digest}-{counter}]"
+        candidate = _truncate_external_name(base, suffix)
+        if candidate not in used_names:
+            return candidate
+        counter += 1
+
+
+def _document_names(proxies: list, proxy_groups: list) -> set[str]:
+    names: set[str] = set()
+    for item in [*proxies, *proxy_groups]:
+        if isinstance(item, dict) and isinstance(item.get("name"), str):
+            names.add(item["name"])
+    return names
+
+
+def _isolate_external_nodes_from_template_groups(proxy_groups: list) -> None:
+    """Keep template-wide filters from implicitly capturing external nodes."""
+
+    for group in proxy_groups:
+        if not isinstance(group, dict) or group.get("include-all-proxies") is not True:
+            continue
+        current_filter = group.get("exclude-filter")
+        if not isinstance(current_filter, str) or not current_filter.strip():
+            group["exclude-filter"] = EXTERNAL_NODE_EXCLUDE_PATTERN
+        elif EXTERNAL_NODE_EXCLUDE_PATTERN not in current_filter:
+            # Keep a leading inline flag such as ``(?i)`` at the beginning of
+            # the complete RE2 expression. Wrapping an existing filter would
+            # move that flag into a nested group and can make Mihomo reject an
+            # otherwise valid template filter.
+            group["exclude-filter"] = (
+                f"{current_filter}|{EXTERNAL_NODE_EXCLUDE_PATTERN}"
+            )
+
+
+def merge_clash_overlay(
+    document: dict,
+    clash_overlay: dict | None,
+    *,
+    is_meta: bool,
+) -> dict:
+    """Purely merge cached external proxy nodes into one rendered Clash config.
+
+    Only ``sources[*].nodes`` is consumed.  No rules, groups, providers, DNS,
+    or other top-level upstream configuration can cross this boundary.
+    """
+
+    result = copy.deepcopy(document)
+    if not isinstance(result, dict) or not isinstance(clash_overlay, dict):
+        return result
+
+    raw_sources = clash_overlay.get("sources")
+    if not isinstance(raw_sources, list) or not raw_sources:
+        return result
+
+    proxies = result.setdefault("proxies", [])
+    proxy_groups = result.setdefault("proxy-groups", [])
+    if not isinstance(proxies, list) or not isinstance(proxy_groups, list):
+        return result
+
+    prepared_sources: list[dict] = []
+    for raw_source in raw_sources:
+        if not isinstance(raw_source, dict):
+            continue
+        source_id = raw_source.get("id")
+        group_name = _clean_external_name(raw_source.get("group_name"))
+        raw_nodes = raw_source.get("nodes")
+        if (
+            isinstance(source_id, bool)
+            or not isinstance(source_id, int)
+            or group_name is None
+            or not isinstance(raw_nodes, list)
+        ):
+            continue
+
+        nodes: list[tuple[dict, str]] = []
+        seen_nodes: set[str] = set()
+        for raw_node in raw_nodes:
+            sanitized = _sanitize_external_node(raw_node, is_meta=is_meta)
+            if sanitized is None:
+                continue
+            node, canonical = sanitized
+            if canonical in seen_nodes:
+                continue
+            seen_nodes.add(canonical)
+            nodes.append((node, canonical))
+
+        if nodes:
+            prepared_sources.append({
+                "id": source_id,
+                "group_name": group_name,
+                "nodes": nodes,
+            })
+
+    # Source IDs are persistent identities.  Sorting makes collision handling
+    # and aggregate membership stable even if a DB query changes row order.
+    prepared_sources.sort(key=lambda source: (source["id"], source["group_name"]))
+    unique_sources: list[dict] = []
+    seen_source_ids: set[int] = set()
+    for source in prepared_sources:
+        if source["id"] in seen_source_ids:
+            continue
+        seen_source_ids.add(source["id"])
+        unique_sources.append(source)
+    if not unique_sources:
+        return result
+
+    template_proxy_groups = list(proxy_groups)
+    _isolate_external_nodes_from_template_groups(template_proxy_groups)
+    used_names = _document_names(proxies, proxy_groups) | set(CLASH_RESERVED_PROXY_NAMES)
+    source_group_counts = Counter(source["group_name"] for source in unique_sources)
+    generated_groups: list[dict] = []
+
+    # Reserve the fixed aggregate name even when a source happens to use it.
+    source_blocked_names = used_names | {EXTERNAL_AGGREGATE_GROUP_NAME}
+    for source in unique_sources:
+        requested_group_name = source["group_name"]
+        if (
+            source_group_counts[requested_group_name] == 1
+            and requested_group_name not in source_blocked_names
+        ):
+            actual_group_name = requested_group_name
+        else:
+            actual_group_name = _allocate_stable_name(
+                requested_group_name,
+                source_blocked_names,
+                f"source:{source['id']}",
+            )
+        source_blocked_names.add(actual_group_name)
+        used_names.add(actual_group_name)
+
+        node_bases = [
+            _clean_external_name(
+                f"{EXTERNAL_NODE_NAME_PREFIX}{actual_group_name} / {node['name']}"
+            )
+            for node, _canonical in source["nodes"]
+        ]
+        node_base_counts = Counter(base for base in node_bases if base is not None)
+        source_node_names: list[str] = []
+
+        for (node, canonical), base_name in zip(source["nodes"], node_bases):
+            if base_name is None:
+                continue
+            if node_base_counts[base_name] == 1 and base_name not in used_names:
+                actual_node_name = base_name
+            else:
+                actual_node_name = _allocate_stable_name(
+                    base_name,
+                    used_names,
+                    f"node:{source['id']}:{canonical}",
+                )
+            used_names.add(actual_node_name)
+            source_blocked_names.add(actual_node_name)
+            node["name"] = actual_node_name
+            proxies.append(node)
+            source_node_names.append(actual_node_name)
+
+        if source_node_names:
+            generated_groups.append({
+                "name": actual_group_name,
+                "type": "select",
+                "proxies": source_node_names,
+            })
+
+    if not generated_groups:
+        return result
+
+    proxy_groups.extend(generated_groups)
+    source_group_names = [group["name"] for group in generated_groups]
+
+    aggregate_group = next(
+        (
+            group
+            for group in template_proxy_groups
+            if isinstance(group, dict)
+            and group.get("name") == EXTERNAL_AGGREGATE_GROUP_NAME
+            and group.get("type") == "select"
+            and (group.get("proxies") is None or isinstance(group.get("proxies"), list))
+        ),
+        None,
+    )
+    if aggregate_group is not None:
+        aggregate_name = EXTERNAL_AGGREGATE_GROUP_NAME
+        aggregate_members = aggregate_group.setdefault("proxies", [])
+        for group_name in source_group_names:
+            if group_name not in aggregate_members:
+                aggregate_members.append(group_name)
+    else:
+        if EXTERNAL_AGGREGATE_GROUP_NAME not in used_names:
+            aggregate_name = EXTERNAL_AGGREGATE_GROUP_NAME
+        else:
+            aggregate_name = _allocate_stable_name(
+                EXTERNAL_AGGREGATE_GROUP_NAME,
+                used_names,
+                "aggregate:external",
+            )
+        used_names.add(aggregate_name)
+        proxy_groups.append({
+            "name": aggregate_name,
+            "type": "select",
+            "proxies": source_group_names,
+        })
+
+    for group in template_proxy_groups:
+        if (
+            isinstance(group, dict)
+            and group.get("name") == PRIMARY_PROXY_GROUP_NAME
+            and group.get("type") == "select"
+            and isinstance(group.get("proxies"), list)
+            and aggregate_name not in group["proxies"]
+        ):
+            group["proxies"].append(aggregate_name)
+
+    return result
 
 
 class ClashConfiguration(object):
@@ -41,20 +413,26 @@ class ClashConfiguration(object):
 
         del user_agent_data
 
-    def render(self, reverse=False):
+    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False):
         if reverse:
             self.data['proxies'].reverse()
 
         yaml.add_representer(UUID, yml_uuid_representer)
-        return yaml.dump(
-            yaml.load(
-                render_template(
-                    CLASH_SUBSCRIPTION_TEMPLATE,
-                    {"conf": self.data, "proxy_remarks": self.proxy_remarks}
-                ),
-                Loader=yaml.SafeLoader
-
+        document = yaml.load(
+            render_template(
+                CLASH_SUBSCRIPTION_TEMPLATE,
+                {"conf": self.data, "proxy_remarks": self.proxy_remarks}
             ),
+            Loader=yaml.SafeLoader
+        )
+        if clash_overlay:
+            document = merge_clash_overlay(
+                document,
+                clash_overlay,
+                is_meta=is_meta,
+            )
+        return yaml.dump(
+            document,
             sort_keys=False,
             allow_unicode=True,
         )

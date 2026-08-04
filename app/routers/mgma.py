@@ -195,6 +195,8 @@ def mgma_subscription(
         user=user,
         user_agent=user_agent,
         ephemeral=True,
+        db=db,
+        user_id=dbuser.id,
     )
 
 
@@ -219,4 +221,6 @@ def mgma_subscription_with_client_type(
         user_agent=user_agent,
         client_type=client_type,
         ephemeral=True,
+        db=db,
+        user_id=dbuser.id,
     )

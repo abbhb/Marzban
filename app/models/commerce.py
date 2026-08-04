@@ -2,13 +2,38 @@
 
 from datetime import datetime
 from typing import Generic, List, Literal, Optional, TypeVar
+import unicodedata
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from app.models.user import USERNAME_REGEXP, UserStatus
 
 
 PageItem = TypeVar("PageItem")
+
+_RESERVED_EXTERNAL_GROUP_NAMES = {
+    "mgma · external",
+    "direct",
+    "reject",
+    "reject-drop",
+    "pass",
+    "compatible",
+    "global",
+}
+
+
+def _clean_source_label(value: str, *, group_name: bool = False) -> str:
+    cleaned = unicodedata.normalize("NFKC", value).strip()
+    if not cleaned or len(cleaned) > 128:
+        raise ValueError("Value must contain 1 to 128 characters")
+    if any(
+        unicodedata.category(char) in {"Cc", "Cf", "Zl", "Zp"}
+        for char in cleaned
+    ):
+        raise ValueError("Invisible control characters are not allowed")
+    if group_name and cleaned.casefold() in _RESERVED_EXTERNAL_GROUP_NAMES:
+        raise ValueError("Group name is reserved")
+    return cleaned
 
 PortalAccountListStatus = Literal[
     "not_activated",
@@ -61,6 +86,33 @@ class PortalToken(BaseModel):
     token_type: str = "bearer"
 
 
+class ExternalSelectionInput(BaseModel):
+    source_id: int = Field(gt=0)
+    mode: Literal["all", "selected"] = "all"
+    node_ids: List[int] = Field(default_factory=list, max_length=1000)
+
+    @field_validator("node_ids")
+    @classmethod
+    def validate_node_ids(cls, values: List[int]) -> List[int]:
+        if any(value <= 0 for value in values):
+            raise ValueError("Node IDs must be positive")
+        if len(set(values)) != len(values):
+            raise ValueError("Node IDs must be unique")
+        return values
+
+    @model_validator(mode="after")
+    def validate_mode(self):
+        if self.mode == "all" and self.node_ids:
+            raise ValueError("All mode must not contain node IDs")
+        if self.mode == "selected" and not self.node_ids:
+            raise ValueError("Selected mode requires at least one node ID")
+        return self
+
+
+class ExternalSelectionResponse(ExternalSelectionInput):
+    model_config = ConfigDict(from_attributes=True)
+
+
 class SubscriptionPlanBase(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=1000)
@@ -68,7 +120,7 @@ class SubscriptionPlanBase(BaseModel):
     currency: Literal["CNY"] = "CNY"
     duration_days: int = Field(ge=1, le=3650)
     data_limit: int = Field(ge=0, le=10**18)
-    inbound_tags: List[str] = Field(min_length=1, max_length=64)
+    inbound_tags: List[str] = Field(default_factory=list, max_length=64)
     is_visible: bool = True
 
     @field_validator("name", "description")
@@ -88,7 +140,19 @@ class SubscriptionPlanBase(BaseModel):
 
 
 class SubscriptionPlanCreate(SubscriptionPlanBase):
-    pass
+    external_selections: List[ExternalSelectionInput] = Field(
+        default_factory=list,
+        max_length=64,
+    )
+
+    @model_validator(mode="after")
+    def validate_entitlements(self):
+        if not self.inbound_tags and not self.external_selections:
+            raise ValueError("A plan requires a local inbound or external selection")
+        source_ids = [selection.source_id for selection in self.external_selections]
+        if len(set(source_ids)) != len(source_ids):
+            raise ValueError("External sources must be unique within a plan")
+        return self
 
 
 class SubscriptionPlanUpdate(BaseModel):
@@ -97,7 +161,11 @@ class SubscriptionPlanUpdate(BaseModel):
     price_minor: Optional[int] = Field(default=None, ge=0, le=10**12)
     duration_days: Optional[int] = Field(default=None, ge=1, le=3650)
     data_limit: Optional[int] = Field(default=None, ge=0, le=10**18)
-    inbound_tags: Optional[List[str]] = Field(default=None, min_length=1, max_length=64)
+    inbound_tags: Optional[List[str]] = Field(default=None, max_length=64)
+    external_selections: Optional[List[ExternalSelectionInput]] = Field(
+        default=None,
+        max_length=64,
+    )
     is_visible: Optional[bool] = None
 
     @field_validator("name", "description")
@@ -112,11 +180,99 @@ class SubscriptionPlanUpdate(BaseModel):
             return values
         return SubscriptionPlanBase.validate_inbound_tags(values)
 
+    @field_validator("external_selections")
+    @classmethod
+    def validate_optional_external_selections(
+        cls,
+        values: Optional[List[ExternalSelectionInput]],
+    ) -> Optional[List[ExternalSelectionInput]]:
+        if values is None:
+            return values
+        source_ids = [selection.source_id for selection in values]
+        if len(set(source_ids)) != len(source_ids):
+            raise ValueError("External sources must be unique within a plan")
+        return values
+
 
 class SubscriptionPlanResponse(SubscriptionPlanBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SubscriptionPlanAdminResponse(SubscriptionPlanResponse):
+    external_selections: List[ExternalSelectionResponse] = Field(default_factory=list)
+
+
+class ExternalSubscriptionSourceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    group_name: Optional[str] = Field(default=None, max_length=128)
+    url: Optional[SecretStr] = Field(default=None, max_length=4096)
+    enabled: bool = True
+    refresh_interval_minutes: int = Field(default=360, ge=15, le=10_080)
+
+    @field_validator("name")
+    @classmethod
+    def strip_source_name(cls, value: str) -> str:
+        return _clean_source_label(value)
+
+    @field_validator("group_name")
+    @classmethod
+    def strip_group_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or not value.strip():
+            return None
+        return _clean_source_label(value, group_name=True)
+
+    @model_validator(mode="after")
+    def default_group_name(self):
+        if self.group_name is None:
+            self.group_name = _clean_source_label(self.name, group_name=True)
+        return self
+
+
+class ExternalSubscriptionSourceUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    enabled: Optional[bool] = None
+    refresh_interval_minutes: Optional[int] = Field(default=None, ge=15, le=10_080)
+
+    @field_validator("name")
+    @classmethod
+    def strip_optional_source_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        return _clean_source_label(value)
+
+
+class ExternalSubscriptionCredentialUpdate(BaseModel):
+    url: SecretStr = Field(max_length=4096)
+
+
+class ExternalSubscriptionSourceResponse(BaseModel):
+    id: int
+    name: str
+    group_name: str
+    credential_configured: bool
+    enabled: bool
+    refresh_interval_minutes: int
+    status: Literal["empty", "ready", "auth_required", "error", "disabled"]
+    last_attempt_at: Optional[datetime] = None
+    last_success_at: Optional[datetime] = None
+    next_refresh_at: Optional[datetime] = None
+    last_error_code: Optional[str] = None
+    node_count: int
+    skipped_node_count: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExternalSubscriptionNodeResponse(BaseModel):
+    id: int
+    name: str
+    proxy_type: str
+    is_active: bool
+    position: int
     model_config = ConfigDict(from_attributes=True)
 
 

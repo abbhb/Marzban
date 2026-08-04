@@ -114,6 +114,7 @@ type PaginationControlsProps = {
   page: number;
   pageSize: number;
   total: number;
+  pageSizeOptions?: number[];
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 };
@@ -122,6 +123,7 @@ export const PaginationControls = ({
   page,
   pageSize,
   total,
+  pageSizeOptions = [10, 20, 50, 100],
   onPageChange,
   onPageSizeChange,
 }: PaginationControlsProps) => {
@@ -152,7 +154,7 @@ export const PaginationControls = ({
           aria-label={t("itemsPerPage")}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
         >
-          {[10, 20, 50, 100].map((size) => (
+          {pageSizeOptions.map((size) => (
             <option key={size} value={size}>
               {size}
             </option>

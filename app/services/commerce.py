@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app import xray
 from app.db.models import (
+    ExternalSubscriptionNode,
     PortalAccount,
     PortalPurchase,
     PortalSubscription,
@@ -19,12 +20,15 @@ from app.db.models import (
     ProxyHost,
     ProxyInbound,
     SubscriptionPlan,
+    SubscriptionPlanExternalSelection,
     User,
     UserUsageResetLogs,
     WalletTransaction,
+    plan_external_selected_nodes,
 )
 from app.models.admin import pwd_context
 from app.models.commerce import (
+    ExternalSelectionInput,
     PortalAccountListStatus,
     PortalAccountAdminResponse,
     PortalMeResponse,
@@ -36,7 +40,7 @@ from app.models.commerce import (
 )
 from app.models.proxy import ProxyTypes, VLESSSettings
 from app.models.user import UserDataLimitResetStrategy, UserStatus
-from app.services import portal_security
+from app.services import external_subscriptions, portal_security
 
 
 class CommerceError(Exception):
@@ -179,9 +183,142 @@ def validate_plan_inbounds(tags: Iterable[str]) -> list[str]:
     return values
 
 
+def _build_external_selections(
+    db: Session,
+    values: Iterable[ExternalSelectionInput],
+    *,
+    lock_source_ids: Optional[Iterable[int]] = None,
+) -> list[SubscriptionPlanExternalSelection]:
+    selections = list(values)
+    source_ids = [selection.source_id for selection in selections]
+    if len(set(source_ids)) != len(source_ids):
+        raise PlanConfigurationError("External sources must be unique within a plan")
+    locked_source_ids = set(source_ids) | set(lock_source_ids or ())
+    try:
+        if locked_source_ids:
+            external_subscriptions.lock_external_budget_for_update(db)
+        sources = external_subscriptions.lock_external_sources_for_update(
+            db,
+            locked_source_ids,
+        )
+    except external_subscriptions.ExternalSubscriptionConfigurationError as exc:
+        if exc.code != "source_not_found":
+            raise
+        raise PlanConfigurationError(
+            "One or more external sources do not exist"
+        ) from None
+
+    result = []
+    for selection in selections:
+        selected_nodes = []
+        if selection.mode == "selected":
+            selected_nodes = (
+                db.query(ExternalSubscriptionNode)
+                .filter(
+                    ExternalSubscriptionNode.source_id == selection.source_id,
+                    ExternalSubscriptionNode.id.in_(selection.node_ids),
+                )
+                .with_for_update()
+                .all()
+            )
+            if {node.id for node in selected_nodes} != set(selection.node_ids):
+                raise PlanConfigurationError(
+                    "Selected external nodes must belong to their source"
+                )
+        result.append(
+            SubscriptionPlanExternalSelection(
+                source_id=sources[selection.source_id].id,
+                mode=selection.mode,
+                selected_nodes=selected_nodes,
+            )
+        )
+    try:
+        external_subscriptions.validate_external_selection_budget(
+            db,
+            [
+                external_subscriptions.ExternalSelectionSpec(
+                    source_id=selection.source_id,
+                    mode=selection.mode,
+                    node_ids=tuple(selection.node_ids),
+                )
+                for selection in selections
+            ],
+        )
+    except external_subscriptions.ExternalSubscriptionConfigurationError as exc:
+        if exc.code == "overlay_limit_exceeded":
+            raise PlanConfigurationError(exc.code) from None
+        raise
+    return result
+
+
+def _lock_current_plan_external_state(
+    db: Session,
+    plan_id: int,
+) -> tuple[
+    SubscriptionPlan,
+    list[SubscriptionPlanExternalSelection],
+    list[external_subscriptions.ExternalSelectionSpec],
+]:
+    """Current-read a plan and its selections after the global budget mutex."""
+
+    plan = (
+        db.query(SubscriptionPlan)
+        .filter(SubscriptionPlan.id == plan_id)
+        .populate_existing()
+        .with_for_update()
+        .one_or_none()
+    )
+    if plan is None:
+        raise PlanUnavailable("Subscription plan not found")
+    selections = (
+        db.query(SubscriptionPlanExternalSelection)
+        .filter(SubscriptionPlanExternalSelection.plan_id == plan_id)
+        .order_by(SubscriptionPlanExternalSelection.source_id.asc())
+        .with_for_update()
+        .all()
+    )
+    node_ids_by_selection: dict[int, list[int]] = {
+        selection.id: [] for selection in selections
+    }
+    if node_ids_by_selection:
+        for selection_id, node_id in (
+            db.query(
+                plan_external_selected_nodes.c.selection_id,
+                plan_external_selected_nodes.c.node_id,
+            )
+            .filter(
+                plan_external_selected_nodes.c.selection_id.in_(
+                    node_ids_by_selection
+                )
+            )
+            .order_by(
+                plan_external_selected_nodes.c.selection_id.asc(),
+                plan_external_selected_nodes.c.node_id.asc(),
+            )
+            .with_for_update()
+            .all()
+        ):
+            node_ids_by_selection[selection_id].append(node_id)
+    specs = [
+        external_subscriptions.ExternalSelectionSpec(
+            source_id=selection.source_id,
+            mode=selection.mode,
+            node_ids=tuple(node_ids_by_selection[selection.id]),
+        )
+        for selection in selections
+    ]
+    return plan, selections, specs
+
+
 def create_plan(db: Session, values: SubscriptionPlanCreate) -> SubscriptionPlan:
     validate_plan_inbounds(values.inbound_tags)
-    plan = SubscriptionPlan(**values.model_dump())
+    external_selections = _build_external_selections(db, values.external_selections)
+    if not values.inbound_tags and not external_selections:
+        raise PlanConfigurationError("A plan requires a local inbound or external selection")
+    plan = SubscriptionPlan(
+        **values.model_dump(exclude={"external_selections"}),
+        external_selections=external_selections,
+    )
     db.add(plan)
     db.commit()
     db.refresh(plan)
@@ -194,12 +331,71 @@ def update_plan(
     values: SubscriptionPlanUpdate,
 ) -> SubscriptionPlan:
     changes = values.model_dump(exclude_unset=True)
+    external_values = changes.pop("external_selections", None)
     if "inbound_tags" in changes:
         validate_plan_inbounds(changes["inbound_tags"])
+    # Do not derive current selections from the plan object loaded by the
+    # router: under MySQL REPEATABLE READ it may predate a mutex wait. Acquire
+    # the common lock first, then use locking/current reads for every row that
+    # controls source locking, validation and replacement.
+    external_subscriptions.lock_external_budget_for_update(db)
+    plan, current_selections, current_specs = _lock_current_plan_external_state(
+        db,
+        plan.id,
+    )
+    current_source_ids = {spec.source_id for spec in current_specs}
+    if external_values is not None:
+        external_selections = _build_external_selections(
+            db,
+            values.external_selections or [],
+            lock_source_ids=current_source_ids,
+        )
+    else:
+        external_selections = None
+        try:
+            external_subscriptions.lock_external_sources_for_update(
+                db,
+                current_source_ids,
+            )
+            external_subscriptions.validate_external_selection_budget(
+                db,
+                current_specs,
+            )
+        except external_subscriptions.ExternalSubscriptionConfigurationError as exc:
+            if exc.code == "source_not_found":
+                raise PlanConfigurationError(
+                    "One or more external sources do not exist"
+                ) from None
+            if exc.code == "overlay_limit_exceeded":
+                raise PlanConfigurationError(exc.code) from None
+            raise
+    final_inbounds = changes.get("inbound_tags", plan.inbound_tags)
+    final_has_external = (
+        bool(external_selections)
+        if external_selections is not None
+        else bool(current_specs)
+    )
+    if not final_inbounds and not final_has_external:
+        raise PlanConfigurationError("A plan requires a local inbound or external selection")
     for field, value in changes.items():
         setattr(plan, field, value)
+    if external_selections is not None:
+        selection_ids = [selection.id for selection in current_selections]
+        if selection_ids:
+            db.execute(
+                plan_external_selected_nodes.delete().where(
+                    plan_external_selected_nodes.c.selection_id.in_(selection_ids)
+                )
+            )
+        for selection in current_selections:
+            db.delete(selection)
+        db.flush()
+        for selection in external_selections:
+            selection.plan_id = plan.id
+            db.add(selection)
     plan.updated_at = utc_now()
     db.commit()
+    db.expire(plan)
     db.refresh(plan)
     return plan
 
@@ -414,7 +610,9 @@ def _apply_proxy_plan(
 ) -> tuple[User, bool]:
     validate_plan_inbounds(plan.inbound_tags)
     all_vless_tags = _all_vless_tags()
-    if not all_vless_tags or any(tag not in all_vless_tags for tag in plan.inbound_tags):
+    if plan.inbound_tags and (
+        not all_vless_tags or any(tag not in all_vless_tags for tag in plan.inbound_tags)
+    ):
         raise PlanConfigurationError("The plan no longer matches the active VLESS inbounds")
 
     inbound_rows = _inbound_rows(db, all_vless_tags)

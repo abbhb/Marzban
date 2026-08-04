@@ -27,6 +27,13 @@ const AccountsWorkspace = lazy(() =>
     default: AccountsWorkspace,
   }))
 );
+const ExternalSubscriptionsWorkspace = lazy(() =>
+  import("./commerce/ExternalSubscriptionsWorkspace").then(
+    ({ ExternalSubscriptionsWorkspace }) => ({
+      default: ExternalSubscriptionsWorkspace,
+    })
+  )
+);
 const InvitationsWorkspace = lazy(() =>
   import("./commerce/InvitationsWorkspace").then(
     ({ InvitationsWorkspace }) => ({ default: InvitationsWorkspace })
@@ -88,6 +95,9 @@ export const CommerceAdmin = () => {
             rounded="2xl"
           >
             <Tab whiteSpace="nowrap">{t("commerce.plans")}</Tab>
+            <Tab whiteSpace="nowrap">
+              {t("commerce.externalSubscriptions")}
+            </Tab>
             <Tab whiteSpace="nowrap">{t("commerce.accounts")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.invitations")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.security")}</Tab>
@@ -97,6 +107,11 @@ export const CommerceAdmin = () => {
               <Suspense fallback={<WorkspaceFallback />}>
                 <PlansWorkspace onReady={markInitialWorkspaceReady} />
                 <BootReady ready={initialWorkspaceReady} />
+              </Suspense>
+            </TabPanel>
+            <TabPanel px="0" className="liquid-page-enter">
+              <Suspense fallback={<WorkspaceFallback />}>
+                <ExternalSubscriptionsWorkspace />
               </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">

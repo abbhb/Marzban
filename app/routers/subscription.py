@@ -1,12 +1,13 @@
 import re
 from distutils.version import LooseVersion
 
-from fastapi import APIRouter, Depends, Header, Path, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Request, Response
 from fastapi.responses import HTMLResponse
 
 from app.db import Session, crud, get_db
 from app.dependencies import MGMA_NO_STORE_HEADERS, get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
+from app.services.external_subscriptions import load_external_overlays_for_user
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from config import (
@@ -51,6 +52,8 @@ def build_subscription_response(
     client_type: str | None = None,
     profile_url: str | None = None,
     ephemeral: bool = False,
+    db: Session | None = None,
+    user_id: int | None = None,
 ) -> Response:
     """Render one subscription response without leaking an MGMA token in headers."""
     response_headers = {
@@ -74,22 +77,56 @@ def build_subscription_response(
             "x-robots-tag": "noindex, nofollow, noarchive",
         })
 
+    def generate(config_format: str, *, as_base64: bool, reverse: bool) -> str:
+        clash_overlay = None
+        if config_format in {"clash", "clash-meta"} and db is not None and user_id is not None:
+            try:
+                sources = load_external_overlays_for_user(db, user_id)
+            except Exception:
+                # Public subscription responses must fail closed without
+                # exposing encryption, database, source, or node details.
+                raise HTTPException(
+                    status_code=503,
+                    detail="Subscription temporarily unavailable",
+                ) from None
+            if sources:
+                clash_overlay = {
+                    "sources": [
+                        {
+                            "id": source.source_id,
+                            "group_name": source.group_name,
+                            "nodes": list(source.nodes),
+                        }
+                        for source in sources
+                    ]
+                }
+        return generate_subscription(
+            user=user,
+            config_format=config_format,
+            as_base64=as_base64,
+            reverse=reverse,
+            clash_overlay=clash_overlay,
+        )
+
     if client_type:
         config = client_config[client_type]
-        conf = generate_subscription(
-            user=user,
-            config_format=config["config_format"],
+        conf = generate(
+            config["config_format"],
             as_base64=config["as_base64"],
             reverse=config["reverse"],
         )
         return Response(content=conf, media_type=config["media_type"], headers=response_headers)
 
-    if re.match(r'^([Cc]lash-verge|[Cc]lash[-\.]?[Mm]eta|[Ff][Ll][Cc]lash|[Mm]ihomo)', user_agent):
-        conf = generate_subscription(user=user, config_format="clash-meta", as_base64=False, reverse=False)
+    if re.match(
+        r"^(clash-verge|clash[-.]?meta|flclash|mihomo)",
+        user_agent,
+        flags=re.IGNORECASE,
+    ):
+        conf = generate("clash-meta", as_base64=False, reverse=False)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
-    if re.match(r'^([Cc]lash|[Ss]tash)', user_agent):
-        conf = generate_subscription(user=user, config_format="clash", as_base64=False, reverse=False)
+    if re.match(r"^(clash|stash)", user_agent, flags=re.IGNORECASE):
+        conf = generate("clash", as_base64=False, reverse=False)
         return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
     if re.match(r'^(SFA|SFI|SFM|SFT|[Kk]aring|[Hh]iddify[Nn]ext)', user_agent):
@@ -174,6 +211,8 @@ def user_subscription(
         user_agent=user_agent,
         profile_url=None if ephemeral else str(request.url),
         ephemeral=ephemeral,
+        db=db,
+        user_id=dbuser.id,
     )
 
 
@@ -230,4 +269,6 @@ def user_subscription_with_client_type(
         client_type=client_type,
         profile_url=None if ephemeral else str(request.url),
         ephemeral=ephemeral,
+        db=db,
+        user_id=dbuser.id,
     )
