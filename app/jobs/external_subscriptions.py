@@ -27,7 +27,11 @@ def refresh_due_external_subscriptions() -> None:
     for source_id in source_ids:
         try:
             with GetDB() as db:
-                external_subscriptions.refresh_source(db, source_id)
+                external_subscriptions.refresh_source(
+                    db,
+                    source_id,
+                    scheduled=True,
+                )
         except external_subscriptions.ExternalSubscriptionError as exc:
             # Never log the exception object: network exceptions can embed
             # a write-only URL. Stable codes plus source IDs are sufficient.

@@ -338,9 +338,10 @@ export const ExternalSubscriptionsWorkspace = ({
   const refreshSource = async (source: ExternalSubscriptionSource) => {
     setActionId(source.id);
     try {
-      await fetch(`/commerce/admin/external-subscriptions/${source.id}/refresh`, {
-        method: "POST",
-      });
+      const refreshed = await fetch<ExternalSubscriptionSource>(
+        `/commerce/admin/external-subscriptions/${source.id}/refresh`,
+        { method: "POST" }
+      );
       await Promise.all([
         queryClient.invalidateQueries(["commerce", "external-subscriptions"]),
         queryClient.invalidateQueries([
@@ -349,9 +350,14 @@ export const ExternalSubscriptionsWorkspace = ({
           source.id,
         ]),
       ]);
+      const reportedError = Boolean(refreshed.last_error_code);
+      const errorCode =
+        safeErrorCode(refreshed.last_error_code) || "refresh_failed";
       toast({
-        title: t("commerce.externalRefreshCompleted"),
-        status: "success",
+        title: reportedError
+          ? t("commerce.externalRefreshFailed", { code: errorCode })
+          : t("commerce.externalRefreshCompleted"),
+        status: reportedError ? "error" : "success",
         position: "top",
       });
     } catch {
@@ -672,7 +678,7 @@ export const ExternalSubscriptionsWorkspace = ({
                       leftIcon={<Icon as={ArrowPathIcon} boxSize="4" />}
                       onClick={() => refreshSource(source)}
                       isLoading={actionId === source.id}
-                      isDisabled={!source.enabled || !source.credential_configured}
+                      isDisabled={!source.credential_configured}
                     >
                       {t("commerce.externalRefreshNow")}
                     </Button>

@@ -217,6 +217,32 @@ class ExternalSubscriptionParserTests(unittest.TestCase):
 
 
 class ExternalSubscriptionFetcherTests(unittest.TestCase):
+    def test_validated_request_target_preserves_escaped_query_exactly(self) -> None:
+        url = (
+            "https://feed.example.test/getData/Authorize/synthetic"
+            "?burn=abc%2Fdef%2Bghi%3D&mode=clash"
+        )
+        with patch.object(
+            external_subscriptions.socket,
+            "getaddrinfo",
+            return_value=[
+                (
+                    external_subscriptions.socket.AF_INET,
+                    external_subscriptions.socket.SOCK_STREAM,
+                    6,
+                    "",
+                    ("8.8.8.8", 443),
+                )
+            ],
+        ):
+            target = external_subscriptions._validate_public_https_url(url)
+
+        self.assertEqual(url, target.url)
+        self.assertEqual(
+            "/getData/Authorize/synthetic?burn=abc%2Fdef%2Bghi%3D&mode=clash",
+            target.request_target,
+        )
+
     def test_pinned_fetch_200_is_bounded_and_returns_cache_validators(self) -> None:
         connection = _FakeConnection()
         response = _FakeResponse(
@@ -244,6 +270,9 @@ class ExternalSubscriptionFetcherTests(unittest.TestCase):
         self.assertTrue(connection.closed)
         self.assertTrue(response.closed)
         opened.assert_called_once()
+        request_headers = opened.call_args.kwargs["headers"]
+        self.assertEqual("clash.meta", request_headers["User-Agent"])
+        self.assertEqual("*/*", request_headers["Accept"])
 
     def test_pinned_fetch_304_preserves_existing_validators(self) -> None:
         connection = _FakeConnection()
@@ -303,23 +332,30 @@ class ExternalSubscriptionFetcherTests(unittest.TestCase):
         self.assertIs(first, opened.call_args_list[0].args[0])
         self.assertIs(second, opened.call_args_list[1].args[0])
 
-    def test_401_becomes_a_secret_free_stable_error(self) -> None:
-        with (
-            patch.object(
-                external_subscriptions,
-                "_validate_public_https_url",
-                return_value=_target(CANARY_URL),
-            ),
-            patch.object(
-                external_subscriptions,
-                "_open_pinned_response",
-                return_value=(_FakeConnection(), _FakeResponse(401)),
-            ),
-        ):
-            with self.assertRaises(external_subscriptions.ExternalSubscriptionFetchError) as raised:
-                external_subscriptions.fetch_clash_subscription(CANARY_URL)
-        self.assertEqual("auth_required", raised.exception.code)
-        self.assertNotIn(CANARY_SECRET, str(raised.exception))
+    def test_auth_http_statuses_become_secret_free_diagnostic_codes(self) -> None:
+        for status in (401, 403, 404, 410):
+            with self.subTest(status=status):
+                with (
+                    patch.object(
+                        external_subscriptions,
+                        "_validate_public_https_url",
+                        return_value=_target(CANARY_URL),
+                    ),
+                    patch.object(
+                        external_subscriptions,
+                        "_open_pinned_response",
+                        return_value=(_FakeConnection(), _FakeResponse(status)),
+                    ),
+                ):
+                    with self.assertRaises(
+                        external_subscriptions.ExternalSubscriptionFetchError
+                    ) as raised:
+                        external_subscriptions.fetch_clash_subscription(CANARY_URL)
+                self.assertEqual(
+                    f"upstream_http_{status}",
+                    raised.exception.code,
+                )
+                self.assertNotIn(CANARY_SECRET, str(raised.exception))
 
     def test_network_error_without_http_status_never_echoes_socket_message(self) -> None:
         target = _target(CANARY_URL)
@@ -355,13 +391,18 @@ class ExternalSubscriptionFetcherTests(unittest.TestCase):
                 refresh_job.external_subscriptions,
                 "refresh_source",
                 side_effect=RuntimeError(f"unexpected failure for {CANARY_URL}"),
-            ),
+            ) as refreshed,
             patch.object(refresh_job.secrets, "token_hex", return_value="safe-event-id"),
             patch.object(refresh_job.logger, "error") as logged,
         ):
             refresh_job.refresh_due_external_subscriptions()
 
         logged.assert_called_once()
+        refreshed.assert_called_once_with(
+            db_context.__enter__.return_value,
+            19,
+            scheduled=True,
+        )
         rendered_call = repr((logged.call_args.args, logged.call_args.kwargs))
         self.assertNotIn(CANARY_URL, rendered_call)
         self.assertNotIn(CANARY_SECRET, rendered_call)
@@ -941,7 +982,9 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
         with patch.object(
             external_subscriptions,
             "fetch_clash_subscription",
-            side_effect=external_subscriptions.ExternalSubscriptionFetchError("auth_required"),
+            side_effect=external_subscriptions.ExternalSubscriptionFetchError(
+                "upstream_http_403"
+            ),
         ):
             with self.assertRaises(external_subscriptions.ExternalSubscriptionFetchError):
                 external_subscriptions.refresh_source(self.db, source.id)
@@ -949,6 +992,7 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
         source = self.db.get(ExternalSubscriptionSource, source.id)
         node = self.db.query(ExternalSubscriptionNode).filter_by(source_id=source.id).one()
         self.assertEqual("auth_required", source.status)
+        self.assertEqual("upstream_http_403", source.last_error_code)
         self.assertIsNone(source.next_refresh_at)
         self.assertEqual(old_success, source.last_success_at)
         self.assertEqual(old_ciphertext, node.payload_ciphertext)
@@ -972,6 +1016,112 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
         self.assertEqual("no_usable_nodes", source.last_error_code)
         self.assertEqual(old_ciphertext, node.payload_ciphertext)
 
+    def test_manual_refresh_updates_disabled_source_without_scheduling(self) -> None:
+        source = self.create_source("Manual refresh source")
+        source.enabled = False
+        source.status = "disabled"
+        source.url_ciphertext = external_subscriptions.encrypt_url(CANARY_URL)
+        source.url_revision = 1
+        source.next_refresh_at = None
+        self.db.commit()
+        attempt_at = datetime.utcnow()
+
+        with patch.object(
+            external_subscriptions,
+            "fetch_clash_subscription",
+            return_value=external_subscriptions.FetchedExternalPayload(
+                content=_snapshot("Manually refreshed node"),
+                etag='"manual-v1"',
+                last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
+            ),
+        ) as fetched:
+            refreshed = external_subscriptions.refresh_source(
+                self.db,
+                source.id,
+                now=attempt_at,
+            )
+
+        fetched.assert_called_once_with(
+            CANARY_URL,
+            etag=None,
+            last_modified=None,
+        )
+        self.assertFalse(refreshed.enabled)
+        self.assertEqual("disabled", refreshed.status)
+        self.assertIsNone(refreshed.next_refresh_at)
+        self.assertEqual(attempt_at, refreshed.last_success_at)
+        self.assertEqual(1, refreshed.node_count)
+        nodes = (
+            self.db.query(ExternalSubscriptionNode)
+            .filter_by(source_id=source.id)
+            .all()
+        )
+        self.assertEqual(["Manually refreshed node"], [node.name for node in nodes])
+
+    def test_scheduled_refresh_skips_disabled_source_without_fetching(self) -> None:
+        source = self.create_source("Disabled scheduled source")
+        source.enabled = False
+        source.status = "disabled"
+        source.url_ciphertext = external_subscriptions.encrypt_url(CANARY_URL)
+        source.url_revision = 1
+        source.next_refresh_at = None
+        self.db.commit()
+
+        with patch.object(
+            external_subscriptions,
+            "fetch_clash_subscription",
+        ) as fetched:
+            refreshed = external_subscriptions.refresh_source(
+                self.db,
+                source.id,
+                scheduled=True,
+            )
+
+        fetched.assert_not_called()
+        self.assertEqual(source.id, refreshed.id)
+        self.assertFalse(refreshed.enabled)
+        self.assertEqual("disabled", refreshed.status)
+        self.assertIsNone(refreshed.next_refresh_at)
+        self.assertIsNone(refreshed.refresh_lease_token)
+
+    def test_disabling_schedule_supersedes_generation_claimed_while_enabled(self) -> None:
+        source = self.create_source("Disable in-flight source")
+        source.url_ciphertext = external_subscriptions.encrypt_url(CANARY_URL)
+        source.url_revision = 1
+        self.db.commit()
+        claimed, lease_token = external_subscriptions._claim_refresh_lease(
+            self.db,
+            source.id,
+            now=datetime.utcnow(),
+            require_enabled=False,
+        )
+
+        disabled = external_subscriptions.update_source(
+            self.db,
+            claimed,
+            enabled=False,
+        )
+
+        self.assertEqual(2, disabled.url_revision)
+        self.assertIsNone(disabled.refresh_lease_token)
+        self.assertIsNone(disabled.refresh_lease_until)
+        self.assertEqual("disabled", disabled.status)
+        self.assertIsNone(disabled.next_refresh_at)
+        with self.assertRaises(
+            external_subscriptions.ExternalSubscriptionConfigurationError
+        ) as raised:
+            external_subscriptions._apply_snapshot(
+                self.db,
+                disabled,
+                external_subscriptions.parse_clash_subscription(
+                    _snapshot("Stale generation")
+                ),
+                now=datetime.utcnow(),
+                remote=True,
+                lease_token=lease_token,
+            )
+        self.assertEqual("refresh_superseded", raised.exception.code)
+
     def test_refresh_lease_allows_only_one_database_session_to_claim(self) -> None:
         source = self.create_source()
         source.url_ciphertext = external_subscriptions.encrypt_url(CANARY_URL)
@@ -985,7 +1135,7 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
             self.db,
             source.id,
             now=now,
-            require_refreshable=True,
+            require_enabled=True,
         )
         with self.assertRaises(
             external_subscriptions.ExternalSubscriptionConfigurationError
@@ -994,7 +1144,7 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
                 second,
                 source.id,
                 now=now,
-                require_refreshable=True,
+                require_enabled=True,
             )
         self.assertEqual("refresh_in_progress", raised.exception.code)
         self.assertNotIn(
@@ -1015,7 +1165,7 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
             second,
             source.id,
             now=now,
-            require_refreshable=True,
+            require_enabled=True,
         )
         self.assertEqual(source.id, claimed.id)
         self.assertNotEqual(first_token, second_token)
@@ -1165,6 +1315,71 @@ class ExternalSubscriptionLifecycleTests(ExternalSubscriptionDatabaseTestCase):
             external_subscriptions.load_external_overlays_for_user(
                 self.db, selected_user.id
             ),
+        )
+
+    def test_disabled_source_keeps_all_and_selected_last_known_good_overlays(self) -> None:
+        source = self.create_source("Disabled overlay source")
+        self.import_nodes(source, "LKG alpha", "LKG beta")
+        nodes = {
+            node.name: node
+            for node in self.db.query(ExternalSubscriptionNode)
+            .filter_by(source_id=source.id)
+            .all()
+        }
+        all_plan = commerce.create_plan(
+            self.db,
+            SubscriptionPlanCreate(
+                name="Disabled all overlay",
+                price_minor=0,
+                duration_days=30,
+                data_limit=0,
+                inbound_tags=[],
+                external_selections=[
+                    ExternalSelectionInput(source_id=source.id, mode="all")
+                ],
+            ),
+        )
+        selected_plan = commerce.create_plan(
+            self.db,
+            SubscriptionPlanCreate(
+                name="Disabled selected overlay",
+                price_minor=0,
+                duration_days=30,
+                data_limit=0,
+                inbound_tags=[],
+                external_selections=[
+                    ExternalSelectionInput(
+                        source_id=source.id,
+                        mode="selected",
+                        node_ids=[nodes["LKG beta"].id],
+                    )
+                ],
+            ),
+        )
+        all_user = self.attach_plan(all_plan, "disabled-all-user")
+        selected_user = self.attach_plan(selected_plan, "disabled-selected-user")
+
+        source.enabled = False
+        source.status = "disabled"
+        source.next_refresh_at = None
+        self.db.commit()
+        self.db.expire_all()
+
+        all_overlay = external_subscriptions.load_external_overlays_for_user(
+            self.db,
+            all_user.id,
+        )
+        selected_overlay = external_subscriptions.load_external_overlays_for_user(
+            self.db,
+            selected_user.id,
+        )
+        self.assertEqual(
+            ["LKG alpha", "LKG beta"],
+            [node["name"] for node in all_overlay[0].nodes],
+        )
+        self.assertEqual(
+            ["LKG beta"],
+            [node["name"] for node in selected_overlay[0].nodes],
         )
 
     def test_source_in_use_cannot_be_deleted(self) -> None:

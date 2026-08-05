@@ -274,7 +274,6 @@ const SourceRow = ({ source, selection, onSelectionChange }: SourceRowProps) => 
           flex="1"
           isChecked={isSelected}
           isIndeterminate={isPartial}
-          isDisabled={!source.enabled && !isSelected}
           onChange={(event) =>
             onSelectionChange(
               event.target.checked

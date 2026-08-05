@@ -72,9 +72,20 @@ FETCH_DEADLINE_SECONDS = 10.0
 REFRESH_LEASE_SECONDS = 60
 MIN_REFRESH_INTERVAL_MINUTES = 15
 DEFAULT_REFRESH_INTERVAL_MINUTES = 360
+# Mihomo sends this product token when it downloads proxy providers.  Keep the
+# stable prefix rather than pretending to be a particular third-party build.
+# Some subscription gateways deliberately reject generic HTTP clients, so use
+# this compatibility profile on the first (and only) credentialed request.
+MIHOMO_COMPATIBLE_USER_AGENT = "clash.meta"
 _FERNET_SALT = b"marzban/external-subscriptions/v1"
 _FERNET_INFO = b"encrypted-upstream-clash-material"
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_AUTH_REQUIRED_ERROR_CODES = {
+    "upstream_http_401",
+    "upstream_http_403",
+    "upstream_http_404",
+    "upstream_http_410",
+}
 _UPSTREAM_REFERENCE_KEYS = {
     "dialer-proxy",
     "detour",
@@ -885,8 +896,8 @@ def fetch_clash_subscription(
 ) -> FetchedExternalPayload:
     current = _validate_public_https_url(url)
     headers = {
-        "Accept": "application/yaml, text/yaml, text/plain;q=0.9, */*;q=0.1",
-        "User-Agent": "Marzban-External-Subscription/1.0",
+        "Accept": "*/*",
+        "User-Agent": MIHOMO_COMPATIBLE_USER_AGENT,
         "Accept-Encoding": "identity",
     }
     if etag:
@@ -923,7 +934,13 @@ def fetch_clash_subscription(
                     not_modified=True,
                 )
             if response.status in (401, 403, 404, 410):
-                raise ExternalSubscriptionFetchError("auth_required")
+                # Keep the projection secret-free while preserving the actual
+                # upstream status. A 403 can be a UA/WAF/IP policy failure,
+                # while a 404/410 may be an expired or intentionally hidden
+                # authorization resource.
+                raise ExternalSubscriptionFetchError(
+                    f"upstream_http_{response.status}"
+                )
             if not 200 <= response.status < 300:
                 raise ExternalSubscriptionFetchError("http_error")
 
@@ -1040,7 +1057,7 @@ def _claim_refresh_lease(
     source_id: int,
     *,
     now: datetime,
-    require_refreshable: bool,
+    require_enabled: bool,
 ) -> tuple[ExternalSubscriptionSource, str]:
     token = secrets.token_urlsafe(24)
     query = db.query(ExternalSubscriptionSource).filter(
@@ -1050,11 +1067,11 @@ def _claim_refresh_lease(
             ExternalSubscriptionSource.refresh_lease_until <= now,
         ),
     )
-    if require_refreshable:
-        query = query.filter(
-            ExternalSubscriptionSource.enabled.is_(True),
-            ExternalSubscriptionSource.url_ciphertext.is_not(None),
-        )
+    # Every remote refresh needs a credential.  The enabled flag controls only
+    # the scheduler; an explicit administrator refresh may bypass it.
+    query = query.filter(ExternalSubscriptionSource.url_ciphertext.is_not(None))
+    if require_enabled:
+        query = query.filter(ExternalSubscriptionSource.enabled.is_(True))
     claimed = query.update(
         {
             ExternalSubscriptionSource.refresh_lease_until: now
@@ -1070,9 +1087,9 @@ def _claim_refresh_lease(
         raise ExternalSubscriptionConfigurationError("source_not_found")
     if claimed:
         return source, token
-    if require_refreshable and not source.enabled:
+    if require_enabled and not source.enabled:
         raise ExternalSubscriptionConfigurationError("source_disabled")
-    if require_refreshable and not source.url_ciphertext:
+    if not source.url_ciphertext:
         raise ExternalSubscriptionConfigurationError("credential_not_configured")
     raise ExternalSubscriptionConfigurationError("refresh_in_progress")
 
@@ -1151,6 +1168,9 @@ def update_source(
     if enabled is not None:
         source.enabled = enabled
     if not source.enabled:
+        # Disabling scheduled refreshes also supersedes a generation that was
+        # claimed while the source was enabled. This prevents a stale worker
+        # from restoring ready/next-refresh metadata after the switch is off.
         if was_enabled:
             source.url_revision += 1
             source.refresh_lease_until = None
@@ -1335,11 +1355,12 @@ def _record_refresh_failure(
         return source
     source.last_attempt_at = now
     source.last_error_code = code
-    source.status = "auth_required" if code == "auth_required" else "error"
+    auth_required = code in _AUTH_REQUIRED_ERROR_CODES or code == "auth_required"
+    source.status = "auth_required" if auth_required else "error"
     if not source.enabled:
         source.status = "disabled"
     source.next_refresh_at = (
-        None if code == "auth_required" else _next_refresh(source, now)
+        None if auth_required else _next_refresh(source, now)
     )
     source.refresh_lease_until = None
     source.refresh_lease_token = None
@@ -1354,14 +1375,15 @@ def refresh_source(
     source_id: int,
     *,
     now: Optional[datetime] = None,
+    scheduled: bool = False,
 ) -> ExternalSubscriptionSource:
     source = db.get(ExternalSubscriptionSource, source_id)
     if source is None:
         raise ExternalSubscriptionConfigurationError("source_not_found")
-    if not source.enabled:
-        source.status = "disabled"
-        source.next_refresh_at = None
-        db.commit()
+    # A disabled source has automatic refreshes turned off, but administrators
+    # can still refresh it explicitly and its last-known-good nodes remain in
+    # user subscriptions.
+    if scheduled and not source.enabled:
         return source
     if not source.url_ciphertext:
         raise ExternalSubscriptionConfigurationError("credential_not_configured")
@@ -1371,7 +1393,7 @@ def refresh_source(
         db,
         source_id,
         now=attempt_at,
-        require_refreshable=True,
+        require_enabled=scheduled,
     )
     url_revision = source.url_revision
     ciphertext = source.url_ciphertext
@@ -1505,7 +1527,7 @@ def load_external_overlays_for_user(
     all_source_ids = {
         selection.source_id
         for selection in selections
-        if selection.mode == "all" and selection.source and selection.source.enabled
+        if selection.mode == "all" and selection.source
     }
     active_by_source: dict[int, list[ExternalSubscriptionNode]] = {
         source_id: [] for source_id in all_source_ids
@@ -1534,11 +1556,7 @@ def load_external_overlays_for_user(
     selected_selections = {
         selection.id: selection
         for selection in selections
-        if (
-            selection.mode == "selected"
-            and selection.source
-            and selection.source.enabled
-        )
+        if selection.mode == "selected" and selection.source
     }
     selected_by_selection: dict[int, list[ExternalSubscriptionNode]] = {
         selection_id: [] for selection_id in selected_selections
@@ -1586,7 +1604,7 @@ def load_external_overlays_for_user(
     decrypted_bytes = 0
     for selection in selections:
         source = selection.source
-        if not source or not source.enabled:
+        if not source:
             continue
         candidates: Iterable[ExternalSubscriptionNode]
         if selection.mode == "all":

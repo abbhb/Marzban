@@ -363,6 +363,9 @@ class ExternalSubscriptionSource(Base):
     group_name = Column(String(128), nullable=False, unique=True)
     url_ciphertext = Column(Text, nullable=True)
     url_revision = Column(Integer, nullable=False, default=0, server_default="0")
+    # Backward-compatible API/DB name: this flag enables scheduled refreshes.
+    # Manual refreshes and last-known-good node delivery remain available when
+    # it is false.
     enabled = Column(Boolean, nullable=False, default=True, server_default="1")
     refresh_interval_minutes = Column(
         Integer,
