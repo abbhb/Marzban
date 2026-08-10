@@ -464,6 +464,8 @@ def update_plan(
             selection.plan_id = plan.id
             db.add(selection)
     plan.updated_at = utc_now()
+    if "inbound_tags" in changes:
+        reconcile_plan_entitlements(db, plan, commit=False)
     db.commit()
     db.expire(plan)
     db.refresh(plan)
@@ -668,6 +670,86 @@ def _inbound_rows(db: Session, tags: Iterable[str]) -> dict[str, ProxyInbound]:
             db.add(rows[tag])
     db.flush()
     return rows
+
+
+def reconcile_plan_entitlements(
+    db: Session,
+    plan: SubscriptionPlan,
+    *,
+    commit: bool = True,
+) -> list[tuple[int, UserStatus]]:
+    """Make every current subscriber inherit the plan's node entitlement.
+
+    Commercial purchase facts (price, duration and data allowance) remain
+    immutable subscription/purchase snapshots.  Local node access is an
+    operational entitlement and must follow the current plan, just like the
+    plan's external-source selections already do at subscription render time.
+    """
+
+    validate_plan_inbounds(plan.inbound_tags)
+    all_vless_tags = _all_vless_tags()
+    if plan.inbound_tags and (
+        not all_vless_tags
+        or any(tag not in all_vless_tags for tag in plan.inbound_tags)
+    ):
+        raise PlanConfigurationError(
+            "The plan no longer matches the active VLESS inbounds"
+        )
+
+    inbound_rows = _inbound_rows(db, all_vless_tags)
+    excluded = [
+        inbound_rows[tag] for tag in all_vless_tags if tag not in plan.inbound_tags
+    ]
+    subscriptions = (
+        db.query(PortalSubscription)
+        .options(
+            joinedload(PortalSubscription.account)
+            .joinedload(PortalAccount.proxy_user)
+            .joinedload(User.proxies)
+            .joinedload(Proxy.excluded_inbounds)
+        )
+        .filter(PortalSubscription.plan_id == plan.id)
+        .all()
+    )
+    affected: list[tuple[int, UserStatus]] = []
+    now = utc_now()
+    for subscription in subscriptions:
+        subscription.inbound_tags = list(plan.inbound_tags)
+        subscription.updated_at = now
+        user = subscription.account.proxy_user
+        if not user:
+            continue
+        for proxy in user.proxies:
+            if ProxyTypes(proxy.type) == ProxyTypes.VLESS:
+                proxy.excluded_inbounds = list(excluded)
+        user.edit_at = now
+        affected.append((user.id, UserStatus(user.status)))
+
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    return affected
+
+
+def plan_managed_user_states(
+    db: Session,
+    plan_id: int,
+) -> list[tuple[int, UserStatus]]:
+    return [
+        (user_id, UserStatus(user_status))
+        for user_id, user_status in (
+            db.query(User.id, User.status)
+            .join(PortalAccount, PortalAccount.user_id == User.id)
+            .join(
+                PortalSubscription,
+                PortalSubscription.account_id == PortalAccount.id,
+            )
+            .filter(PortalSubscription.plan_id == plan_id)
+            .order_by(User.id)
+            .all()
+        )
+    ]
 
 
 def _apply_proxy_plan(

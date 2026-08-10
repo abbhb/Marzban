@@ -929,6 +929,22 @@ table thead {
   position: relative;
 }
 
+.user-expiry-datepicker-popper {
+  z-index: 1500 !important;
+}
+
+.react-datepicker-popper[data-placement^="top"]
+  .react-datepicker__triangle::after {
+  border-bottom: none;
+  border-top-color: var(--chakra-colors-surface-glass-strong);
+}
+
+.react-datepicker-popper[data-placement^="top"]
+  .react-datepicker__triangle::before {
+  bottom: -1px;
+  border-top-color: var(--chakra-colors-border-subtle);
+}
+
 .chakra-ui-dark .react-datepicker {
   box-shadow: var(--chakra-shadows-glass-dark);
 }

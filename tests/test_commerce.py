@@ -1044,7 +1044,7 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
         self.assertEqual(0, result.account.wallet_balance_minor)
         self.assertEqual(0, self.db.query(WalletTransaction).count())
 
-    def test_plan_rename_is_live_but_entitlements_and_purchase_remain_snapshots(self) -> None:
+    def test_plan_edit_keeps_commercial_snapshots_but_updates_node_entitlements(self) -> None:
         original_data_limit = 100 * 1024**3
         plan = self.create_plan(
             name="Free",
@@ -1090,7 +1090,13 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
         self.assertEqual(1000, account.subscription.price_paid_minor)
         self.assertEqual(30, account.subscription.duration_days)
         self.assertEqual(original_data_limit, account.subscription.data_limit)
-        self.assertEqual(["HK01", "HK01-US"], account.subscription.inbound_tags)
+        self.assertEqual(["HK02", "HK02-US"], account.subscription.inbound_tags)
+        self.assertEqual(
+            ["HK02", "HK02-US"],
+            account.proxy_user.inbounds[ProxyTypes.VLESS],
+        )
+        entitlement = commerce.user_entitlement_response(self.db, account.proxy_user.id)
+        self.assertEqual(["HK02", "HK02-US"], entitlement.inbound_tags)
         purchase = self.db.query(PortalPurchase).one()
         self.assertEqual("Free", purchase.plan_name)
         self.assertEqual(1000, purchase.amount_minor)

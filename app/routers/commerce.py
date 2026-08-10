@@ -447,12 +447,24 @@ def admin_create_plan(
 def admin_update_plan(
     plan_id: int,
     values: SubscriptionPlanUpdate,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     _admin: Admin = Depends(Admin.check_sudo_admin),
 ):
     plan = _get_plan_or_404(db, plan_id)
     try:
-        return commerce.update_plan(db, plan, values)
+        updated = commerce.update_plan(db, plan, values)
+        if "inbound_tags" in values.model_fields_set:
+            for user_id, user_status in commerce.plan_managed_user_states(
+                db, updated.id
+            ):
+                operation = (
+                    xray.operations.update_user_by_id
+                    if user_status in (UserStatus.active, UserStatus.on_hold)
+                    else xray.operations.remove_user_by_id
+                )
+                bg.add_task(operation, user_id=user_id)
+        return updated
     except commerce.PlanConfigurationError as exc:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from None

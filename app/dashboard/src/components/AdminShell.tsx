@@ -21,13 +21,17 @@ import {
   BanknotesIcon,
   Bars3Icon,
   ChartPieIcon,
+  CloudArrowDownIcon,
   Cog6ToothIcon,
   DocumentMinusIcon,
+  IdentificationIcon,
   LinkIcon,
   MoonIcon,
   ShieldCheckIcon,
+  ShieldExclamationIcon,
   SquaresPlusIcon,
   SunIcon,
+  TicketIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
 import { Language } from "components/Language";
@@ -48,6 +52,7 @@ type NavigationItem = {
   label: string;
   path: string;
   panel?: string;
+  tab?: string;
 };
 
 type NavigationGroup = {
@@ -72,21 +77,32 @@ const Navigation = ({
 }: NavigationProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const activePanel = new URLSearchParams(location.search).get("panel");
+  const searchParams = new URLSearchParams(location.search);
+  const activePanel = searchParams.get("panel");
+  const activeCommerceTab = searchParams.get("tab") || "plans";
 
   const go = (item: NavigationItem) => {
-    navigate(item.panel ? `/?panel=${item.panel}` : item.path);
+    navigate(
+      item.panel
+        ? `/?panel=${item.panel}`
+        : item.tab
+        ? `${item.path}?tab=${item.tab}`
+        : item.path
+    );
     onNavigate?.();
   };
 
   const renderItem = (item: NavigationItem, danger = false) => {
     const isActive = item.panel
       ? location.pathname === "/" && activePanel === item.panel
+      : item.tab
+      ? location.pathname.replace(/\/+$/, "") === "/commerce" &&
+        activeCommerceTab === item.tab
       : location.pathname === item.path && !activePanel;
 
     return (
       <Button
-        key={`${item.path}:${item.panel || "page"}`}
+        key={`${item.path}:${item.panel || item.tab || "page"}`}
         aria-current={isActive ? "page" : undefined}
         justifyContent="flex-start"
         leftIcon={<Icon as={item.icon} boxSize="5" />}
@@ -173,15 +189,38 @@ export const AdminShell = ({ children }: AdminShellProps) => {
   const navigationLabel = t("admin.primaryNavigation");
   const groups: NavigationGroup[] = [
     {
-      label: t("admin.accountManagement"),
+      label: t("admin.userAndSubscriptions"),
       items: [
-        { icon: UsersIcon, label: t("users"), path: "/" },
+        {
+          icon: UsersIcon,
+          label: t("admin.connectionUsers"),
+          path: "/",
+        },
         ...(isSudo
           ? [
               {
-                icon: BanknotesIcon,
-                label: t("header.commerce"),
+                icon: IdentificationIcon,
+                label: t("commerce.accounts"),
                 path: "/commerce",
+                tab: "accounts",
+              },
+              {
+                icon: BanknotesIcon,
+                label: t("commerce.plans"),
+                path: "/commerce",
+                tab: "plans",
+              },
+              {
+                icon: CloudArrowDownIcon,
+                label: t("commerce.externalSubscriptions"),
+                path: "/commerce",
+                tab: "external-subscriptions",
+              },
+              {
+                icon: TicketIcon,
+                label: t("commerce.invitations"),
+                path: "/commerce",
+                tab: "invitations",
               },
             ]
           : []),
@@ -213,8 +252,14 @@ export const AdminShell = ({ children }: AdminShellProps) => {
             ],
           },
           {
-            label: t("admin.systemSettings"),
+            label: t("admin.securityAndSystem"),
             items: [
+              {
+                icon: ShieldExclamationIcon,
+                label: t("commerce.security"),
+                path: "/commerce",
+                tab: "security",
+              },
               {
                 icon: ShieldCheckIcon,
                 label: t("header.subscriptionSecurity"),

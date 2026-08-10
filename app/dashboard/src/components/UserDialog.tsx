@@ -34,6 +34,8 @@ import {
 } from "@chakra-ui/react";
 import {
   ChartPieIcon,
+  CheckCircleIcon,
+  NoSymbolIcon,
   PencilIcon,
   UserPlusIcon,
 } from "@heroicons/react/24/outline";
@@ -401,6 +403,13 @@ export const UserDialog: FC<UserDialogProps> = () => {
     useDashboard.setState({ revokeSubscriptionUser: editingUser });
   };
 
+  const handleStatusAction = () => {
+    form.setValue("status", userStatus === "active" ? "disabled" : "active", {
+      shouldDirty: true,
+    });
+    void form.handleSubmit(submit)();
+  };
+
   const disabled = loading || entitlementLoading;
   const submitDisabled = disabled || (isEditing && entitlementError);
   const isOnHold = userStatus === "on_hold";
@@ -492,50 +501,14 @@ export const UserDialog: FC<UserDialogProps> = () => {
                               )}
                             </Flex>
                           </FormLabel>
-                          <HStack>
-                            <Input
-                              size="sm"
-                              type="text"
-                              borderRadius="6px"
-                              error={form.formState.errors.username?.message}
-                              disabled={disabled || isEditing}
-                              {...form.register("username")}
-                            />
-                            {isEditing && (
-                              <HStack px={1}>
-                                <Controller
-                                  name="status"
-                                  control={form.control}
-                                  render={({ field }) => {
-                                    return (
-                                      <Tooltip
-                                        placement="top"
-                                        label={
-                                          "status: " +
-                                          t(`status.${field.value}`)
-                                        }
-                                        textTransform="capitalize"
-                                      >
-                                        <Box>
-                                          <Switch
-                                            colorScheme="primary"
-                                            isChecked={field.value === "active"}
-                                            onChange={(e) => {
-                                              if (e.target.checked) {
-                                                field.onChange("active");
-                                              } else {
-                                                field.onChange("disabled");
-                                              }
-                                            }}
-                                          />
-                                        </Box>
-                                      </Tooltip>
-                                    );
-                                  }}
-                                />
-                              </HStack>
-                            )}
-                          </HStack>
+                          <Input
+                            size="sm"
+                            type="text"
+                            borderRadius="6px"
+                            error={form.formState.errors.username?.message}
+                            disabled={disabled || isEditing}
+                            {...form.register("username")}
+                          />
                         </FormControl>
                         {!isEditing && (
                           <FormControl flex="1">
@@ -695,6 +668,31 @@ export const UserDialog: FC<UserDialogProps> = () => {
                               return (
                                 <>
                                   <ReactDatePicker
+                                    popperClassName="user-expiry-datepicker-popper"
+                                    popperPlacement="top-start"
+                                    popperModifiers={[
+                                      {
+                                        name: "offset",
+                                        options: { offset: [0, 10] },
+                                      },
+                                      {
+                                        name: "preventOverflow",
+                                        options: {
+                                          rootBoundary: "viewport",
+                                          altAxis: true,
+                                          padding: 12,
+                                        },
+                                      },
+                                      {
+                                        name: "flip",
+                                        options: {
+                                          fallbackPlacements: [
+                                            "bottom-start",
+                                            "top-end",
+                                          ],
+                                        },
+                                      },
+                                    ]}
                                     locale={i18n.language.toLocaleLowerCase()}
                                     dateFormat={t("dateFormat")}
                                     minDate={new Date()}
@@ -825,12 +823,18 @@ export const UserDialog: FC<UserDialogProps> = () => {
                               </Text>
                               <Badge
                                 colorScheme={
-                                  entitlement.disabled_at ? "gray" : "green"
+                                  userStatus === "disabled"
+                                    ? "red"
+                                    : entitlement.disabled_at
+                                    ? "gray"
+                                    : "green"
                                 }
                                 rounded="full"
                               >
                                 {t(
-                                  entitlement.disabled_at
+                                  userStatus === "disabled"
+                                    ? "userDialog.userBlocked"
+                                    : entitlement.disabled_at
                                     ? "userDialog.planDisabled"
                                     : "userDialog.planManaged"
                                 )}
@@ -1036,18 +1040,39 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 >
                   {isEditing && (
                     <>
-                      <Tooltip label={t("delete")} placement="top">
-                        <IconButton
-                          aria-label="Delete"
-                          size="sm"
-                          onClick={() => {
-                            onDeletingUser(editingUser);
-                            onClose();
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorScheme="red"
+                        leftIcon={<DeleteIcon />}
+                        onClick={() => {
+                          onDeletingUser(editingUser);
+                          onClose();
+                        }}
+                      >
+                        {t("userDialog.deleteUser")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorScheme={userStatus === "active" ? "orange" : "green"}
+                        leftIcon={
+                          userStatus === "active" ? (
+                            <NoSymbolIcon width="16" />
+                          ) : (
+                            <CheckCircleIcon width="16" />
+                          )
+                        }
+                        onClick={handleStatusAction}
+                        isLoading={loading}
+                        isDisabled={entitlementLoading || entitlementError}
+                      >
+                        {t(
+                          userStatus === "active"
+                            ? "userDialog.disableUser"
+                            : "userDialog.enableUser"
+                        )}
+                      </Button>
                       <Tooltip label={t("userDialog.usage")} placement="top">
                         <IconButton
                           aria-label="usage"
