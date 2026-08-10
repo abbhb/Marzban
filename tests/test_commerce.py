@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from fastapi import BackgroundTasks, HTTPException, Request, Response
 
 from app.db.base import Base
+from app.db import crud
 from app.db.models import (
     ExternalSubscriptionNode,
     ExternalSubscriptionSource,
@@ -172,6 +173,27 @@ class AccountAndPlanTests(CommerceDatabaseTestCase):
 
 
 class UserEntitlementTests(CommerceDatabaseTestCase):
+    def test_removing_proxy_user_explicitly_detaches_portal_account(self) -> None:
+        grant = commerce.grant_plan(
+            self.db,
+            self.register(),
+            self.create_plan(),
+            actor_admin="root",
+            idempotency_key="detach-portal-account",
+        )
+        account_id = grant.account.id
+
+        crud.remove_user(self.db, grant.user)
+        self.db.expire_all()
+
+        account = self.db.get(PortalAccount, account_id)
+        self.assertIsNotNone(account)
+        self.assertIsNone(account.user_id)
+        self.assertEqual(
+            [],
+            self.db.connection().exec_driver_sql("PRAGMA foreign_key_check").all(),
+        )
+
     def test_plan_managed_user_projects_local_and_external_entitlements(self) -> None:
         source = ExternalSubscriptionSource(
             name="Partner feed",

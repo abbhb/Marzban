@@ -21,6 +21,7 @@ from app.db.models import (
     NodeUsage,
     NodeUserUsage,
     NotificationReminder,
+    PortalAccount,
     Proxy,
     ProxyHost,
     ProxyInbound,
@@ -404,6 +405,25 @@ def create_user(db: Session, user: UserCreate, admin: Admin = None) -> User:
     return dbuser
 
 
+def _detach_portal_accounts(db: Session, user_ids: List[int]) -> None:
+    """Preserve portal accounts while removing their connection users.
+
+    SQLite deployments do not consistently enforce the database-level
+    ``ON DELETE SET NULL`` action, so perform the unlink explicitly in the
+    same transaction as every user deletion.
+    """
+
+    if not user_ids:
+        return
+    db.query(PortalAccount).filter(PortalAccount.user_id.in_(user_ids)).update(
+        {
+            PortalAccount.user_id: None,
+            PortalAccount.updated_at: datetime.utcnow(),
+        },
+        synchronize_session="fetch",
+    )
+
+
 def remove_user(db: Session, dbuser: User) -> User:
     """
     Removes a user from the database.
@@ -415,6 +435,7 @@ def remove_user(db: Session, dbuser: User) -> User:
     Returns:
         User: The removed user object.
     """
+    _detach_portal_accounts(db, [dbuser.id])
     db.delete(dbuser)
     db.commit()
     return dbuser
@@ -428,6 +449,7 @@ def remove_users(db: Session, dbusers: List[User]):
         db (Session): Database session.
         dbusers (List[User]): List of user objects to be removed.
     """
+    _detach_portal_accounts(db, [dbuser.id for dbuser in dbusers])
     for dbuser in dbusers:
         db.delete(dbuser)
     db.commit()
