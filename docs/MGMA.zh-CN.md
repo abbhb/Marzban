@@ -128,7 +128,7 @@ docker buildx build \
   --sbom=false \
   -f Dockerfile.runtime \
   --build-arg VCS_REF="$(git rev-parse HEAD)" \
-  -t abbhb/marzban:v0.8.4-mgma.20 \
+  -t abbhb/marzban:v0.8.4-mgma.21 \
   --load .
 ```
 
