@@ -8,6 +8,7 @@ from app import logger, xray
 from app.db import Session, crud, get_db
 from app.dependencies import get_expired_users_list, get_validated_user, validate_dates
 from app.models.admin import Admin
+from app.models.commerce import UserEntitlementResponse
 from app.models.user import (
     UserCreate,
     UserModify,
@@ -17,6 +18,7 @@ from app.models.user import (
     UsersUsagesResponse,
     UserUsagesResponse,
 )
+from app.services import commerce
 from app.utils import report, responses
 
 router = APIRouter(tags=["User"], prefix="/api", responses={401: responses._401})
@@ -75,7 +77,29 @@ def get_user(dbuser: UserResponse = Depends(get_validated_user)):
     return dbuser
 
 
-@router.put("/user/{username}", response_model=UserResponse, responses={400: responses._400, 403: responses._403, 404: responses._404})
+@router.get(
+    "/user/{username}/entitlement",
+    response_model=UserEntitlementResponse,
+    responses={403: responses._403, 404: responses._404},
+)
+def get_user_entitlement(
+    db: Session = Depends(get_db),
+    dbuser: UserResponse = Depends(get_validated_user),
+):
+    """Return the safe, credential-free source of a user's node grants."""
+    return commerce.user_entitlement_response(db, dbuser.id)
+
+
+@router.put(
+    "/user/{username}",
+    response_model=UserResponse,
+    responses={
+        400: responses._400,
+        403: responses._403,
+        404: responses._404,
+        409: responses._409,
+    },
+)
 def modify_user(
     modified_user: UserModify,
     bg: BackgroundTasks,
@@ -100,6 +124,16 @@ def modify_user(
 
     Note: Fields set to `null` or omitted will not be modified.
     """
+
+    entitlement_fields = {"proxies", "inbounds"}
+    if (
+        entitlement_fields.intersection(modified_user.model_fields_set)
+        and commerce.is_user_plan_managed(db, dbuser.id)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="user_entitlements_managed_by_plan",
+        )
 
     for proxy_type in modified_user.proxies:
         if not xray.config.inbounds_by_protocol.get(proxy_type):

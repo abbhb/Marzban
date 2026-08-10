@@ -65,12 +65,35 @@ export type UserCreate = Pick<
   | "note"
 >;
 
+export type UserModify = Partial<UserCreate> & Pick<User, "username">;
+
+export type UserExternalEntitlement = {
+  source_id: number;
+  name: string;
+  group_name: string;
+  mode: "all" | "selected";
+  node_count: number;
+  status: string;
+};
+
+export type UserEntitlement = {
+  managed_by_plan: boolean;
+  account_id?: number | null;
+  subscription_id?: number | null;
+  plan_id?: number | null;
+  plan_name?: string | null;
+  inbound_tags: string[];
+  external_sources: UserExternalEntitlement[];
+  expires_at?: string | null;
+  disabled_at?: string | null;
+};
+
 export type UserApi = {
   discord_webook: string;
   is_sudo: boolean;
   telegram_id: number | string;
   username: string;
-}
+};
 
 export type UseGetUserReturn = {
   userData: UserApi;
@@ -78,4 +101,4 @@ export type UseGetUserReturn = {
   getUserIsSuccess: boolean;
   getUserIsError: boolean;
   getUserError: Error | null;
-}
+};

@@ -1,6 +1,6 @@
 import { StatisticsQueryKey } from "constants/QueryKeys";
 import { fetch } from "service/http";
-import { User, UserCreate } from "types/User";
+import { User, UserCreate, UserModify } from "types/User";
 import { queryClient } from "utils/react-query";
 import { getUsersPerPageLimitSize } from "utils/userPreferenceStorage";
 import { create } from "zustand";
@@ -58,7 +58,7 @@ type DashboardStateType = {
   onFilterChange: (filters: Partial<FilterType>) => void;
   deleteUser: (user: User) => Promise<void>;
   createUser: (user: UserCreate) => Promise<void>;
-  editUser: (user: UserCreate) => Promise<void>;
+  editUser: (user: UserModify) => Promise<void>;
   fetchUserUsage: (user: User, query: FilterUsageType) => Promise<void>;
   onEditingHosts: (isEditingHosts: boolean) => void;
   onEditingNodes: (isEditingHosts: boolean) => void;
@@ -188,7 +188,7 @@ export const useDashboard = create(
         queryClient.invalidateQueries(StatisticsQueryKey);
       });
     },
-    editUser: (body: UserCreate) => {
+    editUser: (body: UserModify) => {
       return fetch(`/user/${body.username}`, { method: "PUT", body }).then(
         () => {
           get().onEditingUser(null);

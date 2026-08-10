@@ -39,6 +39,7 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { fetch } from "service/http";
 import { PageResult, PortalAccount, SubscriptionPlan } from "types/Commerce";
 import { formatBytes } from "utils/formatByte";
@@ -58,6 +59,7 @@ export const AccountsWorkspace = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
   const drawer = useDisclosure();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [list, setList] = useState(initialPageState);
   const debouncedSearch = useDebouncedValue(list.search);
   const queryState = useMemo(
@@ -81,6 +83,16 @@ export const AccountsWorkspace = () => {
   const plansQuery = useQuery(["commerce", "plans"], () =>
     fetch<SubscriptionPlan[]>("/commerce/admin/plans")
   );
+  const requestedAccountId = Number(searchParams.get("account"));
+  const requestedAccountQuery = useQuery(
+    ["commerce", "accounts", "detail", requestedAccountId],
+    () =>
+      fetch<PortalAccount>(`/commerce/admin/accounts/${requestedAccountId}`),
+    {
+      enabled: Number.isInteger(requestedAccountId) && requestedAccountId > 0,
+      retry: false,
+    }
+  );
   const result = accountsQuery.data || {
     items: [],
     total: 0,
@@ -103,10 +115,24 @@ export const AccountsWorkspace = () => {
     drawer.onOpen();
   };
 
+  useEffect(() => {
+    if (!requestedAccountQuery.data) return;
+    if (drawer.isOpen && selected?.id === requestedAccountQuery.data.id) return;
+    openAccount(requestedAccountQuery.data);
+  }, [requestedAccountQuery.data]);
+
+  const clearRequestedAccount = () => {
+    if (!searchParams.has("account")) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("account");
+    setSearchParams(next, { replace: true });
+  };
+
   const closeDrawer = () => {
     if (busy) return;
     drawer.onClose();
     setSelected(null);
+    clearRequestedAccount();
   };
 
   const run = async (
@@ -132,6 +158,7 @@ export const AccountsWorkspace = () => {
       });
       drawer.onClose();
       setSelected(null);
+      clearRequestedAccount();
     } catch (error: any) {
       toast({
         title: error?.data?.detail || t("commerce.actionError"),

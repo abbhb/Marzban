@@ -899,6 +899,18 @@ def admin_list_accounts(
     )
 
 
+@router.get(
+    "/api/commerce/admin/accounts/{account_id}",
+    response_model=PortalAccountAdminResponse,
+)
+def admin_get_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    return commerce.admin_account_response(_get_account_or_404(db, account_id))
+
+
 @router.post(
     "/api/commerce/admin/accounts/{account_id}/wallet/recharge",
     response_model=PortalAccountAdminResponse,

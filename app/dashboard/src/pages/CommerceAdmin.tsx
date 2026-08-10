@@ -14,8 +14,17 @@ import {
 import { AdminShell } from "components/AdminShell";
 import { BootReady } from "components/BootReady";
 import { Footer } from "components/Footer";
-import { Suspense, lazy, useCallback, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
+
+const WORKSPACE_IDS = [
+  "plans",
+  "external-subscriptions",
+  "accounts",
+  "invitations",
+  "security",
+] as const;
 
 const PlansWorkspace = lazy(() =>
   import("./commerce/PlansWorkspace").then(({ PlansWorkspace }) => ({
@@ -53,12 +62,30 @@ const WorkspaceFallback = () => (
 
 export const CommerceAdmin = () => {
   const { t } = useTranslation();
-  const [tabIndex, setTabIndex] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedWorkspace = searchParams.get("tab");
+  const requestedTabIndex = Math.max(
+    0,
+    WORKSPACE_IDS.findIndex((workspace) => workspace === requestedWorkspace)
+  );
+  const [tabIndex, setTabIndex] = useState(requestedTabIndex);
   const [initialWorkspaceReady, setInitialWorkspaceReady] = useState(false);
   const markInitialWorkspaceReady = useCallback(
     () => setInitialWorkspaceReady(true),
     []
   );
+
+  useEffect(() => {
+    setTabIndex(requestedTabIndex);
+  }, [requestedTabIndex]);
+
+  const changeWorkspace = (index: number) => {
+    setTabIndex(index);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", WORKSPACE_IDS[index]);
+    if (WORKSPACE_IDS[index] !== "accounts") next.delete("account");
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <AdminShell>
@@ -82,7 +109,7 @@ export const CommerceAdmin = () => {
           colorScheme="primary"
           isLazy
           index={tabIndex}
-          onChange={setTabIndex}
+          onChange={changeWorkspace}
           variant="unstyled"
         >
           <TabList
@@ -95,9 +122,7 @@ export const CommerceAdmin = () => {
             rounded="2xl"
           >
             <Tab whiteSpace="nowrap">{t("commerce.plans")}</Tab>
-            <Tab whiteSpace="nowrap">
-              {t("commerce.externalSubscriptions")}
-            </Tab>
+            <Tab whiteSpace="nowrap">{t("commerce.externalSubscriptions")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.accounts")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.invitations")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.security")}</Tab>

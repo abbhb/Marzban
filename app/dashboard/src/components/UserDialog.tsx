@@ -1,6 +1,7 @@
 import {
   Alert,
   AlertIcon,
+  Badge,
   Box,
   Button,
   Collapse,
@@ -49,8 +50,11 @@ import {
   ProxyKeys,
   ProxyType,
   User,
+  UserApi,
   UserCreate,
+  UserEntitlement,
   UserInbounds,
+  UserModify,
 } from "types/User";
 import { relativeExpiryDate } from "utils/dateFormatter";
 import { z } from "zod";
@@ -61,6 +65,8 @@ import { RadioGroup } from "./RadioGroup";
 import { UsageFilter, createUsageConfig } from "./UsageFilter";
 import { ReloadIcon } from "./Filters";
 import classNames from "classnames";
+import { useLoaderData, useNavigate } from "react-router-dom";
+import { fetch as apiFetch } from "service/http";
 import "./datePickerSetup";
 
 const AddUserIcon = chakra(UserPlusIcon, {
@@ -231,10 +237,15 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const [error, setError] = useState<string | null>("");
   const toast = useToast();
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const adminUser = useLoaderData() as UserApi;
 
   const { colorMode } = useColorMode();
 
   const [usageVisible, setUsageVisible] = useState(false);
+  const [entitlement, setEntitlement] = useState<UserEntitlement | null>(null);
+  const [entitlementLoading, setEntitlementLoading] = useState(false);
+  const [entitlementError, setEntitlementError] = useState(false);
   const handleUsageToggle = () => {
     setUsageVisible((current) => !current);
   };
@@ -274,15 +285,39 @@ export const UserDialog: FC<UserDialogProps> = () => {
     }
   }, [editingUser]);
 
+  useEffect(() => {
+    if (!editingUser) {
+      setEntitlement(null);
+      setEntitlementLoading(false);
+      setEntitlementError(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setEntitlement(null);
+    setEntitlementLoading(true);
+    setEntitlementError(false);
+    apiFetch<UserEntitlement>(
+      `/user/${encodeURIComponent(editingUser.username)}/entitlement`,
+      { signal: controller.signal }
+    )
+      .then(setEntitlement)
+      .catch((requestError: any) => {
+        if (requestError?.name !== "AbortError") setEntitlementError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setEntitlementLoading(false);
+      });
+    return () => controller.abort();
+  }, [editingUser]);
+
   const submit = (values: FormType) => {
     setLoading(true);
-    const methods = { edited: editUser, created: createUser };
-    const method = isEditing ? "edited" : "created";
     setError(null);
 
     const { selected_proxies, ...rest } = values;
 
-    let body: UserCreate = {
+    let body: UserCreate | UserModify = {
       ...rest,
       data_limit: values.data_limit,
       proxies: mergeProxies(selected_proxies, values.proxies),
@@ -298,7 +333,20 @@ export const UserDialog: FC<UserDialogProps> = () => {
           : "active",
     };
 
-    methods[method](body)
+    if (isEditing && entitlement?.managed_by_plan) {
+      const {
+        proxies: _proxies,
+        inbounds: _inbounds,
+        ...planManagedBody
+      } = body;
+      body = planManagedBody;
+    }
+
+    const request = isEditing
+      ? editUser(body as UserModify)
+      : createUser(body as UserCreate);
+
+    request
       .then(() => {
         toast({
           title: t(
@@ -340,6 +388,9 @@ export const UserDialog: FC<UserDialogProps> = () => {
     setError(null);
     setUsageVisible(false);
     setUsageFilter("1m");
+    setEntitlement(null);
+    setEntitlementLoading(false);
+    setEntitlementError(false);
   };
 
   const handleResetUsage = () => {
@@ -350,7 +401,8 @@ export const UserDialog: FC<UserDialogProps> = () => {
     useDashboard.setState({ revokeSubscriptionUser: editingUser });
   };
 
-  const disabled = loading;
+  const disabled = loading || entitlementLoading;
+  const submitDisabled = disabled || (isEditing && entitlementError);
   const isOnHold = userStatus === "on_hold";
 
   const [randomUsernameLoading, setrandomUsernameLoading] = useState(false);
@@ -367,6 +419,13 @@ export const UserDialog: FC<UserDialogProps> = () => {
       counter += 1;
     }
     return result;
+  };
+
+  const openPlanManagement = () => {
+    if (!entitlement?.account_id) return;
+    const accountId = entitlement.account_id;
+    onClose();
+    navigate(`/commerce?tab=accounts&account=${accountId}`);
   };
 
   return (
@@ -394,7 +453,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
                 </Text>
               </HStack>
             </ModalHeader>
-            <ModalCloseButton disabled={disabled} />
+            <ModalCloseButton disabled={loading} />
             <ModalBody>
               <Grid
                 templateColumns={{
@@ -715,49 +774,213 @@ export const UserDialog: FC<UserDialogProps> = () => {
                   </VStack>
                 </GridItem>
                 <GridItem>
-                  <FormControl
-                    isInvalid={
-                      !!form.formState.errors.selected_proxies?.message
-                    }
-                  >
-                    <FormLabel>{t("userDialog.protocols")}</FormLabel>
-                    <Controller
-                      control={form.control}
-                      name="selected_proxies"
-                      render={({ field }) => {
-                        return (
-                          <RadioGroup
-                            list={[
-                              {
-                                title: "vmess",
-                                description: t("userDialog.vmessDesc"),
-                              },
-                              {
-                                title: "vless",
-                                description: t("userDialog.vlessDesc"),
-                              },
-                              {
-                                title: "trojan",
-                                description: t("userDialog.trojanDesc"),
-                              },
-                              {
-                                title: "shadowsocks",
-                                description: t("userDialog.shadowsocksDesc"),
-                              },
-                            ]}
-                            disabled={disabled}
-                            {...field}
-                          />
-                        );
-                      }}
-                    />
-                    <FormErrorMessage>
-                      {t(
-                        form.formState.errors.selected_proxies
-                          ?.message as string
-                      )}
-                    </FormErrorMessage>
-                  </FormControl>
+                  <FormLabel>{t("userDialog.nodeEntitlement")}</FormLabel>
+                  {entitlementLoading && (
+                    <Flex
+                      minH="280px"
+                      align="center"
+                      justify="center"
+                      layerStyle="glassSubtle"
+                      rounded="2xl"
+                    >
+                      <Spinner color="primary.500" />
+                    </Flex>
+                  )}
+                  {entitlementError && (
+                    <Alert status="error" alignItems="flex-start" rounded="2xl">
+                      <AlertIcon mt="0.5" />
+                      <Box>
+                        <Text fontWeight="700">
+                          {t("userDialog.entitlementLoadError")}
+                        </Text>
+                        <Text mt="1" fontSize="sm">
+                          {t("userDialog.entitlementLoadErrorHelp")}
+                        </Text>
+                      </Box>
+                    </Alert>
+                  )}
+                  {!entitlementLoading &&
+                    !entitlementError &&
+                    entitlement?.managed_by_plan && (
+                      <VStack
+                        align="stretch"
+                        spacing="4"
+                        layerStyle="glassSubtle"
+                        rounded="2xl"
+                        p="4"
+                      >
+                        <Flex
+                          justify="space-between"
+                          align="flex-start"
+                          gap="3"
+                        >
+                          <Box minW="0">
+                            <HStack spacing="2" flexWrap="wrap">
+                              <Text
+                                fontSize="lg"
+                                fontWeight="800"
+                                noOfLines={1}
+                              >
+                                {entitlement.plan_name || "—"}
+                              </Text>
+                              <Badge
+                                colorScheme={
+                                  entitlement.disabled_at ? "gray" : "green"
+                                }
+                                rounded="full"
+                              >
+                                {t(
+                                  entitlement.disabled_at
+                                    ? "userDialog.planDisabled"
+                                    : "userDialog.planManaged"
+                                )}
+                              </Badge>
+                            </HStack>
+                            <Text mt="1" fontSize="sm" color="fg.muted">
+                              {t("userDialog.planManagedHelp")}
+                            </Text>
+                          </Box>
+                        </Flex>
+
+                        <Box>
+                          <Text fontSize="xs" fontWeight="700" color="fg.muted">
+                            {t("userDialog.localNodes")}
+                          </Text>
+                          <HStack mt="2" spacing="2" flexWrap="wrap">
+                            {entitlement.inbound_tags.length ? (
+                              entitlement.inbound_tags.map((tag) => (
+                                <Badge key={tag} px="2.5" py="1" rounded="full">
+                                  {tag}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Text fontSize="sm" color="fg.subtle">
+                                {t("userDialog.noLocalNodes")}
+                              </Text>
+                            )}
+                          </HStack>
+                        </Box>
+
+                        <Box>
+                          <Text fontSize="xs" fontWeight="700" color="fg.muted">
+                            {t("userDialog.externalSources")}
+                          </Text>
+                          <VStack mt="2" align="stretch" spacing="2">
+                            {entitlement.external_sources.length ? (
+                              entitlement.external_sources.map((source) => (
+                                <Flex
+                                  key={source.source_id}
+                                  justify="space-between"
+                                  gap="3"
+                                  rounded="xl"
+                                  borderWidth="1px"
+                                  borderColor="border.subtle"
+                                  px="3"
+                                  py="2.5"
+                                >
+                                  <Box minW="0">
+                                    <Text fontWeight="700" noOfLines={1}>
+                                      {source.name}
+                                    </Text>
+                                    <Text
+                                      fontSize="xs"
+                                      color="fg.subtle"
+                                      noOfLines={1}
+                                    >
+                                      {source.group_name}
+                                    </Text>
+                                  </Box>
+                                  <Badge alignSelf="center" rounded="full">
+                                    {source.mode === "all"
+                                      ? t("userDialog.allExternalNodes", {
+                                          count: source.node_count,
+                                        })
+                                      : t("userDialog.selectedExternalNodes", {
+                                          count: source.node_count,
+                                        })}
+                                  </Badge>
+                                </Flex>
+                              ))
+                            ) : (
+                              <Text fontSize="sm" color="fg.subtle">
+                                {t("userDialog.noExternalSources")}
+                              </Text>
+                            )}
+                          </VStack>
+                        </Box>
+
+                        {entitlement.expires_at && (
+                          <Text fontSize="sm" color="fg.muted">
+                            {t("userDialog.planExpiresAt", {
+                              date: dayjs(entitlement.expires_at).format(
+                                "YYYY-MM-DD"
+                              ),
+                            })}
+                          </Text>
+                        )}
+                        {adminUser.is_sudo && (
+                          <Button
+                            type="button"
+                            colorScheme="primary"
+                            variant="outline"
+                            onClick={openPlanManagement}
+                          >
+                            {t("userDialog.managePlan")}
+                          </Button>
+                        )}
+                      </VStack>
+                    )}
+                  {!entitlementLoading &&
+                    !entitlementError &&
+                    !entitlement?.managed_by_plan && (
+                      <FormControl
+                        isInvalid={
+                          !!form.formState.errors.selected_proxies?.message
+                        }
+                      >
+                        <Text mb="3" fontSize="sm" color="fg.muted">
+                          {t("userDialog.manualEntitlementHelp")}
+                        </Text>
+                        <Controller
+                          control={form.control}
+                          name="selected_proxies"
+                          render={({ field }) => {
+                            return (
+                              <RadioGroup
+                                list={[
+                                  {
+                                    title: "vmess",
+                                    description: t("userDialog.vmessDesc"),
+                                  },
+                                  {
+                                    title: "vless",
+                                    description: t("userDialog.vlessDesc"),
+                                  },
+                                  {
+                                    title: "trojan",
+                                    description: t("userDialog.trojanDesc"),
+                                  },
+                                  {
+                                    title: "shadowsocks",
+                                    description: t(
+                                      "userDialog.shadowsocksDesc"
+                                    ),
+                                  },
+                                ]}
+                                disabled={disabled}
+                                {...field}
+                              />
+                            );
+                          }}
+                        />
+                        <FormErrorMessage>
+                          {t(
+                            form.formState.errors.selected_proxies
+                              ?.message as string
+                          )}
+                        </FormErrorMessage>
+                      </FormControl>
+                    )}
                 </GridItem>
                 {isEditing && usageVisible && (
                   <GridItem pt={6} colSpan={{ base: 1, md: 2 }}>
@@ -854,7 +1077,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
                     px="8"
                     colorScheme="primary"
                     leftIcon={loading ? <Spinner size="xs" /> : undefined}
-                    disabled={disabled}
+                    disabled={submitDisabled}
                   >
                     {isEditing ? t("userDialog.editUser") : t("createUser")}
                   </Button>

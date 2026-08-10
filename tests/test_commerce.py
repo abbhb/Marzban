@@ -15,6 +15,8 @@ from fastapi import BackgroundTasks, HTTPException, Request, Response
 
 from app.db.base import Base
 from app.db.models import (
+    ExternalSubscriptionNode,
+    ExternalSubscriptionSource,
     PortalAccount,
     PortalIPBlock,
     PortalInvitationCode,
@@ -28,19 +30,24 @@ from app.db.models import (
 )
 from app.models.admin import Admin as AdminSchema
 from app.models.commerce import (
+    ExternalSelectionInput,
     PortalRegister,
     SubscriptionPlanCreate,
     SubscriptionPlanUpdate,
 )
 from app.models.proxy import ProxyTypes
-from app.models.user import UserStatus
+from app.models.user import UserModify, UserStatus
 from app.dependencies import get_current_portal_account
 from app.routers.commerce import (
     admin_list_accounts,
     admin_list_invitations,
     admin_list_ip_blocks,
 )
-from app.routers import commerce as commerce_router, mgma as mgma_router
+from app.routers import (
+    commerce as commerce_router,
+    mgma as mgma_router,
+    user as user_router,
+)
 from app.services import commerce, portal_security
 from app.services.mgma import issue_token, regenerate_subscription
 from app.services.rate_limit import SlidingWindowLimiter
@@ -102,6 +109,7 @@ class CommerceDatabaseTestCase(unittest.TestCase):
         duration_days: int = 30,
         data_limit: int = 100 * 1024**3,
         inbound_tags=None,
+        external_selections=None,
         is_visible: bool = True,
     ) -> SubscriptionPlan:
         return commerce.create_plan(
@@ -113,6 +121,7 @@ class CommerceDatabaseTestCase(unittest.TestCase):
                 duration_days=duration_days,
                 data_limit=data_limit,
                 inbound_tags=inbound_tags or ["HK01", "HK01-US"],
+                external_selections=external_selections or [],
                 is_visible=is_visible,
             ),
         )
@@ -160,6 +169,130 @@ class AccountAndPlanTests(CommerceDatabaseTestCase):
         self.db.commit()
         with self.assertRaises(commerce.AccountExists):
             self.register()
+
+
+class UserEntitlementTests(CommerceDatabaseTestCase):
+    def test_plan_managed_user_projects_local_and_external_entitlements(self) -> None:
+        source = ExternalSubscriptionSource(
+            name="Partner feed",
+            group_name="Partner Select",
+            enabled=True,
+            status="ready",
+            node_count=2,
+            skipped_node_count=0,
+            created_by="root",
+        )
+        self.db.add(source)
+        self.db.flush()
+        selected_node = ExternalSubscriptionNode(
+            source=source,
+            external_key="node-1",
+            name="Partner US 01",
+            proxy_type="vless",
+            payload_ciphertext="encrypted-test-payload",
+            position=0,
+            is_active=True,
+        )
+        self.db.add(selected_node)
+        self.db.flush()
+        with patch.object(
+            commerce.external_subscriptions,
+            "validate_external_selection_budget",
+        ):
+            plan = self.create_plan(
+                name="Mixed plan",
+                inbound_tags=["HK01"],
+                external_selections=[
+                    ExternalSelectionInput(
+                        source_id=source.id,
+                        mode="selected",
+                        node_ids=[selected_node.id],
+                    )
+                ],
+            )
+        result = commerce.grant_plan(
+            self.db,
+            self.register(),
+            plan,
+            actor_admin="root",
+            idempotency_key="grant-entitlement-0001",
+            now=datetime(2026, 8, 10, 8, 0),
+        )
+
+        entitlement = commerce.user_entitlement_response(self.db, result.user.id)
+
+        self.assertTrue(entitlement.managed_by_plan)
+        self.assertEqual(result.account.id, entitlement.account_id)
+        self.assertEqual("Mixed plan", entitlement.plan_name)
+        self.assertEqual(["HK01"], entitlement.inbound_tags)
+        self.assertEqual(1, len(entitlement.external_sources))
+        self.assertEqual("Partner feed", entitlement.external_sources[0].name)
+        self.assertEqual("selected", entitlement.external_sources[0].mode)
+        self.assertEqual(1, entitlement.external_sources[0].node_count)
+
+    def test_manual_user_has_no_plan_management(self) -> None:
+        user = User(username="manual-user", status=UserStatus.active, used_traffic=0)
+        self.db.add(user)
+        self.db.commit()
+
+        entitlement = commerce.user_entitlement_response(self.db, user.id)
+
+        self.assertFalse(entitlement.managed_by_plan)
+        self.assertIsNone(entitlement.account_id)
+        self.assertEqual([], entitlement.inbound_tags)
+        self.assertEqual([], entitlement.external_sources)
+
+    def test_generic_user_api_rejects_plan_entitlement_changes(self) -> None:
+        result = commerce.grant_plan(
+            self.db,
+            self.register(),
+            self.create_plan(),
+            actor_admin="root",
+            idempotency_key="grant-entitlement-guard-0001",
+            now=datetime(2026, 8, 10, 8, 0),
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            user_router.modify_user(
+                modified_user=UserModify(
+                    proxies={"vless": {}},
+                    inbounds={"vless": ["HK02"]},
+                ),
+                bg=BackgroundTasks(),
+                db=self.db,
+                dbuser=result.user,
+                admin=AdminSchema(username="root", is_sudo=True),
+            )
+
+        self.assertEqual(409, context.exception.status_code)
+        self.assertEqual(
+            "user_entitlements_managed_by_plan",
+            context.exception.detail,
+        )
+        self.db.refresh(result.user)
+        self.assertEqual(["HK01", "HK01-US"], result.account.subscription.inbound_tags)
+
+    def test_generic_user_api_still_allows_non_entitlement_edits(self) -> None:
+        result = commerce.grant_plan(
+            self.db,
+            self.register(),
+            self.create_plan(),
+            actor_admin="root",
+            idempotency_key="grant-note-edit-0001",
+            now=datetime(2026, 8, 10, 8, 0),
+        )
+
+        with patch("app.models.user.generate_v2ray_links", return_value=[]):
+            response = user_router.modify_user(
+                modified_user=UserModify(note="operator note"),
+                bg=BackgroundTasks(),
+                db=self.db,
+                dbuser=result.user,
+                admin=AdminSchema(username="root", is_sudo=True),
+            )
+
+        self.assertEqual("operator note", response.note)
+        self.assertEqual(["HK01", "HK01-US"], result.account.subscription.inbound_tags)
 
 
 class PortalSubscriptionRegenerationTests(CommerceDatabaseTestCase):

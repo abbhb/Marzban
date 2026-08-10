@@ -91,3 +91,9 @@ SQLite 保存来源、节点密文、LKG 快照和套餐引用；`.env` 保存�
 - `GET /api/commerce/admin/external-subscriptions/{id}/nodes`
 
 套餐 sudo 管理响应包含 `external_selections`；公开门户套餐响应不暴露来源和节点内部 ID。
+
+## 7. 用户授权的单一事实来源
+
+绑定门户套餐的用户，其本地入站与外部来源授权均以当前套餐/订阅为单一事实来源。管理员通用“用户编辑”弹窗只读展示套餐名称、本地入站标签、外部来源名称与安全节点计数；套餐调整统一进入“用户与套餐 > 门户账户”，避免手工协议配置和套餐授权出现两套相互覆盖的状态。
+
+`GET /api/user/{username}/entitlement` 只返回授权摘要，不返回外部订阅 URL、token 或节点连接参数。对于已绑定门户订阅的用户，`PUT /api/user/{username}` 仍允许更新状态、流量、到期时间和备注，但提交 `proxies` 或 `inbounds` 会返回 `409 user_entitlements_managed_by_plan`。未绑定门户套餐的历史手工用户继续使用原协议与入站编辑流程。

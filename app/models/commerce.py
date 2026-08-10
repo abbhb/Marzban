@@ -357,6 +357,29 @@ class PortalAccountAdminResponse(PortalAccountResponse):
     usage: PortalUsageResponse
 
 
+class UserExternalEntitlementResponse(BaseModel):
+    source_id: int
+    name: str
+    group_name: str
+    mode: Literal["all", "selected"]
+    node_count: int = Field(ge=0)
+    status: str
+
+
+class UserEntitlementResponse(BaseModel):
+    managed_by_plan: bool = False
+    account_id: Optional[int] = None
+    subscription_id: Optional[int] = None
+    plan_id: Optional[int] = None
+    plan_name: Optional[str] = None
+    inbound_tags: List[str] = Field(default_factory=list)
+    external_sources: List[UserExternalEntitlementResponse] = Field(
+        default_factory=list
+    )
+    expires_at: Optional[datetime] = None
+    disabled_at: Optional[datetime] = None
+
+
 class InvitationCreate(BaseModel):
     note: str = Field(default="", max_length=500)
     valid_from: Optional[datetime] = None

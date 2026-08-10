@@ -37,6 +37,8 @@ from app.models.commerce import (
     PortalUsageResponse,
     SubscriptionPlanCreate,
     SubscriptionPlanUpdate,
+    UserEntitlementResponse,
+    UserExternalEntitlementResponse,
 )
 from app.models.proxy import ProxyTypes, VLESSSettings
 from app.models.user import UserDataLimitResetStrategy, UserStatus
@@ -104,6 +106,74 @@ def get_account(db: Session, account_id: int) -> Optional[PortalAccount]:
 
 def get_account_by_username(db: Session, username: str) -> Optional[PortalAccount]:
     return account_query(db).filter(PortalAccount.username == username).first()
+
+
+def is_user_plan_managed(db: Session, user_id: int) -> bool:
+    return (
+        db.query(PortalSubscription.id)
+        .join(PortalAccount, PortalAccount.id == PortalSubscription.account_id)
+        .filter(PortalAccount.user_id == user_id)
+        .first()
+        is not None
+    )
+
+
+def user_entitlement_response(db: Session, user_id: int) -> UserEntitlementResponse:
+    account = (
+        db.query(PortalAccount)
+        .options(
+            joinedload(PortalAccount.subscription)
+            .joinedload(PortalSubscription.plan)
+            .joinedload(SubscriptionPlan.external_selections)
+            .joinedload(SubscriptionPlanExternalSelection.source),
+            joinedload(PortalAccount.subscription)
+            .joinedload(PortalSubscription.plan)
+            .joinedload(SubscriptionPlan.external_selections)
+            .joinedload(SubscriptionPlanExternalSelection.selected_nodes),
+        )
+        .filter(PortalAccount.user_id == user_id)
+        .first()
+    )
+    if not account or not account.subscription:
+        return UserEntitlementResponse()
+
+    subscription = account.subscription
+    external_sources = []
+    if subscription.plan:
+        for selection in sorted(
+            subscription.plan.external_selections,
+            key=lambda item: (item.source_id, item.id),
+        ):
+            if selection.mode == "all":
+                node_count = int(selection.source.node_count or 0)
+            else:
+                node_count = sum(
+                    1 for node in selection.selected_nodes if node.is_active
+                )
+            external_sources.append(
+                UserExternalEntitlementResponse(
+                    source_id=selection.source_id,
+                    name=selection.source.name,
+                    group_name=selection.source.group_name,
+                    mode=selection.mode,
+                    node_count=node_count,
+                    status=selection.source.status,
+                )
+            )
+
+    return UserEntitlementResponse(
+        managed_by_plan=True,
+        account_id=account.id,
+        subscription_id=subscription.id,
+        plan_id=subscription.plan_id,
+        plan_name=(
+            subscription.plan.name if subscription.plan else subscription.plan_name
+        ),
+        inbound_tags=list(subscription.inbound_tags or []),
+        external_sources=external_sources,
+        expires_at=subscription.expires_at,
+        disabled_at=subscription.disabled_at,
+    )
 
 
 def register_account(
