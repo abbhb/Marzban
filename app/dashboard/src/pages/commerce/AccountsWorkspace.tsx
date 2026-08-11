@@ -34,6 +34,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { DataWorkspace, PaginationControls } from "components/DataWorkspace";
+import { OneTimePasswordPanel } from "components/OneTimePasswordPanel";
 import { ArrowPathIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
@@ -41,7 +42,12 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { fetch } from "service/http";
-import { PageResult, PortalAccount, SubscriptionPlan } from "types/Commerce";
+import {
+  GeneratedPassword,
+  PageResult,
+  PortalAccount,
+  SubscriptionPlan,
+} from "types/Commerce";
 import { formatBytes } from "utils/formatByte";
 import {
   initialPageState,
@@ -71,6 +77,8 @@ export const AccountsWorkspace = () => {
   const [rechargeValue, setRechargeValue] = useState("");
   const [renewValue, setRenewValue] = useState("30");
   const [busy, setBusy] = useState("");
+  const [generatedPassword, setGeneratedPassword] =
+    useState<GeneratedPassword | null>(null);
 
   const accountsQuery = useQuery(
     ["commerce", "accounts", queryState],
@@ -112,6 +120,7 @@ export const AccountsWorkspace = () => {
     setPlanId(String(account.subscription?.plan_id || ""));
     setRechargeValue("");
     setRenewValue("30");
+    setGeneratedPassword(null);
     drawer.onOpen();
   };
 
@@ -132,6 +141,7 @@ export const AccountsWorkspace = () => {
     if (busy) return;
     drawer.onClose();
     setSelected(null);
+    setGeneratedPassword(null);
     clearRequestedAccount();
   };
 
@@ -202,6 +212,27 @@ export const AccountsWorkspace = () => {
       { days },
       true
     );
+  };
+
+  const resetPassword = async () => {
+    if (!selected) return;
+    setBusy("password");
+    try {
+      setGeneratedPassword(
+        await fetch<GeneratedPassword>(
+          `/commerce/admin/accounts/${selected.id}/password/reset`,
+          { method: "POST" }
+        )
+      );
+    } catch (error: any) {
+      toast({
+        title: error?.data?.detail || t("userDialog.passwordResetError"),
+        status: "error",
+        position: "top",
+      });
+    } finally {
+      setBusy("");
+    }
   };
 
   return (
@@ -412,7 +443,9 @@ export const AccountsWorkspace = () => {
             </Heading>
           </DrawerHeader>
           <DrawerBody py="6">
-            {selected && (
+            {selected && generatedPassword ? (
+              <OneTimePasswordPanel {...generatedPassword} />
+            ) : selected ? (
               <VStack align="stretch" spacing="6">
                 <Stack direction={{ base: "column", sm: "row" }} spacing="3">
                   <Box flex="1" layerStyle="glassSubtle" rounded="2xl" p="4">
@@ -521,8 +554,15 @@ export const AccountsWorkspace = () => {
                 >
                   {t("commerce.disableSubscription")}
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={resetPassword}
+                  isLoading={busy === "password"}
+                >
+                  {t("userDialog.resetLoginPassword")}
+                </Button>
               </VStack>
-            )}
+            ) : null}
           </DrawerBody>
           <DrawerFooter borderTopWidth="1px" borderColor="border.subtle">
             <Button variant="ghost" onClick={closeDrawer}>

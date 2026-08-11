@@ -1127,6 +1127,101 @@ class WalletAndPurchaseTests(CommerceDatabaseTestCase):
 
 
 class AdminLifecycleTests(CommerceDatabaseTestCase):
+    def test_admin_created_account_is_plan_managed_and_returns_password_once(self) -> None:
+        plan = self.create_plan(
+            name="Managed",
+            inbound_tags=["HK02"],
+            data_limit=20 * 1024**3,
+        )
+        with patch.object(
+            commerce.secrets,
+            "token_urlsafe",
+            return_value="Strong_generated_password_2026",
+        ):
+            result = commerce.create_managed_account(
+                self.db,
+                username="managed-user",
+                plan=plan,
+                actor_admin="root",
+                now=datetime(2026, 8, 11),
+            )
+
+        self.assertEqual("Strong_generated_password_2026", result.password)
+        self.assertEqual("managed-user", result.application.account.username)
+        self.assertEqual(plan.id, result.application.account.subscription.plan_id)
+        self.assertEqual(["HK02"], result.application.account.subscription.inbound_tags)
+        self.assertEqual(20 * 1024**3, result.application.user.data_limit)
+        self.assertTrue(
+            commerce.authenticate_account(
+                self.db,
+                "managed-user",
+                "Strong_generated_password_2026",
+            )
+        )
+        self.assertEqual(1, self.db.query(PortalAccount).count())
+        self.assertEqual(1, self.db.query(User).count())
+        self.assertEqual(1, self.db.query(PortalPurchase).count())
+        with self.assertRaises(commerce.AccountExists):
+            commerce.create_managed_account(
+                self.db,
+                username="managed-user",
+                plan=plan,
+                actor_admin="root",
+            )
+
+    def test_admin_reset_and_self_change_invalidate_existing_portal_sessions(self) -> None:
+        account = self.register()
+        with patch("app.utils.jwt.get_secret_key", return_value="test-secret"):
+            token = create_portal_token(account.id, account.username)
+
+        with patch.object(
+            commerce.secrets,
+            "token_urlsafe",
+            return_value="Reset_generated_password_2026",
+        ):
+            password = commerce.reset_account_password(
+                self.db,
+                account,
+                now=datetime.utcnow() + timedelta(seconds=2),
+            )
+        self.assertEqual("Reset_generated_password_2026", password)
+        self.assertIsNone(
+            commerce.authenticate_account(
+                self.db,
+                account.username,
+                "correct-horse-battery",
+            )
+        )
+        self.assertTrue(
+            commerce.authenticate_account(self.db, account.username, password)
+        )
+        with patch("app.utils.jwt.get_secret_key", return_value="test-secret"):
+            with self.assertRaises(HTTPException) as reset_error:
+                get_current_portal_account(db=self.db, token=token)
+        self.assertEqual(401, reset_error.exception.status_code)
+
+        with self.assertRaises(commerce.IncorrectPassword):
+            commerce.change_account_password(
+                self.db,
+                account,
+                current_password="wrong-password",
+                new_password="Another_secure_password_2026",
+            )
+        commerce.change_account_password(
+            self.db,
+            account,
+            current_password=password,
+            new_password="Another_secure_password_2026",
+            now=datetime.utcnow() + timedelta(seconds=4),
+        )
+        self.assertTrue(
+            commerce.authenticate_account(
+                self.db,
+                account.username,
+                "Another_secure_password_2026",
+            )
+        )
+
     def test_admin_recharge_is_idempotent_and_rejects_a_changed_amount(self) -> None:
         account = self.register()
         first = commerce.recharge_wallet(

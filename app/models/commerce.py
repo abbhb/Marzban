@@ -81,6 +81,11 @@ class PortalRegister(BaseModel):
         return value
 
 
+class PortalPasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=10, max_length=128)
+
+
 class PortalToken(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -348,6 +353,16 @@ class AdminGrantPlanRequest(BaseModel):
     plan_id: int = Field(gt=0)
 
 
+class AdminManagedAccountCreateRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    plan_id: int = Field(gt=0)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        return PortalRegister.validate_username(value)
+
+
 class AdminRenewSubscriptionRequest(BaseModel):
     days: int = Field(ge=1, le=3650)
 
@@ -355,6 +370,15 @@ class AdminRenewSubscriptionRequest(BaseModel):
 class PortalAccountAdminResponse(PortalAccountResponse):
     subscription: Optional[PortalSubscriptionResponse] = None
     usage: PortalUsageResponse
+
+
+class GeneratedPasswordResponse(BaseModel):
+    username: str
+    password: str = Field(min_length=20, max_length=128)
+
+
+class AdminManagedAccountCreateResponse(GeneratedPasswordResponse):
+    account: PortalAccountAdminResponse
 
 
 class UserExternalEntitlementResponse(BaseModel):

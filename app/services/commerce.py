@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
@@ -77,6 +78,10 @@ class IdempotencyConflict(CommerceError):
     pass
 
 
+class IncorrectPassword(CommerceError):
+    pass
+
+
 @dataclass
 class PlanApplication:
     account: PortalAccount
@@ -84,6 +89,12 @@ class PlanApplication:
     user: User
     created_user: bool
     replayed: bool = False
+
+
+@dataclass
+class ManagedAccountCreation:
+    application: PlanApplication
+    password: str
 
 
 def utc_now(value: Optional[datetime] = None) -> datetime:
@@ -233,6 +244,47 @@ def authenticate_account(db: Session, username: str, password: str) -> Optional[
     except ValueError:
         valid = False
     return account if valid else None
+
+
+def generate_strong_password() -> str:
+    """Return a high-entropy URL-safe password suitable for one-time display."""
+
+    return secrets.token_urlsafe(24)
+
+
+def reset_account_password(
+    db: Session,
+    account: PortalAccount,
+    *,
+    now: Optional[datetime] = None,
+) -> str:
+    password = generate_strong_password()
+    account.hashed_password = pwd_context.hash(password)
+    account.password_reset_at = utc_now(now)
+    account.updated_at = account.password_reset_at
+    db.commit()
+    return password
+
+
+def change_account_password(
+    db: Session,
+    account: PortalAccount,
+    *,
+    current_password: str,
+    new_password: str,
+    now: Optional[datetime] = None,
+) -> None:
+    try:
+        valid = pwd_context.verify(current_password, account.hashed_password)
+    except ValueError:
+        valid = False
+    if not valid:
+        raise IncorrectPassword
+
+    account.hashed_password = pwd_context.hash(new_password)
+    account.password_reset_at = utc_now(now)
+    account.updated_at = account.password_reset_at
+    db.commit()
 
 
 def _plan_protocol(tag: str) -> Optional[str]:
@@ -1081,6 +1133,50 @@ def grant_plan(
         user=account.proxy_user,
         created_user=created_user,
     )
+
+
+def create_managed_account(
+    db: Session,
+    *,
+    username: str,
+    plan: SubscriptionPlan,
+    actor_admin: str,
+    now: Optional[datetime] = None,
+) -> ManagedAccountCreation:
+    """Atomically create a portal account and its plan-managed proxy user."""
+
+    if get_account_by_username(db, username) or db.query(User.id).filter(
+        User.username == username
+    ).first():
+        raise AccountExists
+
+    password = generate_strong_password()
+    account = PortalAccount(
+        username=username,
+        hashed_password=pwd_context.hash(password),
+        wallet_balance_minor=0,
+        is_active=True,
+    )
+    db.add(account)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise AccountExists from exc
+
+    try:
+        application = grant_plan(
+            db,
+            account,
+            plan,
+            actor_admin=actor_admin,
+            idempotency_key=f"admin-create-{secrets.token_hex(16)}",
+            now=now,
+        )
+    except Exception:
+        db.rollback()
+        raise
+    return ManagedAccountCreation(application=application, password=password)
 
 
 def renew_subscription(

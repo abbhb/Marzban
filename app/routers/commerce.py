@@ -31,6 +31,8 @@ from app.dependencies import get_current_portal_account
 from app.models.admin import Admin
 from app.models.commerce import (
     AdminGrantPlanRequest,
+    AdminManagedAccountCreateRequest,
+    AdminManagedAccountCreateResponse,
     AdminRenewSubscriptionRequest,
     ExternalSubscriptionCredentialUpdate,
     ExternalSubscriptionNodeResponse,
@@ -45,11 +47,13 @@ from app.models.commerce import (
     InvitationCreate,
     InvitationCreatedResponse,
     InvitationResponse,
+    GeneratedPasswordResponse,
     PaginatedResponse,
     PortalAccountListStatus,
     PortalAccountAdminResponse,
     PortalAccountResponse,
     PortalMeResponse,
+    PortalPasswordChangeRequest,
     PortalPurchaseRequest,
     PortalPurchaseResponse,
     PortalRegister,
@@ -267,6 +271,34 @@ def portal_token(
 @router.get("/api/portal/me", response_model=PortalMeResponse)
 def portal_me(account: PortalAccount = Depends(get_current_portal_account)):
     return commerce.me_response(account)
+
+
+@router.post("/api/portal/password/change", status_code=status.HTTP_204_NO_CONTENT)
+def portal_change_password(
+    request: Request,
+    response: Response,
+    values: PortalPasswordChangeRequest,
+    db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    client_key = _client_key(request)
+    rate_key = f"portal-password-change:{client_key}:{account.id}"
+    _rate_limit(rate_key, limit=5, window_seconds=300)
+    try:
+        commerce.change_account_password(
+            db,
+            account,
+            current_password=values.current_password,
+            new_password=values.new_password,
+        )
+    except commerce.IncorrectPassword:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        ) from None
+    PORTAL_RATE_LIMITER.reset(rate_key)
+    response.headers.update(NO_STORE_HEADERS)
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=NO_STORE_HEADERS)
 
 
 @router.get("/api/portal/plans", response_model=List[SubscriptionPlanResponse])
@@ -911,6 +943,40 @@ def admin_list_accounts(
     )
 
 
+@router.post(
+    "/api/commerce/admin/accounts",
+    response_model=AdminManagedAccountCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def admin_create_managed_account(
+    values: AdminManagedAccountCreateRequest,
+    bg: BackgroundTasks,
+    response: Response,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    plan = _get_plan_or_404(db, values.plan_id)
+    try:
+        result = commerce.create_managed_account(
+            db,
+            username=values.username,
+            plan=plan,
+            actor_admin=admin.username,
+        )
+    except commerce.AccountExists:
+        raise HTTPException(status_code=409, detail="Username is unavailable") from None
+    except (commerce.PlanConfigurationError, commerce.AccountUnavailable) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    _sync_proxy(bg, result.application)
+    response.headers.update(NO_STORE_HEADERS)
+    return AdminManagedAccountCreateResponse(
+        username=result.application.account.username,
+        password=result.password,
+        account=commerce.admin_account_response(result.application.account),
+    )
+
+
 @router.get(
     "/api/commerce/admin/accounts/{account_id}",
     response_model=PortalAccountAdminResponse,
@@ -921,6 +987,22 @@ def admin_get_account(
     _admin: Admin = Depends(Admin.check_sudo_admin),
 ):
     return commerce.admin_account_response(_get_account_or_404(db, account_id))
+
+
+@router.post(
+    "/api/commerce/admin/accounts/{account_id}/password/reset",
+    response_model=GeneratedPasswordResponse,
+)
+def admin_reset_account_password(
+    account_id: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    account = _get_account_or_404(db, account_id)
+    password = commerce.reset_account_password(db, account)
+    response.headers.update(NO_STORE_HEADERS)
+    return GeneratedPasswordResponse(username=account.username, password=password)
 
 
 @router.post(

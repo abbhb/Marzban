@@ -4,6 +4,7 @@ import {
   Badge,
   Box,
   Button,
+  ButtonGroup,
   Collapse,
   Flex,
   FormControl,
@@ -58,6 +59,11 @@ import {
   UserInbounds,
   UserModify,
 } from "types/User";
+import {
+  GeneratedPassword,
+  ManagedAccountCreation,
+  SubscriptionPlan,
+} from "types/Commerce";
 import { relativeExpiryDate } from "utils/dateFormatter";
 import { z } from "zod";
 import { DeleteIcon } from "./DeleteUserModal";
@@ -70,6 +76,7 @@ import classNames from "classnames";
 import { useLoaderData, useNavigate } from "react-router-dom";
 import { fetch as apiFetch } from "service/http";
 import "./datePickerSetup";
+import { OneTimePasswordPanel } from "./OneTimePasswordPanel";
 
 const AddUserIcon = chakra(UserPlusIcon, {
   baseStyle: {
@@ -232,6 +239,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
     onEditingUser,
     createUser,
     onDeletingUser,
+    refetchUsers,
   } = useDashboard();
   const isEditing = !!editingUser;
   const isOpen = isCreatingNewUser || isEditing;
@@ -241,6 +249,15 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const adminUser = useLoaderData() as UserApi;
+  const [creationMode, setCreationMode] = useState<"managed" | "manual">(
+    adminUser.is_sudo ? "managed" : "manual"
+  );
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansError, setPlansError] = useState(false);
+  const [planId, setPlanId] = useState("");
+  const [generatedPassword, setGeneratedPassword] =
+    useState<GeneratedPassword | null>(null);
 
   const { colorMode } = useColorMode();
 
@@ -288,6 +305,33 @@ export const UserDialog: FC<UserDialogProps> = () => {
   }, [editingUser]);
 
   useEffect(() => {
+    if (!isCreatingNewUser || !adminUser.is_sudo || creationMode !== "managed")
+      return;
+    const controller = new AbortController();
+    setPlansLoading(true);
+    setPlansError(false);
+    apiFetch<SubscriptionPlan[]>("/commerce/admin/plans", {
+      signal: controller.signal,
+    })
+      .then((items) => {
+        setPlans(items);
+        setPlanId((current) => {
+          if (current && items.some((plan) => String(plan.id) === current))
+            return current;
+          const preferred = items.find((plan) => plan.is_visible) || items[0];
+          return preferred ? String(preferred.id) : "";
+        });
+      })
+      .catch((requestError: any) => {
+        if (requestError?.name !== "AbortError") setPlansError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPlansLoading(false);
+      });
+    return () => controller.abort();
+  }, [adminUser.is_sudo, creationMode, isCreatingNewUser]);
+
+  useEffect(() => {
     if (!editingUser) {
       setEntitlement(null);
       setEntitlementLoading(false);
@@ -316,6 +360,37 @@ export const UserDialog: FC<UserDialogProps> = () => {
   const submit = (values: FormType) => {
     setLoading(true);
     setError(null);
+
+    if (!isEditing && creationMode === "managed") {
+      if (!planId) {
+        setError(t("userDialog.selectPlanRequired"));
+        setLoading(false);
+        return;
+      }
+      apiFetch<ManagedAccountCreation>("/commerce/admin/accounts", {
+        method: "POST",
+        body: {
+          username: values.username,
+          plan_id: Number(planId),
+        },
+      })
+        .then((result) => {
+          setGeneratedPassword({
+            username: result.username,
+            password: result.password,
+          });
+          refetchUsers();
+        })
+        .catch((err: any) => {
+          setError(
+            err?.data?.detail ||
+              err?.response?._data?.detail ||
+              t("userDialog.managedCreateError")
+          );
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
 
     const { selected_proxies, ...rest } = values;
 
@@ -393,6 +468,12 @@ export const UserDialog: FC<UserDialogProps> = () => {
     setEntitlement(null);
     setEntitlementLoading(false);
     setEntitlementError(false);
+    setCreationMode(adminUser.is_sudo ? "managed" : "manual");
+    setPlans([]);
+    setPlansLoading(false);
+    setPlansError(false);
+    setPlanId("");
+    setGeneratedPassword(null);
   };
 
   const handleResetUsage = () => {
@@ -408,6 +489,25 @@ export const UserDialog: FC<UserDialogProps> = () => {
       shouldDirty: true,
     });
     void form.handleSubmit(submit)();
+  };
+
+  const handleResetPassword = () => {
+    if (!entitlement?.account_id) return;
+    setLoading(true);
+    setError(null);
+    apiFetch<GeneratedPassword>(
+      `/commerce/admin/accounts/${entitlement.account_id}/password/reset`,
+      { method: "POST" }
+    )
+      .then(setGeneratedPassword)
+      .catch((err: any) =>
+        setError(
+          err?.data?.detail ||
+            err?.response?._data?.detail ||
+            t("userDialog.passwordResetError")
+        )
+      )
+      .finally(() => setLoading(false));
   };
 
   const disabled = loading || entitlementLoading;
@@ -456,7 +556,9 @@ export const UserDialog: FC<UserDialogProps> = () => {
                   )}
                 </Icon>
                 <Text fontWeight="semibold" fontSize="lg">
-                  {isEditing
+                  {generatedPassword
+                    ? t("userDialog.credentialsReady")
+                    : isEditing
                     ? t("userDialog.editUserTitle")
                     : t("createNewUser")}
                 </Text>
@@ -464,6 +566,120 @@ export const UserDialog: FC<UserDialogProps> = () => {
             </ModalHeader>
             <ModalCloseButton disabled={loading} />
             <ModalBody>
+              {generatedPassword ? (
+                <OneTimePasswordPanel {...generatedPassword} />
+              ) : (
+                <>
+                  {!isEditing && adminUser.is_sudo && (
+                    <ButtonGroup
+                      isAttached
+                      size="sm"
+                      mb="5"
+                      p="1"
+                      rounded="xl"
+                      bg="surface.inset"
+                    >
+                      <Button
+                        type="button"
+                        colorScheme={
+                          creationMode === "managed" ? "primary" : "gray"
+                        }
+                        variant={
+                          creationMode === "managed" ? "solid" : "ghost"
+                        }
+                        onClick={() => setCreationMode("managed")}
+                      >
+                        {t("userDialog.planManagedCreation")}
+                      </Button>
+                      <Button
+                        type="button"
+                        colorScheme={
+                          creationMode === "manual" ? "primary" : "gray"
+                        }
+                        variant={creationMode === "manual" ? "solid" : "ghost"}
+                        onClick={() => setCreationMode("manual")}
+                      >
+                        {t("userDialog.manualCreation")}
+                      </Button>
+                    </ButtonGroup>
+                  )}
+                  {!isEditing && creationMode === "managed" ? (
+                    <VStack align="stretch" spacing="5">
+                      <Alert status="info" alignItems="flex-start" rounded="2xl">
+                        <AlertIcon mt="0.5" />
+                        <Box>
+                          <Text fontWeight="800">
+                            {t("userDialog.planManagedCreation")}
+                          </Text>
+                          <Text mt="1" fontSize="sm">
+                            {t("userDialog.planManagedCreationHelp")}
+                          </Text>
+                        </Box>
+                      </Alert>
+                      <FormControl
+                        isInvalid={!!form.formState.errors.username?.message}
+                      >
+                        <FormLabel>
+                          <Flex gap="2" align="center">
+                            {t("username")}
+                            <ReloadIcon
+                              cursor="pointer"
+                              className={classNames({
+                                "animate-spin": randomUsernameLoading,
+                              })}
+                              onClick={() => {
+                                form.setValue("username", createRandomUsername(), {
+                                  shouldValidate: true,
+                                });
+                                setTimeout(
+                                  () => setrandomUsernameLoading(false),
+                                  350
+                                );
+                              }}
+                            />
+                          </Flex>
+                        </FormLabel>
+                        <Input
+                          autoComplete="off"
+                          {...form.register("username")}
+                          error={form.formState.errors.username?.message}
+                        />
+                      </FormControl>
+                      <FormControl isInvalid={!planId && !!error}>
+                        <FormLabel>{t("portal.currentPlan")}</FormLabel>
+                        <Select
+                          value={planId}
+                          onChange={(event) => setPlanId(event.target.value)}
+                          isDisabled={plansLoading || plansError}
+                        >
+                          <option value="">
+                            {t(
+                              plansLoading
+                                ? "hostsDialog.loading"
+                                : "commerce.selectPlan"
+                            )}
+                          </option>
+                          {plans.map((plan) => (
+                            <option key={plan.id} value={plan.id}>
+                              {plan.name}
+                              {!plan.is_visible
+                                ? ` (${t("commerce.hidden")})`
+                                : ""}
+                            </option>
+                          ))}
+                        </Select>
+                        <FormHelperText>
+                          {t("userDialog.planControlsEntitlements")}
+                        </FormHelperText>
+                      </FormControl>
+                      {plansError && (
+                        <Alert status="error" rounded="xl">
+                          <AlertIcon />
+                          {t("userDialog.planLoadError")}
+                        </Alert>
+                      )}
+                    </VStack>
+                  ) : (
               <Grid
                 templateColumns={{
                   base: "repeat(1, 1fr)",
@@ -923,14 +1139,24 @@ export const UserDialog: FC<UserDialogProps> = () => {
                           </Text>
                         )}
                         {adminUser.is_sudo && (
-                          <Button
-                            type="button"
-                            colorScheme="primary"
-                            variant="outline"
-                            onClick={openPlanManagement}
-                          >
-                            {t("userDialog.managePlan")}
-                          </Button>
+                          <HStack align="stretch" flexWrap="wrap">
+                            <Button
+                              type="button"
+                              colorScheme="primary"
+                              variant="outline"
+                              onClick={openPlanManagement}
+                            >
+                              {t("userDialog.managePlan")}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={handleResetPassword}
+                              isLoading={loading}
+                            >
+                              {t("userDialog.resetLoginPassword")}
+                            </Button>
+                          </HStack>
                         )}
                       </VStack>
                     )}
@@ -1010,18 +1236,26 @@ export const UserDialog: FC<UserDialogProps> = () => {
                   </GridItem>
                 )}
               </Grid>
+                  )}
               {error && (
                 <Alert
                   mt="3"
                   status="error"
-                  display={{ base: "flex", md: "none" }}
+                  display="flex"
                 >
                   <AlertIcon />
                   {error}
                 </Alert>
               )}
+                </>
+              )}
             </ModalBody>
             <ModalFooter mt="3">
+              {generatedPassword ? (
+                <Button colorScheme="primary" onClick={onClose}>
+                  {t("close")}
+                </Button>
+              ) : (
               <HStack
                 justifyContent="space-between"
                 w="full"
@@ -1102,12 +1336,18 @@ export const UserDialog: FC<UserDialogProps> = () => {
                     px="8"
                     colorScheme="primary"
                     leftIcon={loading ? <Spinner size="xs" /> : undefined}
-                    disabled={submitDisabled}
+                    disabled={
+                      submitDisabled ||
+                      (!isEditing &&
+                        creationMode === "managed" &&
+                        (!planId || plansLoading || plansError))
+                    }
                   >
                     {isEditing ? t("userDialog.editUser") : t("createUser")}
                   </Button>
                 </HStack>
               </HStack>
+              )}
             </ModalFooter>
           </form>
         </ModalContent>

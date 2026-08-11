@@ -14,7 +14,11 @@ import { Input } from "components/Input";
 import { useEffect, useState } from "react";
 import { FieldValues, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import {
+  Link as RouterLink,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { portalFetch } from "service/http";
 import {
   removePortalAuthToken,
@@ -35,6 +39,7 @@ const errorDetail = (error: any): string =>
 export const PortalLogin = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const {
@@ -94,6 +99,15 @@ export const PortalLogin = () => {
     >
       <form onSubmit={handleSubmit(login)}>
         <VStack spacing="3">
+          {(location.state as { passwordChanged?: boolean } | null)
+            ?.passwordChanged && (
+            <Alert status="success" rounded="xl">
+              <AlertIcon />
+              <AlertDescription>
+                {t("portal.passwordChangedLoginAgain")}
+              </AlertDescription>
+            </Alert>
+          )}
           <Input
             label={t("username")}
             placeholder={t("username")}

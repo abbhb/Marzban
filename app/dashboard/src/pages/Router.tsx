@@ -46,6 +46,11 @@ const PortalAccess = lazy(() =>
         default: PortalAccess,
     }))
 );
+const PortalAccountSecurity = lazy(() =>
+    import("./portal/PortalAccountSecurity").then(
+        ({ PortalAccountSecurity }) => ({ default: PortalAccountSecurity })
+    )
+);
 const PortalError = lazy(() =>
     import("./portal/PortalError").then(({ PortalError }) => ({
         default: PortalError,
@@ -95,6 +100,8 @@ export const preloadInitialRoute = async () => {
                 ? import("./portal/PortalAccess")
                 : path === "/portal/wallet"
                 ? import("./portal/PortalWallet")
+                : path === "/portal/account"
+                ? import("./portal/PortalAccountSecurity")
                 : import("./portal/PortalOverview");
         return Promise.all([import("./portal/PortalLayout"), leaf]);
     }
@@ -232,6 +239,10 @@ export const router = createHashRouter([
             { path: "plans", element: routeElement(PortalPlans, false) },
             { path: "access", element: routeElement(PortalAccess) },
             { path: "wallet", element: routeElement(PortalWallet, false) },
+            {
+                path: "account",
+                element: routeElement(PortalAccountSecurity, false),
+            },
         ],
     },
     {

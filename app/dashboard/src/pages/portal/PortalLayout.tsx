@@ -20,6 +20,7 @@ import {
   ArrowLeftOnRectangleIcon,
   Bars3Icon,
   HomeIcon,
+  KeyIcon,
   LinkIcon,
   MoonIcon,
   ShoppingBagIcon,
@@ -55,6 +56,7 @@ const OverviewIcon = chakra(HomeIcon, iconStyle);
 const PlansIcon = chakra(ShoppingBagIcon, iconStyle);
 const AccessIcon = chakra(LinkIcon, iconStyle);
 const WalletNavIcon = chakra(WalletIcon, iconStyle);
+const AccountSecurityIcon = chakra(KeyIcon, iconStyle);
 const LogoutIcon = chakra(ArrowLeftOnRectangleIcon, iconStyle);
 const MenuIcon = chakra(Bars3Icon, iconStyle);
 const DarkIcon = chakra(MoonIcon, iconStyle);
@@ -80,6 +82,11 @@ const navigation = [
   { to: "/portal/plans", key: "portal.navPlans", icon: PlansIcon },
   { to: "/portal/access", key: "portal.navAccess", icon: AccessIcon },
   { to: "/portal/wallet", key: "portal.navWallet", icon: WalletNavIcon },
+  {
+    to: "/portal/account",
+    key: "portal.navAccountSecurity",
+    icon: AccountSecurityIcon,
+  },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -88,6 +95,7 @@ const pageTitles: Record<string, string> = {
   "/portal/plans": "portal.storeTitle",
   "/portal/access": "portal.accessTitle",
   "/portal/wallet": "portal.walletTitle",
+  "/portal/account": "portal.accountSecurityTitle",
 };
 
 const PortalNavigation = ({ onNavigate }: { onNavigate?: () => void }) => {

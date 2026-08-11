@@ -96,6 +96,15 @@ export type PortalAccount = {
   usage: PortalUsage;
 };
 
+export type GeneratedPassword = {
+  username: string;
+  password: string;
+};
+
+export type ManagedAccountCreation = GeneratedPassword & {
+  account: PortalAccount;
+};
+
 export type WalletTransaction = {
   id: number;
   amount_minor: number;
