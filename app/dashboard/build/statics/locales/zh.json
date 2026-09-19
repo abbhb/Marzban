@@ -588,5 +588,12 @@
   "commerce.externalSearchSources": "搜索来源或代理组",
   "commerce.externalNoSourcesMatch": "没有符合条件的外部订阅",
   "commerce.externalDeleteInUse": "该来源仍被套餐引用，请先移除套餐引用再删除",
-  "commerce.externalRemoveInactive": "移除不可用节点"
+  "commerce.externalRemoveInactive": "移除不可用节点",
+  "shadowrocket": {
+    "title": "小火箭完整配置",
+    "help": "包含套餐内的自建节点、第三方节点、策略组和分流规则。请使用新版 Shadowrocket。",
+    "importConfig": "导入节点与规则",
+    "importNodes": "仅导入节点",
+    "manual": "若无法直接打开，复制上方链接，在小火箭「配置 → ＋」下载并启用，再将「全局路由」设为「配置」。仅从首页导入不会启用规则。链接过期后先回面板重新授权；开启一次性授权时，每次导入前都需重新授权。"
+  }
 }

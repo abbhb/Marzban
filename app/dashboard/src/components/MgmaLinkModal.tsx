@@ -37,6 +37,7 @@ import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "./Icon";
 import { SubscriptionLinkField } from "./SubscriptionLinkField";
+import { ShadowrocketImport } from "./ShadowrocketImport";
 
 const QRCode = chakra(QRCodeCanvas);
 const MgmaIcon = chakra(FireIcon, { baseStyle: { w: 5, h: 5 } });
@@ -217,6 +218,7 @@ export const MgmaLinkModal: FC = () => {
                 </HStack>
 
                 <SubscriptionLinkField value={grant.url} />
+                <ShadowrocketImport value={grant.url} />
                 <Text fontSize="xs" color="gray.500">
                   {t("mgma.stablePathNotice")}
                 </Text>

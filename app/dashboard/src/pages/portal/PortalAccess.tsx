@@ -25,6 +25,7 @@ import {
 import { FireIcon } from "@heroicons/react/24/outline";
 import { LiquidSurface } from "components/LiquidSurface";
 import { SubscriptionLinkField } from "components/SubscriptionLinkField";
+import { ShadowrocketImport } from "components/ShadowrocketImport";
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -259,6 +260,7 @@ export const PortalAccess = () => {
                       </Button>
                     </HStack>
                     <SubscriptionLinkField value={mgma.url} />
+                    <ShadowrocketImport value={mgma.url} />
                     <Text fontSize="xs" color="fg.muted">
                       {t("mgma.stablePathNotice")}
                     </Text>

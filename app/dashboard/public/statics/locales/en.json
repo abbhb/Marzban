@@ -84,7 +84,7 @@
   "hostsDialog.sni": "SNI",
   "hostsDialog.sni.info": "By default, a host uses the default SNI of the inbound. You can set a custom SNI in case this host is a server that has a different SNI. For example, the server may receive traffic with a different SSL certificate, perform SSL termination, and forward it to your inbound server.",
   "hostsDialog.sockopt": "Sockopt",
-  "hostsDialog.statusEmoji": "User status as an emoji (\u2705,\u231b\ufe0f,\ud83e\udeab,\u274c,\ud83d\udd0c)",
+  "hostsDialog.statusEmoji": "User status as an emoji (✅,⌛️,🪫,❌,🔌)",
   "hostsDialog.statusText": "User status",
   "hostsDialog.title": "Using this setting, you are able to assign specific address for each inbound.",
   "hostsDialog.username": "The username of the user",
@@ -587,5 +587,12 @@
   "commerce.externalSearchSources": "Search sources or proxy groups",
   "commerce.externalNoSourcesMatch": "No external feeds match the current search",
   "commerce.externalDeleteInUse": "This source is still referenced by a plan; remove those plan references before deleting it",
-  "commerce.externalRemoveInactive": "Remove unavailable nodes"
+  "commerce.externalRemoveInactive": "Remove unavailable nodes",
+  "shadowrocket": {
+    "title": "Shadowrocket configuration",
+    "help": "Includes your plan’s own and external nodes, policy groups and routing rules. Use an up-to-date Shadowrocket.",
+    "importConfig": "Import nodes and rules",
+    "importNodes": "Import nodes only",
+    "manual": "If the app does not open, copy the link above and add it under Shadowrocket → Config → +. Activate the configuration and set Global Routing to Config. Home-page imports do not enable rules. Reauthorize in the panel before updating an expired link; with single-use authorization, reauthorize before each import."
+  }
 }

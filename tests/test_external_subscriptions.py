@@ -1459,6 +1459,8 @@ class ExternalSubscriptionRouteTests(unittest.TestCase):
             (None, "Clash/1.18", "clash"),
             ("clash-meta", "irrelevant", "clash-meta"),
             ("clash", "irrelevant", "clash"),
+            (None, "Shadowrocket/2.2.90", "shadowrocket"),
+            ("shadowrocket", "irrelevant", "shadowrocket"),
         )
         for client_type, user_agent, expected_format in cases:
             with self.subTest(client_type=client_type, user_agent=user_agent):
@@ -1502,6 +1504,8 @@ class ExternalSubscriptionRouteTests(unittest.TestCase):
             (None, "Stash/2.6", "clash"),
             ("clash-meta", "irrelevant", "clash-meta"),
             ("clash", "irrelevant", "clash"),
+            (None, "Shadowrocket/2.2.90", "shadowrocket"),
+            ("shadowrocket", "irrelevant", "shadowrocket"),
         )
         for client_type, user_agent, expected_format in cases:
             with self.subTest(client_type=client_type, user_agent=user_agent):

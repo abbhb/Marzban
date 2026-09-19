@@ -206,7 +206,7 @@ def mgma_subscription_with_client_type(
     token: str = "",
     client_type: str = Path(
         ...,
-        pattern="^(sing-box|clash-meta|clash|outline|v2ray|v2ray-json)$",
+        pattern="^(sing-box|clash-meta|clash|outline|v2ray|v2ray-json|shadowrocket)$",
     ),
     user_agent: str = Header(default=""),
     db: Session = Depends(get_db),

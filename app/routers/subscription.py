@@ -8,6 +8,7 @@ from app.db import Session, crud, get_db
 from app.dependencies import MGMA_NO_STORE_HEADERS, get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.services.external_subscriptions import load_external_overlays_for_user
+from app.subscription.shadowrocket import ShadowrocketConversionError
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
 from config import (
@@ -24,6 +25,7 @@ from config import (
 )
 
 client_config = {
+    "shadowrocket": {"config_format": "shadowrocket", "media_type": "text/yaml", "as_base64": False, "reverse": False},
     "clash-meta": {"config_format": "clash-meta", "media_type": "text/yaml", "as_base64": False, "reverse": False},
     "sing-box": {"config_format": "sing-box", "media_type": "application/json", "as_base64": False, "reverse": False},
     "clash": {"config_format": "clash", "media_type": "text/yaml", "as_base64": False, "reverse": False},
@@ -78,8 +80,10 @@ def build_subscription_response(
         })
 
     def generate(config_format: str, *, as_base64: bool, reverse: bool) -> str:
+        if config_format == "shadowrocket":
+            response_headers["content-disposition"] = 'inline; filename="shadowrocket.yaml"'
         clash_overlay = None
-        if config_format in {"clash", "clash-meta"} and db is not None and user_id is not None:
+        if config_format in {"clash", "clash-meta", "shadowrocket"} and db is not None and user_id is not None:
             try:
                 sources = load_external_overlays_for_user(db, user_id)
             except Exception:
@@ -100,13 +104,16 @@ def build_subscription_response(
                         for source in sources
                     ]
                 }
-        return generate_subscription(
-            user=user,
-            config_format=config_format,
-            as_base64=as_base64,
-            reverse=reverse,
-            clash_overlay=clash_overlay,
-        )
+        try:
+            return generate_subscription(
+                user=user,
+                config_format=config_format,
+                as_base64=as_base64,
+                reverse=reverse,
+                clash_overlay=clash_overlay,
+            )
+        except ShadowrocketConversionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc), headers=response_headers) from None
 
     if client_type:
         config = client_config[client_type]
@@ -116,6 +123,10 @@ def build_subscription_response(
             reverse=config["reverse"],
         )
         return Response(content=conf, media_type=config["media_type"], headers=response_headers)
+
+    if re.match(r"^Shadowrocket", user_agent, flags=re.IGNORECASE):
+        conf = generate("shadowrocket", as_base64=False, reverse=False)
+        return Response(content=conf, media_type="text/yaml", headers=response_headers)
 
     if re.match(
         r"^(clash-verge|clash[-.]?meta|flclash|mihomo)",
@@ -255,7 +266,7 @@ def user_get_usage(
 def user_subscription_with_client_type(
     request: Request,
     dbuser: UserResponse = Depends(get_validated_sub),
-    client_type: str = Path(..., regex="sing-box|clash-meta|clash|outline|v2ray|v2ray-json"),
+    client_type: str = Path(..., pattern="^(sing-box|clash-meta|clash|outline|v2ray|v2ray-json|shadowrocket)$"),
     db: Session = Depends(get_db),
     user_agent: str = Header(default="")
 ):

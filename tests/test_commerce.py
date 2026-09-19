@@ -326,7 +326,7 @@ class PortalSubscriptionRegenerationTests(CommerceDatabaseTestCase):
             plan,
             actor_admin="root",
             idempotency_key="grant-regenerate-0001",
-            now=datetime(2026, 7, 20, 8, 0),
+            now=datetime.utcnow(),
         )
         account = result.account
         original_path_token = account.proxy_user.subscription_token
@@ -382,7 +382,7 @@ class PortalSubscriptionRegenerationTests(CommerceDatabaseTestCase):
             plan,
             actor_admin="root",
             idempotency_key="grant-regenerate-admin-0001",
-            now=datetime(2026, 7, 20, 8, 0),
+            now=datetime.utcnow(),
         )
         dbuser = result.user
         original_path_token = dbuser.subscription_token
@@ -437,7 +437,7 @@ class PortalSubscriptionRegenerationTests(CommerceDatabaseTestCase):
             plan,
             actor_admin="root",
             idempotency_key="grant-regenerate-rollback-0001",
-            now=datetime(2026, 7, 20, 8, 0),
+            now=datetime.utcnow(),
         )
         dbuser = result.user
         with patch.dict(

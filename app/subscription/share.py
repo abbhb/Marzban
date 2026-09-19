@@ -1,6 +1,7 @@
 import base64
 import random
 import secrets
+import yaml
 from collections import defaultdict
 from datetime import datetime as dt
 from datetime import timedelta
@@ -12,6 +13,7 @@ from app import xray
 from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import *
+from .shadowrocket import prepare_shadowrocket
 
 if TYPE_CHECKING:
     from app.models.user import UserResponse
@@ -105,7 +107,7 @@ def generate_v2ray_json_subscription(
 
 def generate_subscription(
         user: "UserResponse",
-        config_format: Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json"],
+        config_format: Literal["v2ray", "clash-meta", "clash", "sing-box", "outline", "v2ray-json", "shadowrocket"],
         as_base64: bool,
         reverse: bool,
         clash_overlay: dict | None = None,
@@ -117,7 +119,12 @@ def generate_subscription(
         "reverse": reverse,
     }
 
-    if config_format == "v2ray":
+    if config_format == "shadowrocket":
+        document = yaml.safe_load(generate_clash_subscription(
+            **kwargs, is_meta=True, clash_overlay=clash_overlay,
+        ))
+        config = yaml.safe_dump(prepare_shadowrocket(document), allow_unicode=True, sort_keys=False)
+    elif config_format == "v2ray":
         config = "\n".join(generate_v2ray_links(**kwargs))
     elif config_format == "clash-meta":
         config = generate_clash_subscription(
