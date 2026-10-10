@@ -49,3 +49,21 @@ export const portalFetch = <T = any>(
     throw error;
   });
 };
+
+// Normalize FastAPI text, field maps, and validation arrays before rendering.
+export const errorMessage = (error: any, fallback: string): string => {
+  const detail = error?.data?.detail ?? error?.response?._data?.detail;
+  const describe = (value: unknown): string => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) return value.map(describe).filter(Boolean).join("; ");
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (typeof record.msg === "string") {
+        return `${Array.isArray(record.loc) ? record.loc.join(".") + ": " : ""}${record.msg}`;
+      }
+      return Object.entries(record).map(([field, message]) => `${field}: ${describe(message)}`).join("; ");
+    }
+    return "";
+  };
+  return describe(detail) || fallback;
+};

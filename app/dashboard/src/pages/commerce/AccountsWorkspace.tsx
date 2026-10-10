@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertDescription,
@@ -15,6 +16,7 @@ import {
   DrawerOverlay,
   FormControl,
   FormLabel,
+  FormErrorMessage,
   Heading,
   HStack,
   IconButton,
@@ -77,6 +79,7 @@ export const AccountsWorkspace = () => {
   const [rechargeValue, setRechargeValue] = useState("");
   const [renewValue, setRenewValue] = useState("30");
   const [busy, setBusy] = useState("");
+  const [renewError, setRenewError] = useState(false);
   const [generatedPassword, setGeneratedPassword] =
     useState<GeneratedPassword | null>(null);
 
@@ -120,6 +123,7 @@ export const AccountsWorkspace = () => {
     setPlanId(String(account.subscription?.plan_id || ""));
     setRechargeValue("");
     setRenewValue("30");
+    setRenewError(false);
     setGeneratedPassword(null);
     drawer.onOpen();
   };
@@ -171,7 +175,7 @@ export const AccountsWorkspace = () => {
       clearRequestedAccount();
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.actionError"),
+        title: errorMessage(error, t("commerce.actionError")),
         status: "error",
         position: "top",
       });
@@ -205,7 +209,11 @@ export const AccountsWorkspace = () => {
   const renew = () => {
     if (!selected) return;
     const days = Number(renewValue);
-    if (!Number.isInteger(days) || days <= 0) return;
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      setRenewError(true);
+      return;
+    }
+    setRenewError(false);
     run(
       "renew",
       `/commerce/admin/accounts/${selected.id}/subscription/renew`,
@@ -226,7 +234,7 @@ export const AccountsWorkspace = () => {
       );
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("userDialog.passwordResetError"),
+        title: errorMessage(error, t("userDialog.passwordResetError")),
         status: "error",
         position: "top",
       });
@@ -520,12 +528,17 @@ export const AccountsWorkspace = () => {
                   <Heading size="sm" mb="3">
                     {t("commerce.renewalActions")}
                   </Heading>
+                  <FormControl isInvalid={renewError}>
+                  <FormLabel htmlFor="renew-days">{t("commerce.renewDays")}</FormLabel>
                   <HStack>
                     <Input
+                      id="renew-days"
                       type="number"
                       min="1"
+                      max="3650"
+                      step="1"
                       value={renewValue}
-                      onChange={(event) => setRenewValue(event.target.value)}
+                      onChange={(event) => { setRenewValue(event.target.value); setRenewError(false); }}
                     />
                     <Button
                       onClick={renew}
@@ -535,6 +548,8 @@ export const AccountsWorkspace = () => {
                       {t("commerce.renewDays")}
                     </Button>
                   </HStack>
+                  <FormErrorMessage>{t("commerce.renewDaysError")}</FormErrorMessage>
+                  </FormControl>
                 </Box>
 
                 <Button

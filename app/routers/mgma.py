@@ -9,6 +9,7 @@ from app.models.admin import Admin
 from app.models.mgma import MgmaIssueResponse, MgmaSettingsResponse, MgmaSettingsUpdate
 from app.models.user import UserResponse, UserStatus
 from app.routers.subscription import build_subscription_response
+from app.services import subscription_rules
 from app.services.mgma import (
     MgmaConfigurationError,
     MgmaTokenRejected,
@@ -224,3 +225,30 @@ def mgma_subscription_with_client_type(
         db=db,
         user_id=dbuser.id,
     )
+
+
+@router.get("/api/subscription/rules")
+def read_subscription_rules(
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    response.headers.update(NO_STORE_HEADERS)
+    return subscription_rules.read_rules(db)
+
+
+@router.put("/api/subscription/rules")
+def replace_subscription_rules(
+    values: subscription_rules.RulesUpdate,
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    try:
+        result = subscription_rules.save_rules(db, values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except subscription_rules.RulesConflict:
+        raise HTTPException(status_code=409, detail="Rules changed. Reload before saving again.") from None
+    response.headers.update(NO_STORE_HEADERS)
+    return result

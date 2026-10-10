@@ -117,7 +117,7 @@ const StatisticCard: FC<PropsWithChildren<StatisticCardProps>> = ({
 };
 export { StatisticsQueryKey } from "constants/QueryKeys";
 export const Statistics: FC<BoxProps> = (props) => {
-  const { version } = useDashboard();
+  const version = useDashboard((state) => state.version);
   const { data: systemData } = useQuery({
     queryKey: StatisticsQueryKey,
     queryFn: () => fetch("/system"),

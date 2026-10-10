@@ -295,6 +295,15 @@ class System(Base):
     downlink = Column(BigInteger, default=0)
 
 
+class SubscriptionRules(Base):
+    __tablename__ = "subscription_rules"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_subscription_rules_singleton"),)
+
+    id = Column(Integer, primary_key=True, default=1)
+    rules = Column(JSON, nullable=True)
+    revision = Column(Integer, nullable=False, default=1)
+
+
 class MgmaSettings(Base):
     """Singleton settings for temporary subscription access."""
 
@@ -306,7 +315,7 @@ class MgmaSettings(Base):
             name="ck_mgma_settings_mode",
         ),
         CheckConstraint(
-            "ttl_seconds BETWEEN 30 AND 900",
+            "ttl_seconds = 0 OR ttl_seconds BETWEEN 30 AND 315360000",
             name="ck_mgma_settings_ttl_seconds",
         ),
         CheckConstraint(

@@ -24,6 +24,7 @@ const WORKSPACE_IDS = [
   "accounts",
   "invitations",
   "security",
+  "rules",
 ] as const;
 
 const PlansWorkspace = lazy(() =>
@@ -53,6 +54,8 @@ const SecurityWorkspace = lazy(() =>
     default: SecurityWorkspace,
   }))
 );
+
+const RulesWorkspace = lazy(() => import("./commerce/RulesWorkspace").then(({ RulesWorkspace }) => ({ default: RulesWorkspace })));
 
 const WorkspaceFallback = () => (
   <Center minH="240px">
@@ -126,6 +129,7 @@ export const CommerceAdmin = () => {
             <Tab whiteSpace="nowrap">{t("commerce.accounts")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.invitations")}</Tab>
             <Tab whiteSpace="nowrap">{t("commerce.security")}</Tab>
+            <Tab whiteSpace="nowrap">{t("rules.title")}</Tab>
           </TabList>
           <TabPanels mt="4">
             <TabPanel px="0" className="liquid-page-enter">
@@ -153,6 +157,9 @@ export const CommerceAdmin = () => {
               <Suspense fallback={<WorkspaceFallback />}>
                 <SecurityWorkspace />
               </Suspense>
+            </TabPanel>
+            <TabPanel px="0" className="liquid-page-enter">
+              <Suspense fallback={<WorkspaceFallback />}><RulesWorkspace /><BootReady /></Suspense>
             </TabPanel>
           </TabPanels>
         </Tabs>

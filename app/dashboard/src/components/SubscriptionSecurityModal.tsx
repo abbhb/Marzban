@@ -96,7 +96,7 @@ export const SubscriptionSecurityModal: FC = () => {
 
   const handleSave = async () => {
     const customCidrs = parseCidrs(cidrText);
-    if (form.ttl_seconds < 30 || form.ttl_seconds > 900) {
+    if (!Number.isInteger(form.ttl_seconds) || (form.ttl_seconds !== 0 && form.ttl_seconds < 30) || form.ttl_seconds > 315360000) {
       setValidationError("subscriptionSecurity.ttlError");
       return;
     }
@@ -193,9 +193,19 @@ export const SubscriptionSecurityModal: FC = () => {
                 isInvalid={validationError === "subscriptionSecurity.ttlError"}
               >
                 <FormLabel>{t("subscriptionSecurity.ttl")}</FormLabel>
+                <Select mb={2} aria-label={t("subscriptionSecurity.ttlPreset")}
+                  value={[0, 180, 3600, 86400, 604800].includes(form.ttl_seconds) ? String(form.ttl_seconds) : "custom"}
+                  onChange={(event) => event.target.value !== "custom" ? setForm({ ...form, ttl_seconds: Number(event.target.value) }) : setForm({ ...form, ttl_seconds: 600 })}>
+                  <option value="0">{t("mgma.permanent")}</option>
+                  <option value="180">{t("subscriptionSecurity.threeMinutes")}</option>
+                  <option value="3600">{t("subscriptionSecurity.oneHour")}</option>
+                  <option value="86400">{t("subscriptionSecurity.oneDay")}</option>
+                  <option value="604800">{t("subscriptionSecurity.oneWeek")}</option>
+                  <option value="custom">{t("subscriptionSecurity.customTtl")}</option>
+                </Select>
                 <NumberInput
-                  min={30}
-                  max={900}
+                  min={0}
+                  max={315360000}
                   value={form.ttl_seconds}
                   onChange={(_, value) =>
                     setForm({

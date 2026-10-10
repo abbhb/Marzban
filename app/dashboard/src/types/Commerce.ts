@@ -127,7 +127,7 @@ export type PortalPurchaseResult = {
 export type MgmaIssue = {
   url: string;
   issued_at: string;
-  expires_at: string;
+  expires_at: string | null;
   ttl_seconds: number;
 };
 

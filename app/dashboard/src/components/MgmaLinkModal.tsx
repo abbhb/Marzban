@@ -84,8 +84,13 @@ export const MgmaLinkModal: FC = () => {
       return;
     }
 
+    if (grant.ttl_seconds === 0 && grant.expires_at === null) {
+      deadlineRef.current = null;
+      setRemainingSeconds(0);
+      return;
+    }
     const issuedAt = Date.parse(grant.issued_at);
-    const expiresAt = Date.parse(grant.expires_at);
+    const expiresAt = Date.parse(grant.expires_at || "");
     const timestampTtl = (expiresAt - issuedAt) / 1000;
     const ttl = Number.isFinite(timestampTtl)
       ? Math.max(0, Math.min(grant.ttl_seconds, timestampTtl))
@@ -207,13 +212,13 @@ export const MgmaLinkModal: FC = () => {
                     {t("mgma.temporaryLink")}
                   </Text>
                   <Badge
-                    colorScheme={remainingSeconds <= 30 ? "red" : "orange"}
+                    colorScheme={grant.ttl_seconds === 0 ? "green" : remainingSeconds <= 30 ? "red" : "orange"}
                     fontFamily="mono"
                     fontSize="sm"
                     px={2}
                     py={1}
                   >
-                    {t("mgma.expiresIn", { time: expiryText })}
+                    {grant.ttl_seconds === 0 ? t("mgma.permanent") : t("mgma.expiresIn", { time: expiryText })}
                   </Badge>
                 </HStack>
 

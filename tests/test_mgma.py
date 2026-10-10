@@ -147,6 +147,47 @@ class MgmaDatabaseTestCase(unittest.TestCase):
 
 
 class TokenLifecycleTests(MgmaDatabaseTestCase):
+    def test_permanent_token_remains_revocable_and_account_bound(self):
+        from app.services.mgma import revoke_token
+        self.settings.ttl_seconds = 0
+        self.db.commit()
+        user = self.create_user()
+        now = datetime(2026, 7, 12, tzinfo=UTC)
+        issued = issue_token(self.db, user, now=now)
+        self.assertIsNone(issued.expires_at)
+        self.assertIsNone(issued.model_dump(mode="json")["expires_at"])
+        future = now + timedelta(days=4000)
+        self.assertEqual(validate_token(self.db, issued.token, "203.0.113.9", now=future).id, user.id)
+        user.expire = int((now + timedelta(days=1)).timestamp())
+        self.db.commit()
+        self.assert_token_rejected(issued.token, now=future)
+        user.expire = None
+        self.db.commit()
+        revoke_token(self.db, user)
+        self.assert_token_rejected(issued.token, now=now)
+
+    def test_permanent_single_use_and_regeneration(self):
+        from app.services.mgma import regenerate_subscription
+        self.settings.ttl_seconds = 0
+        self.settings.single_use = True
+        self.db.commit()
+        user = self.create_user()
+        issued = regenerate_subscription(self.db, user)
+        self.assertIsNone(issued.expires_at)
+        validate_token(self.db, issued.token, "203.0.113.9")
+        self.assert_token_rejected(issued.token)
+
+    def test_custom_lifetime_is_fixed_at_issuance(self):
+        self.settings.ttl_seconds = 86400
+        self.db.commit()
+        user = self.create_user()
+        now = datetime(2026, 7, 12, tzinfo=UTC)
+        issued = issue_token(self.db, user, now=now)
+        self.settings.ttl_seconds = 0
+        self.db.commit()
+        validate_token(self.db, issued.token, "203.0.113.9", now=now + timedelta(hours=23))
+        self.assert_token_rejected(issued.token, now=now + timedelta(days=1))
+
     def test_each_user_has_a_stable_random_subscription_path_token(self) -> None:
         alice = self.create_user("alice")
         bob = self.create_user("bob")
@@ -315,11 +356,11 @@ class TokenLifecycleTests(MgmaDatabaseTestCase):
         )
 
     def test_ttl_schema_bounds_and_exact_expiry_boundary(self) -> None:
-        for ttl in (30, 900):
+        for ttl in (0, 30, 900, 86400, 315360000):
             with self.subTest(valid_ttl=ttl):
                 model = MgmaSettingsUpdate(ttl_seconds=ttl)
                 self.assertEqual(ttl, model.ttl_seconds)
-        for ttl in (29, 901):
+        for ttl in (-1, 29, 315360001):
             with self.subTest(invalid_ttl=ttl):
                 with self.assertRaises(ValidationError):
                     MgmaSettingsUpdate(ttl_seconds=ttl)

@@ -388,7 +388,7 @@ def issue_token(
     issued_at = _utc_naive(now)
     settings = get_settings(db)
     pepper = require_token_pepper()
-    expires_at = issued_at + timedelta(seconds=settings.ttl_seconds)
+    expires_at = issued_at + timedelta(seconds=settings.ttl_seconds) if settings.ttl_seconds else None
     token = secrets.token_urlsafe(MGMA_TOKEN_BYTES)
 
     user.sub_access_token_digest = digest_token(token, pepper)
@@ -405,7 +405,7 @@ def issue_token(
     return MgmaTokenIssue(
         token=token,
         issued_at=_utc_aware(issued_at),
-        expires_at=_utc_aware(expires_at),
+        expires_at=_utc_aware(expires_at) if expires_at is not None else None,
         ttl_seconds=settings.ttl_seconds,
     )
 
@@ -458,7 +458,7 @@ def regenerate_subscription(
     token = secrets.token_urlsafe(MGMA_TOKEN_BYTES)
     stable_token = secrets.token_urlsafe(MGMA_TOKEN_BYTES)
     ttl_seconds = settings.ttl_seconds
-    expires_at = issued_at + timedelta(seconds=ttl_seconds)
+    expires_at = issued_at + timedelta(seconds=ttl_seconds) if ttl_seconds else None
 
     try:
         user.sub_revoked_at = issued_at
@@ -484,7 +484,7 @@ def regenerate_subscription(
     return MgmaTokenIssue(
         token=token,
         issued_at=_utc_aware(issued_at),
-        expires_at=_utc_aware(expires_at),
+        expires_at=_utc_aware(expires_at) if expires_at is not None else None,
         ttl_seconds=ttl_seconds,
     )
 
@@ -638,8 +638,7 @@ def validate_token(
         or (expected_user_id is not None and user.id != expected_user_id)
         or not hmac.compare_digest(user.sub_access_token_digest or "", digest)
         or user.sub_access_issued_at is None
-        or user.sub_access_expires_at is None
-        or user.sub_access_expires_at <= current_time
+        or (user.sub_access_expires_at is not None and user.sub_access_expires_at <= current_time)
         or (
             user.sub_revoked_at is not None
             and user.sub_access_issued_at < user.sub_revoked_at
@@ -655,7 +654,7 @@ def validate_token(
             .where(
                 User.id == user.id,
                 User.sub_access_token_digest == digest,
-                User.sub_access_expires_at > current_time,
+                (User.sub_access_expires_at.is_(None) | (User.sub_access_expires_at > current_time)),
                 User.sub_access_consumed_at.is_(None),
             )
             .values(sub_access_consumed_at=current_time)

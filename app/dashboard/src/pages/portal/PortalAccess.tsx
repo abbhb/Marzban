@@ -60,7 +60,7 @@ export const PortalAccess = () => {
   );
 
   useEffect(() => {
-    if (!mgma) return;
+    if (!mgma || mgma.ttl_seconds === 0) return;
     const update = () => {
       const seconds = Math.max(
         0,
@@ -75,8 +75,14 @@ export const PortalAccess = () => {
   }, [mgma]);
 
   const applyGrant = (grant: MgmaIssue, clientRequestedAt: number) => {
+    if (grant.ttl_seconds === 0 && grant.expires_at === null) {
+      deadlineRef.current = Infinity;
+      setMgma({ ...grant, deadline: Infinity });
+      setRemaining(0);
+      return true;
+    }
     const issuedAt = Date.parse(grant.issued_at);
-    const expiresAt = Date.parse(grant.expires_at);
+    const expiresAt = Date.parse(grant.expires_at || "");
     const timestampTtl = (expiresAt - issuedAt) / 1000;
     const ttl = Number.isFinite(timestampTtl)
       ? Math.max(0, Math.min(grant.ttl_seconds, timestampTtl))
@@ -246,7 +252,7 @@ export const PortalAccess = () => {
                   <VStack align="stretch" spacing="4">
                     <HStack justify="space-between">
                       <Badge colorScheme="orange" rounded="full" px="3" py="1">
-                        {t("mgma.expiresIn", { time: countdown(remaining) })}
+                        {mgma.ttl_seconds === 0 ? t("mgma.permanent") : t("mgma.expiresIn", { time: countdown(remaining) })}
                       </Badge>
                       <Button
                         size="sm"

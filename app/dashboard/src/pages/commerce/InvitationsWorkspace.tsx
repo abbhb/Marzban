@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertDescription,
@@ -179,7 +180,7 @@ export const InvitationsWorkspace = () => {
       });
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.actionError"),
+        title: errorMessage(error, t("commerce.actionError")),
         status: "error",
         position: "top",
       });
@@ -202,7 +203,7 @@ export const InvitationsWorkspace = () => {
       });
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.actionError"),
+        title: errorMessage(error, t("commerce.actionError")),
         status: "error",
         position: "top",
       });

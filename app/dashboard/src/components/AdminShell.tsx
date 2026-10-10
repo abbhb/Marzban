@@ -267,6 +267,12 @@ export const AdminShell = ({ children }: AdminShellProps) => {
                 panel: "subscription-security",
               },
               {
+                icon: DocumentMinusIcon,
+                label: t("rules.title"),
+                path: "/commerce",
+                tab: "rules",
+              },
+              {
                 icon: Cog6ToothIcon,
                 label: t("core.title"),
                 path: "/",

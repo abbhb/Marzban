@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Accordion,
   AccordionButton,
@@ -129,7 +130,7 @@ export const SecurityWorkspace = () => {
       });
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.actionError"),
+        title: errorMessage(error, t("commerce.actionError")),
         status: "error",
         position: "top",
       });
@@ -169,7 +170,7 @@ export const SecurityWorkspace = () => {
       });
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.actionError"),
+        title: errorMessage(error, t("commerce.actionError")),
         status: "error",
         position: "top",
       });
@@ -192,7 +193,7 @@ export const SecurityWorkspace = () => {
       });
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.actionError"),
+        title: errorMessage(error, t("commerce.actionError")),
         status: "error",
         position: "top",
       });

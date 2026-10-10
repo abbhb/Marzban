@@ -413,7 +413,7 @@ class ClashConfiguration(object):
 
         del user_agent_data
 
-    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False):
+    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None):
         if reverse:
             self.data['proxies'].reverse()
 
@@ -431,6 +431,9 @@ class ClashConfiguration(object):
                 clash_overlay,
                 is_meta=is_meta,
             )
+        if subscription_rules is not None:
+            document["rules"] = list(subscription_rules)
+            document["mode"] = "rule"
         return yaml.dump(
             document,
             sort_keys=False,

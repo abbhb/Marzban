@@ -158,12 +158,10 @@ export const Sort: FC<SortType> = ({ sort, column }) => {
 };
 type UsersTableProps = {} & TableProps;
 export const UsersTable: FC<UsersTableProps> = (props) => {
-  const {
-    filters,
-    users: { users },
-    onEditingUser,
-    onFilterChange,
-  } = useDashboard();
+  const filters = useDashboard((state) => state.filters);
+  const users = useDashboard((state) => state.users.users);
+  const onEditingUser = useDashboard((state) => state.onEditingUser);
+  const onFilterChange = useDashboard((state) => state.onFilterChange);
 
   const { t } = useTranslation();
   const [selectedRow, setSelectedRow] = useState<ExpandedIndex | undefined>(
@@ -639,7 +637,7 @@ type EmptySectionProps = {
 };
 
 const EmptySection: FC<EmptySectionProps> = ({ isFiltered }) => {
-  const { onCreateUser } = useDashboard();
+  const onCreateUser = useDashboard((state) => state.onCreateUser);
   return (
     <Box
       padding="5"

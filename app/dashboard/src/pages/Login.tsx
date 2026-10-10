@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertDescription,
@@ -68,7 +69,7 @@ export const Login: FC = () => {
         navigate("/");
       })
       .catch((err) => {
-        setError(err.response._data.detail);
+        setError(errorMessage(err, t("portal.requestFailed")));
       })
       .finally(setLoading.bind(null, false));
   };
