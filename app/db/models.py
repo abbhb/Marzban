@@ -295,6 +295,15 @@ class System(Base):
     downlink = Column(BigInteger, default=0)
 
 
+class SubscriptionGroupOrder(Base):
+    __tablename__ = "subscription_group_order"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_subscription_group_order_singleton"),)
+
+    id = Column(Integer, primary_key=True, default=1)
+    group_names = Column(JSON, nullable=True)
+    revision = Column(Integer, nullable=False, default=1)
+
+
 class SubscriptionRules(Base):
     __tablename__ = "subscription_rules"
     __table_args__ = (CheckConstraint("id = 1", name="ck_subscription_rules_singleton"),)

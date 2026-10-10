@@ -628,5 +628,20 @@
   "commerce.externalErrors.private_overlay_limit_exceeded": "Private nodes cannot exceed 1000 nodes or 2 MiB in total. Previous nodes were retained.",
   "commerce.externalErrors.credential_not_configured": "Add a subscription URL or import a YAML snapshot first.",
   "commerce.externalErrors.refresh_in_progress": "This subscription is being refreshed. Try again later.",
-  "commerce.externalErrors.https_required": "Subscription URLs must use HTTPS."
+  "commerce.externalErrors.https_required": "Subscription URLs must use HTTPS.",
+  "groups.title": "Policy group order",
+  "groups.help": "Set the display order of Clash / Mihomo / Shadowrocket groups. Shared and private external subscription groups always stay at the bottom. Changes apply on the next subscription update. Rule matching order and group member preferences stay unchanged.",
+  "groups.saved": "Group order saved; update the subscription to apply",
+  "groups.top": "Top",
+  "groups.up": "Up",
+  "groups.down": "Down",
+  "groups.topLabel": "Move {{name}} to top",
+  "groups.upLabel": "Move {{name}} up",
+  "groups.downLabel": "Move {{name}} down",
+  "groups.external": "External subscriptions (shared and private)",
+  "groups.fixed": "Fixed at bottom",
+  "groups.save": "Save order",
+  "groups.reset": "Restore template order",
+  "groups.custom": "Custom order",
+  "groups.template": "Template order"
 }

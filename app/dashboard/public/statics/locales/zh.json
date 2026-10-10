@@ -629,5 +629,20 @@
   "commerce.externalErrors.private_overlay_limit_exceeded": "私有节点合计不能超过 1000 个或 2 MiB；原有节点已保留。",
   "commerce.externalErrors.credential_not_configured": "请先添加订阅链接，或导入 YAML 快照。",
   "commerce.externalErrors.refresh_in_progress": "该订阅正在刷新，请稍后再试。",
-  "commerce.externalErrors.https_required": "订阅链接必须使用 HTTPS。"
+  "commerce.externalErrors.https_required": "订阅链接必须使用 HTTPS。",
+  "groups.title": "策略组排序",
+  "groups.help": "按从上到下的顺序显示 Clash / Mihomo / 小火箭策略组。公共和用户私有外部订阅组始终固定在末尾，不参与排序；保存后下次更新客户端订阅生效。这里只调整组的显示顺序，不改变规则匹配顺序或组内默认选择。",
+  "groups.saved": "策略组顺序已保存，下次更新订阅生效",
+  "groups.top": "置顶",
+  "groups.up": "上移",
+  "groups.down": "下移",
+  "groups.topLabel": "将 {{name}} 置顶",
+  "groups.upLabel": "将 {{name}} 上移",
+  "groups.downLabel": "将 {{name}} 下移",
+  "groups.external": "外部订阅（公共及用户私有）",
+  "groups.fixed": "固定在底部",
+  "groups.save": "保存排序",
+  "groups.reset": "恢复模板顺序",
+  "groups.custom": "自定义顺序",
+  "groups.template": "模板顺序"
 }

@@ -389,6 +389,21 @@ def merge_clash_overlay(
     return result
 
 
+def ordered_template_groups(groups: list, group_order: list[str] | None) -> list:
+    """Stable ordering; new template groups follow saved groups, external stays last.
+
+    Call before merging overlays, so generated source groups can only be appended.
+    Group contents and member preferences are left intact.
+    """
+    positions = {name: index for index, name in enumerate(group_order or [])}
+    def position(group):
+        name = group.get("name") if isinstance(group, dict) else None
+        if name == EXTERNAL_AGGREGATE_GROUP_NAME:
+            return (1, 0)
+        return (0, positions.get(name, len(positions)))
+    return sorted(groups, key=position)
+
+
 class ClashConfiguration(object):
     def __init__(self):
         self.data = {
@@ -413,7 +428,7 @@ class ClashConfiguration(object):
 
         del user_agent_data
 
-    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None):
+    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None, subscription_group_order: list[str] | None = None):
         if reverse:
             self.data['proxies'].reverse()
 
@@ -425,6 +440,8 @@ class ClashConfiguration(object):
             ),
             Loader=yaml.SafeLoader
         )
+        if isinstance(document.get("proxy-groups"), list):
+            document["proxy-groups"] = ordered_template_groups(document["proxy-groups"], subscription_group_order)
         if clash_overlay:
             document = merge_clash_overlay(
                 document,

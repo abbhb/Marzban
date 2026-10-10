@@ -75,6 +75,9 @@ class SubscriptionRuleIntegrationTests(MgmaDatabaseTestCase):
         for client in ("clash", "clash-meta", "shadowrocket"):
             with self.subTest(client=client), patch(
                 "app.routers.subscription.load_external_overlays_for_user", return_value=[]
+            ), patch(
+                "app.subscription.clash.render_template", side_effect=lambda name, context=None:
+                '{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT)
             ):
                 response = build_subscription_response(
                     UserResponse.model_validate(user), client_type=client,

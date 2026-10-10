@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetch } from "service/http";
 import { errorMessage } from "service/http";
+import { GroupOrderWorkspace } from "./GroupOrderWorkspace";
 
 type RulesSettings = { rules: string[]; enabled: boolean; revision: number; targets: string[]; providers: string[] };
 
@@ -41,7 +42,7 @@ export const RulesWorkspace = () => {
     finally { setBusy(false); }
   };
 
-  return <VStack align="stretch" spacing={4} layerStyle="glass" rounded="2xl" p={{ base: 4, md: 6 }}>
+  return <VStack align="stretch" spacing={4}><GroupOrderWorkspace /><VStack align="stretch" spacing={4} layerStyle="glass" rounded="2xl" p={{ base: 4, md: 6 }}>
     <HStack justify="space-between" flexWrap="wrap">
       <Text fontWeight="semibold">{t("rules.title")}</Text>
       {settings && <Badge colorScheme={settings.enabled ? "green" : "gray"}>{t(settings.enabled ? "rules.custom" : "rules.template")}</Badge>}
@@ -62,5 +63,5 @@ export const RulesWorkspace = () => {
       </HStack>
       {settings?.enabled && dirty && !text.trim() && <Button alignSelf="start" variant="outline" onClick={() => void save(true)} isDisabled={busy}>{t("rules.confirmReset")}</Button>}
     </>}
-  </VStack>;
+  </VStack></VStack>;
 };
