@@ -9,6 +9,7 @@ from app.models.admin import Admin
 from app.models.mgma import MgmaIssueResponse, MgmaSettingsResponse, MgmaSettingsUpdate
 from app.models.user import UserResponse, UserStatus
 from app.routers.subscription import build_subscription_response
+from app.services import subscription_rules, subscription_group_order
 from app.services.mgma import (
     MgmaConfigurationError,
     MgmaTokenRejected,
@@ -224,3 +225,57 @@ def mgma_subscription_with_client_type(
         db=db,
         user_id=dbuser.id,
     )
+
+
+@router.get("/api/subscription/rules")
+def read_subscription_rules(
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    response.headers.update(NO_STORE_HEADERS)
+    return subscription_rules.read_rules(db)
+
+
+@router.put("/api/subscription/rules")
+def replace_subscription_rules(
+    values: subscription_rules.RulesUpdate,
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    try:
+        result = subscription_rules.save_rules(db, values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except subscription_rules.RulesConflict:
+        raise HTTPException(status_code=409, detail="Rules changed. Reload before saving again.") from None
+    response.headers.update(NO_STORE_HEADERS)
+    return result
+
+
+@router.get("/api/subscription/group-order")
+def read_subscription_group_order(
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    response.headers.update(NO_STORE_HEADERS)
+    return subscription_group_order.read_group_order(db)
+
+
+@router.put("/api/subscription/group-order")
+def replace_subscription_group_order(
+    values: subscription_group_order.GroupOrderUpdate,
+    response: Response,
+    db: Session = Depends(get_db),
+    _admin: Admin = Depends(Admin.check_sudo_admin),
+):
+    try:
+        result = subscription_group_order.save_group_order(db, values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except subscription_group_order.GroupOrderConflict:
+        raise HTTPException(status_code=409, detail="Group order changed. Reload before saving again.") from None
+    response.headers.update(NO_STORE_HEADERS)
+    return result

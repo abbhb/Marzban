@@ -8,6 +8,8 @@ from app.db import Session, crud, get_db
 from app.dependencies import MGMA_NO_STORE_HEADERS, get_validated_sub, validate_dates
 from app.models.user import SubscriptionUserResponse, UserResponse
 from app.services.external_subscriptions import load_external_overlays_for_user
+from app.services.subscription_rules import load_rules
+from app.services.subscription_group_order import load_group_order
 from app.subscription.shadowrocket import ShadowrocketConversionError
 from app.subscription.share import encode_title, generate_subscription
 from app.templates import render_template
@@ -83,9 +85,13 @@ def build_subscription_response(
         if config_format == "shadowrocket":
             response_headers["content-disposition"] = 'inline; filename="shadowrocket.yaml"'
         clash_overlay = None
+        panel_rules = None
+        panel_group_order = None
         if config_format in {"clash", "clash-meta", "shadowrocket"} and db is not None and user_id is not None:
             try:
                 sources = load_external_overlays_for_user(db, user_id)
+                panel_rules = load_rules(db)
+                panel_group_order = load_group_order(db)
             except Exception:
                 # Public subscription responses must fail closed without
                 # exposing encryption, database, source, or node details.
@@ -111,6 +117,8 @@ def build_subscription_response(
                 as_base64=as_base64,
                 reverse=reverse,
                 clash_overlay=clash_overlay,
+                subscription_rules=panel_rules,
+                subscription_group_order=panel_group_order,
             )
         except ShadowrocketConversionError as exc:
             raise HTTPException(status_code=422, detail=str(exc), headers=response_headers) from None

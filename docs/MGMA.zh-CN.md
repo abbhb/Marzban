@@ -109,6 +109,10 @@ Alembic revision `c8d9e0f1a2b3` 在 `users` 增加 MGMA digest、签发、过期
 
 上线前必须备份 SQLite，并在备份副本运行 `alembic upgrade head` 和 `PRAGMA integrity_check`。一旦新 migration 已运行，回滚应成对恢复“旧镜像 + 升级前 SQLite”，不能只替换镜像。
 
+## 可配置有效期与后台规则
+
+`v0.8.4-mgma.24` 支持永久或自定义有效期及数据库规则覆盖；具体语义、接口和发布要求见 [后台规则与订阅链接有效期](DASHBOARD-RULES.zh-CN.md)。本节之前的短时范围说明属于历史设计。
+
 ## 固定基础镜像构建
 
 先生成 dashboard，再用固定 v0.8.4 镜像进行无网络派生构建：
@@ -128,7 +132,7 @@ docker buildx build \
   --sbom=false \
   -f Dockerfile.runtime \
   --build-arg VCS_REF="$(git rev-parse HEAD)" \
-  -t abbhb/marzban:v0.8.4-mgma.23 \
+  -t abbhb/marzban:v0.8.4-mgma.24 \
   --load .
 ```
 
@@ -151,3 +155,5 @@ docker buildx build \
 11. 不把临时订阅 smoke test 配成周期监控。
 
 APNIC 数据源：<https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest>；字段语义：<https://www.apnic.net/about-apnic/corporate-documents/documents/resource-guidelines/rir-statistics-exchange-format/>。
+
+用户私有外部订阅及管理员管理说明见 [PRIVATE-EXTERNAL-SUBSCRIPTIONS.zh-CN.md](PRIVATE-EXTERNAL-SUBSCRIPTIONS.zh-CN.md)。

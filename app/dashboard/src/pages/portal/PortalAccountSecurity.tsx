@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertDescription,
@@ -63,9 +64,7 @@ export const PortalAccountSecurity = () => {
       })
       .catch((requestError: any) =>
         setError(
-          requestError?.data?.detail ||
-            requestError?.response?._data?.detail ||
-            "portal.requestFailed"
+          errorMessage(requestError, "portal.requestFailed")
         )
       )
       .finally(() => setLoading(false));

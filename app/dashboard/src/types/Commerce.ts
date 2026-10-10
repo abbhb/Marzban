@@ -37,6 +37,8 @@ export type ExternalSubscriptionStatus =
  */
 export type ExternalSubscriptionSource = {
   id: number;
+  owner_account_id?: number | null;
+  owner_username?: string | null;
   name: string;
   group_name: string;
   enabled: boolean;
@@ -127,7 +129,7 @@ export type PortalPurchaseResult = {
 export type MgmaIssue = {
   url: string;
   issued_at: string;
-  expires_at: string;
+  expires_at: string | null;
   ttl_seconds: number;
 };
 

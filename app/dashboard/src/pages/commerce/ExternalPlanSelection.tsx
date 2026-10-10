@@ -393,7 +393,7 @@ export const ExternalPlanSelection = ({
     );
   }
 
-  const sources = sourcesQuery.data || [];
+  const sources = (sourcesQuery.data || []).filter((source) => source.owner_account_id == null);
   if (!sources.length) {
     return (
       <Text py="6" textAlign="center" color="fg.muted" fontSize="sm">

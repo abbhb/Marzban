@@ -25,6 +25,7 @@ import {
   setPortalAuthToken,
 } from "utils/portalAuthStorage";
 import { z } from "zod";
+import { errorMessage } from "service/http";
 
 const schema = z.object({
   username: z.string().min(1, "login.fieldRequired"),
@@ -32,9 +33,7 @@ const schema = z.object({
 });
 
 const errorDetail = (error: any): string =>
-  error?.data?.detail ||
-  error?.response?._data?.detail ||
-  "portal.requestFailed";
+  errorMessage(error, "portal.requestFailed");
 
 export const PortalLogin = () => {
   const { t } = useTranslation();

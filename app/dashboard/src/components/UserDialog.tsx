@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertIcon,
@@ -383,9 +384,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
         })
         .catch((err: any) => {
           setError(
-            err?.data?.detail ||
-              err?.response?._data?.detail ||
-              t("userDialog.managedCreateError")
+            errorMessage(err, t("userDialog.managedCreateError"))
           );
         })
         .finally(() => setLoading(false));
@@ -502,9 +501,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
       .then(setGeneratedPassword)
       .catch((err: any) =>
         setError(
-          err?.data?.detail ||
-            err?.response?._data?.detail ||
-            t("userDialog.passwordResetError")
+          errorMessage(err, t("userDialog.passwordResetError"))
         )
       )
       .finally(() => setLoading(false));

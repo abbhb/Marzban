@@ -55,6 +55,8 @@ def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, revers
 def generate_clash_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool, is_meta: bool = False,
         clash_overlay: dict | None = None,
+        subscription_rules: list[str] | None = None,
+        subscription_group_order: list[str] | None = None,
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -68,7 +70,7 @@ def generate_clash_subscription(
         format_variables,
         conf=conf,
         reverse=reverse,
-        render_options={"clash_overlay": clash_overlay, "is_meta": is_meta},
+        render_options={"clash_overlay": clash_overlay, "is_meta": is_meta, "subscription_rules": subscription_rules, "subscription_group_order": subscription_group_order},
     )
 
 
@@ -111,6 +113,8 @@ def generate_subscription(
         as_base64: bool,
         reverse: bool,
         clash_overlay: dict | None = None,
+        subscription_rules: list[str] | None = None,
+        subscription_group_order: list[str] | None = None,
 ) -> str:
     kwargs = {
         "proxies": user.proxies,
@@ -121,7 +125,7 @@ def generate_subscription(
 
     if config_format == "shadowrocket":
         document = yaml.safe_load(generate_clash_subscription(
-            **kwargs, is_meta=True, clash_overlay=clash_overlay,
+            **kwargs, is_meta=True, clash_overlay=clash_overlay, subscription_rules=subscription_rules, subscription_group_order=subscription_group_order,
         ))
         config = yaml.safe_dump(prepare_shadowrocket(document), allow_unicode=True, sort_keys=False)
     elif config_format == "v2ray":
@@ -131,11 +135,15 @@ def generate_subscription(
             **kwargs,
             is_meta=True,
             clash_overlay=clash_overlay,
+            subscription_rules=subscription_rules,
+            subscription_group_order=subscription_group_order,
         )
     elif config_format == "clash":
         config = generate_clash_subscription(
             **kwargs,
             clash_overlay=clash_overlay,
+            subscription_rules=subscription_rules,
+            subscription_group_order=subscription_group_order,
         )
     elif config_format == "sing-box":
         config = generate_singbox_subscription(**kwargs)

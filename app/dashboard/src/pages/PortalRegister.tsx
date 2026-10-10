@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertDescription,
@@ -64,9 +65,7 @@ export const PortalRegister = () => {
       .then(() => navigate("/login", { state: { registered: true } }))
       .catch((err: any) =>
         setError(
-          err?.data?.detail ||
-            err?.response?._data?.detail ||
-            "portal.requestFailed"
+          errorMessage(err, "portal.requestFailed")
         )
       )
       .finally(() => setLoading(false));

@@ -9,7 +9,7 @@ export type SubscriptionSourceMode =
 export type MgmaGrant = {
   url: string;
   issued_at: string;
-  expires_at: string;
+  expires_at: string | null;
   ttl_seconds: number;
   // Set by the dashboard when the issuance request starts; never serialized.
   client_requested_at_ms?: number;

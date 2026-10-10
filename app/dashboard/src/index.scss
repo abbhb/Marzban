@@ -1,10 +1,10 @@
 :root {
   color-scheme: light;
-  --marzban-glass-filter: blur(24px) saturate(124%);
-  --marzban-glass-filter-strong: blur(32px) saturate(128%);
+  --marzban-glass-filter: blur(10px) saturate(112%);
+  --marzban-glass-filter-strong: blur(14px) saturate(116%);
   --marzban-glass-filter-subtle: saturate(112%);
-  --marzban-sidebar-filter: blur(22px) saturate(116%);
-  --marzban-overlay-filter: blur(18px) saturate(112%);
+  --marzban-sidebar-filter: blur(10px) saturate(112%);
+  --marzban-overlay-filter: none;
   --marzban-motion-fast: 140ms;
   --marzban-motion-base: 240ms;
   --marzban-motion-slow: 680ms;
@@ -77,8 +77,8 @@ body::before {
     );
   background-size: 108% 108%;
   opacity: 0.68;
-  animation: marzban-liquid-canvas 46s var(--marzban-ease-fluid) infinite
-    alternate;
+  // Static canvas avoids continuous repaints beneath the glass surfaces.
+  background-position: 0% 0%;
 }
 
 body::after {

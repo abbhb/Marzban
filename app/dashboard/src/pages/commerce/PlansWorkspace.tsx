@@ -1,3 +1,4 @@
+import { errorMessage } from "service/http";
 import {
   Alert,
   AlertDescription,
@@ -176,7 +177,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       closeEditor();
     } catch (error: any) {
       toast({
-        title: error?.data?.detail || t("commerce.saveError"),
+        title: errorMessage(error, t("commerce.saveError")),
         status: "error",
         position: "top",
       });

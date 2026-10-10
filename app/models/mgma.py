@@ -27,10 +27,17 @@ class MgmaSourceMode(str, Enum):
 
 class MgmaSettingsBase(BaseModel):
     mode: MgmaAccessMode = MgmaAccessMode.legacy
-    ttl_seconds: int = Field(default=180, ge=30, le=900)
+    ttl_seconds: int = Field(default=180, ge=0, le=315360000)
     single_use: bool = False
     source_mode: MgmaSourceMode = MgmaSourceMode.any
     custom_cidrs: List[str] = Field(default_factory=list, max_length=512)
+
+    @field_validator("ttl_seconds")
+    @classmethod
+    def validate_ttl(cls, value):
+        if 0 < value < 30:
+            raise ValueError("ttl_seconds must be 0 (permanent) or at least 30 seconds")
+        return value
 
     @field_validator("custom_cidrs", mode="before")
     @classmethod
@@ -89,12 +96,12 @@ class MgmaTokenIssue(BaseModel):
 
     token: str = Field(repr=False)
     issued_at: datetime
-    expires_at: datetime
+    expires_at: Optional[datetime]
     ttl_seconds: int
 
     @field_serializer("issued_at", "expires_at")
-    def serialize_datetimes(self, value: datetime) -> str:
-        return _serialize_utc(value)
+    def serialize_datetimes(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc(value) if value is not None else None
 
 
 class MgmaIssueResponse(BaseModel):
@@ -102,9 +109,9 @@ class MgmaIssueResponse(BaseModel):
 
     url: str
     issued_at: datetime
-    expires_at: datetime
+    expires_at: Optional[datetime]
     ttl_seconds: int
 
     @field_serializer("issued_at", "expires_at")
-    def serialize_datetimes(self, value: datetime) -> str:
-        return _serialize_utc(value)
+    def serialize_datetimes(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc(value) if value is not None else None
