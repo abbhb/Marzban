@@ -140,22 +140,26 @@ export const CommerceAdmin = () => {
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
               <Suspense fallback={<WorkspaceFallback />}>
-                <ExternalSubscriptionsWorkspace />
+                <ExternalSubscriptionsWorkspace onReady={markInitialWorkspaceReady} />
+                <BootReady ready={initialWorkspaceReady} />
               </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
               <Suspense fallback={<WorkspaceFallback />}>
                 <AccountsWorkspace />
+                <BootReady />
               </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
               <Suspense fallback={<WorkspaceFallback />}>
                 <InvitationsWorkspace />
+                <BootReady />
               </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
               <Suspense fallback={<WorkspaceFallback />}>
                 <SecurityWorkspace />
+                <BootReady />
               </Suspense>
             </TabPanel>
             <TabPanel px="0" className="liquid-page-enter">
