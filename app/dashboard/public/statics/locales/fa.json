@@ -528,5 +528,20 @@
   "rules.saved": "Rules saved. Users receive them on subscription refresh.",
   "rules.reload": "Reload (discard edits)",
   "rules.prepareReset": "Restore file template…",
-  "rules.confirmReset": "Confirm restore file template"
+  "rules.confirmReset": "Confirm restore file template",
+  "commerce.privateExternalTitle": "My external subscriptions",
+  "commerce.privateExternalHelp": "Mix private nodes into your own Clash / Mihomo / Shadowrocket subscription alongside your plan. Changes apply on the next client update.",
+  "commerce.privateExternalBoundary": "Imports nodes only, without upstream rules, DNS or scripts. URLs are encrypted and never returned. Administrators can manage your private feeds. Limit: 10 feeds, 1000 nodes and 2 MiB of node data per account.",
+  "commerce.privateExternalEnabled": "Enable mixing and automatic updates",
+  "commerce.externalAdminHelp": "Manage shared feeds and every user’s private feeds. Shared feeds can be assigned to plans; private feeds only affect their owner. Search by username or account ID.",
+  "commerce.externalScopeFilter": "Subscription ownership filter",
+  "commerce.externalScopeAll": "All subscriptions",
+  "commerce.externalShared": "Shared (plan distribution)",
+  "commerce.externalPrivate": "User private",
+  "commerce.externalOwner": "Private · {{username}} (account #{{id}})",
+  "commerce.externalErrors.private_source_limit_exceeded": "Each account can add up to 10 private subscriptions.",
+  "commerce.externalErrors.private_overlay_limit_exceeded": "Private nodes cannot exceed 1000 nodes or 2 MiB in total. Previous nodes were retained.",
+  "commerce.externalErrors.credential_not_configured": "Add a subscription URL or import a YAML snapshot first.",
+  "commerce.externalErrors.refresh_in_progress": "This subscription is being refreshed. Try again later.",
+  "commerce.externalErrors.https_required": "Subscription URLs must use HTTPS."
 }

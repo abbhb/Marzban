@@ -67,6 +67,11 @@ MAX_YAML_STRING_BYTES = 64 * 1024
 MAX_NODE_JSON_BYTES = 256 * 1024
 MAX_OVERLAY_NODES = 5000
 MAX_OVERLAY_DECRYPTED_BYTES = 8 * 1024 * 1024
+# Private feeds have a separate allowance, so a user's additions cannot block
+# publication of a shared plan snapshot used by other customers.
+MAX_PRIVATE_SOURCES = 10
+MAX_PRIVATE_NODES = 1000
+MAX_PRIVATE_DECRYPTED_BYTES = 2 * 1024 * 1024
 MAX_REDIRECTS = 3
 FETCH_DEADLINE_SECONDS = 10.0
 REFRESH_LEASE_SECONDS = 60
@@ -996,13 +1001,25 @@ def create_source(
     enabled: bool = True,
     refresh_interval_minutes: int = DEFAULT_REFRESH_INTERVAL_MINUTES,
     url: Optional[str] = None,
+    owner_account_id: Optional[int] = None,
 ) -> ExternalSubscriptionSource:
     # Fail at setup time instead of accepting a source that can never persist
     # its write-only credential or node payloads.
     _fernet()
     now = utc_now()
     ciphertext = encrypt_url(_validate_public_https_url(url).url) if url else None
+    lock_external_budget_for_update(db)
+    if owner_account_id is not None:
+        if db.get(PortalAccount, owner_account_id) is None:
+            raise ExternalSubscriptionConfigurationError("owner_not_found")
+        existing = (db.query(ExternalSubscriptionSource.id)
+                    .filter_by(owner_account_id=owner_account_id)
+                    .limit(MAX_PRIVATE_SOURCES).with_for_update().all())
+        if len(existing) >= MAX_PRIVATE_SOURCES:
+            raise ExternalSubscriptionConfigurationError("private_source_limit_exceeded")
     source = ExternalSubscriptionSource(
+        owner_account_id=owner_account_id,
+        scope_key=owner_account_id or 0,
         name=name.strip(),
         group_name=group_name.strip(),
         created_by=created_by,
@@ -1233,6 +1250,11 @@ def _apply_snapshot(
     # touching last-known-good node rows.  Any failure leaves the old snapshot
     # intact and is surfaced as a stable refresh error.
     _validate_snapshot_plan_budgets(db, source.id, snapshot)
+    if source.owner_account_id is not None:
+        validate_private_budget(
+            db, source.owner_account_id,
+            override_source_id=source.id, override_snapshot=snapshot,
+        )
     encrypted = [
         (node, encrypt_proxy_payload(node.payload))
         for node in snapshot.nodes
@@ -1502,12 +1524,16 @@ def due_source_ids(
     ]
 
 
-def load_external_overlays_for_user(
+def _load_plan_overlays_for_user(
     db: Session,
     user_id: int,
 ) -> list[ExternalOverlaySource]:
     selections = (
         db.query(SubscriptionPlanExternalSelection)
+        .join(
+            ExternalSubscriptionSource,
+            ExternalSubscriptionSource.id == SubscriptionPlanExternalSelection.source_id,
+        )
         .join(
             PortalSubscription,
             PortalSubscription.plan_id == SubscriptionPlanExternalSelection.plan_id,
@@ -1519,6 +1545,7 @@ def load_external_overlays_for_user(
         .filter(
             PortalAccount.user_id == user_id,
             PortalSubscription.disabled_at.is_(None),
+            ExternalSubscriptionSource.owner_account_id.is_(None),
         )
         .order_by(SubscriptionPlanExternalSelection.id.asc())
         .all()
@@ -1639,4 +1666,68 @@ def load_external_overlays_for_user(
                     nodes=tuple(payloads),
                 )
             )
+    return overlays
+
+
+def validate_private_budget(
+    db: Session,
+    account_id: int,
+    *,
+    override_source_id: Optional[int] = None,
+    override_snapshot: Optional[ParsedExternalSnapshot] = None,
+) -> None:
+    # Include disabled feeds: turning mixing back on must always be safe.
+    source_ids = [
+        source_id for (source_id,) in db.query(ExternalSubscriptionSource.id)
+        .filter_by(owner_account_id=account_id).with_for_update().all()
+    ]
+    budget = validate_external_selection_budget(
+        db,
+        [ExternalSelectionSpec(source_id=source_id, mode="all") for source_id in source_ids],
+        override_source_id=override_source_id,
+        override_snapshot=override_snapshot,
+    )
+    if budget.node_count > MAX_PRIVATE_NODES or budget.decrypted_bytes > MAX_PRIVATE_DECRYPTED_BYTES:
+        raise ExternalSubscriptionConfigurationError("private_overlay_limit_exceeded")
+
+
+def load_external_overlays_for_user(db: Session, user_id: int) -> list[ExternalOverlaySource]:
+    overlays = _load_plan_overlays_for_user(db, user_id)
+    account = db.query(PortalAccount).filter_by(user_id=user_id, is_active=True).first()
+    if account is None:
+        return overlays
+    sources = (
+        db.query(ExternalSubscriptionSource)
+        .filter_by(owner_account_id=account.id, enabled=True)
+        .order_by(ExternalSubscriptionSource.id.asc()).all()
+    )
+    source_ids = [source.id for source in sources]
+    nodes = (
+        db.query(ExternalSubscriptionNode)
+        .filter(
+            ExternalSubscriptionNode.source_id.in_(source_ids),
+            ExternalSubscriptionNode.is_active.is_(True),
+        )
+        .order_by(
+            ExternalSubscriptionNode.source_id, ExternalSubscriptionNode.position,
+            ExternalSubscriptionNode.id,
+        )
+        .limit(MAX_PRIVATE_NODES + 1).all()
+    ) if source_ids else []
+    by_source: dict[int, list[dict[str, Any]]] = {source.id: [] for source in sources}
+    decrypted_bytes = 0
+    for node in nodes:
+        payload = decrypt_proxy_payload(node.payload_ciphertext)
+        decrypted_bytes += len(_canonical_proxy_payload_bytes(payload))
+        if len(nodes) > MAX_PRIVATE_NODES or decrypted_bytes > MAX_PRIVATE_DECRYPTED_BYTES:
+            raise ExternalSubscriptionConfigurationError("private_overlay_limit_exceeded")
+        payload["name"] = node.name
+        by_source[node.source_id].append(payload)
+    overlays.extend(
+        ExternalOverlaySource(
+            source_id=source.id, group_name=source.group_name,
+            nodes=tuple(by_source[source.id]),
+        )
+        for source in sources if by_source[source.id]
+    )
     return overlays

@@ -71,6 +71,9 @@ const PortalPlans = lazy(() =>
         default: PortalPlans,
     }))
 );
+const PortalExternalSubscriptions = lazy(() =>
+    import("./portal/PortalExternalSubscriptions").then(({ PortalExternalSubscriptions }) => ({ default: PortalExternalSubscriptions }))
+);
 const PortalWallet = lazy(() =>
     import("./portal/PortalWallet").then(({ PortalWallet }) => ({
         default: PortalWallet,
@@ -98,6 +101,8 @@ export const preloadInitialRoute = async () => {
                 ? import("./portal/PortalPlans")
                 : path === "/portal/access"
                 ? import("./portal/PortalAccess")
+                : path === "/portal/external-subscriptions"
+                ? import("./portal/PortalExternalSubscriptions")
                 : path === "/portal/wallet"
                 ? import("./portal/PortalWallet")
                 : path === "/portal/account"
@@ -238,6 +243,7 @@ export const router = createHashRouter([
             { index: true, element: routeElement(PortalOverview) },
             { path: "plans", element: routeElement(PortalPlans, false) },
             { path: "access", element: routeElement(PortalAccess) },
+            { path: "external-subscriptions", element: routeElement(PortalExternalSubscriptions) },
             { path: "wallet", element: routeElement(PortalWallet, false) },
             {
                 path: "account",

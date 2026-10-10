@@ -18,6 +18,7 @@ from fastapi import (
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 
 from app import xray
 from app.db import Session, get_db
@@ -518,6 +519,7 @@ def admin_list_external_subscriptions(
 ):
     return (
         db.query(ExternalSubscriptionSource)
+        .options(joinedload(ExternalSubscriptionSource.owner))
         .order_by(ExternalSubscriptionSource.id.desc())
         .all()
     )
@@ -754,6 +756,125 @@ def admin_delete_external_subscription(
         db.rollback()
         raise HTTPException(status_code=409, detail="source_in_use") from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _get_owned_external_source(db: Session, source_id: int, account: PortalAccount):
+    source = db.query(ExternalSubscriptionSource).filter_by(
+        id=source_id, owner_account_id=account.id
+    ).first()
+    if source is None:
+        raise HTTPException(status_code=404, detail="External subscription not found")
+    return source
+
+
+def _private_external_rate_limit(account: PortalAccount) -> None:
+    _rate_limit(f"portal-external:{account.id}", limit=20, window_seconds=600)
+
+
+@router.get("/api/portal/external-subscriptions", response_model=List[ExternalSubscriptionSourceResponse])
+def portal_list_external_subscriptions(
+    db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    return db.query(ExternalSubscriptionSource).filter_by(owner_account_id=account.id).order_by(
+        ExternalSubscriptionSource.id.desc()
+    ).all()
+
+
+@router.post("/api/portal/external-subscriptions", response_model=ExternalSubscriptionSourceResponse, status_code=201)
+def portal_create_external_subscription(
+    values: ExternalSubscriptionSourceCreate,
+    db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    _private_external_rate_limit(account)
+    credential = values.url.get_secret_value() if values.url else None
+    try:
+        source = external_subscriptions.create_source(
+            db, name=values.name, group_name=values.group_name or values.name,
+            created_by=account.username, owner_account_id=account.id,
+            enabled=values.enabled, refresh_interval_minutes=values.refresh_interval_minutes,
+            url=credential,
+        )
+    except external_subscriptions.ExternalSubscriptionError as exc:
+        db.rollback()
+        raise _external_error(exc) from None
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="External subscription name or group already exists") from None
+    return _refresh_external_source_for_admin(db, source.id) if credential and source.enabled else source
+
+
+# Share the established CRUD/refresh implementation after an ownership check.
+# Portal clients never supply an owner, and cannot transfer or share a source.
+@router.put("/api/portal/external-subscriptions/{source_id}", response_model=ExternalSubscriptionSourceResponse)
+def portal_update_external_subscription(
+    source_id: int, values: ExternalSubscriptionSourceUpdate,
+    db: Session = Depends(get_db), account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    return admin_update_external_subscription(source_id, values, db, account)
+
+
+@router.post("/api/portal/external-subscriptions/{source_id}/credential", response_model=ExternalSubscriptionSourceResponse)
+def portal_replace_external_subscription_credential(
+    source_id: int, values: ExternalSubscriptionCredentialUpdate,
+    db: Session = Depends(get_db), account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    _private_external_rate_limit(account)
+    return admin_replace_external_subscription_credential(source_id, values, db, account)
+
+
+@router.delete("/api/portal/external-subscriptions/{source_id}/credential", response_model=ExternalSubscriptionSourceResponse)
+def portal_delete_external_subscription_credential(
+    source_id: int, db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    return admin_delete_external_subscription_credential(source_id, db, account)
+
+
+@router.post("/api/portal/external-subscriptions/{source_id}/refresh", response_model=ExternalSubscriptionSourceResponse)
+def portal_refresh_external_subscription(
+    source_id: int, db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    _private_external_rate_limit(account)
+    return _refresh_external_source_for_admin(db, source_id)
+
+
+@router.post("/api/portal/external-subscriptions/{source_id}/snapshot", response_model=ExternalSubscriptionSourceResponse)
+async def portal_import_external_subscription_snapshot(
+    source_id: int, file: UploadFile = File(...), db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    _private_external_rate_limit(account)
+    return await admin_import_external_subscription_snapshot(source_id, file, db, account)
+
+
+@router.get("/api/portal/external-subscriptions/{source_id}/nodes", response_model=PaginatedResponse[ExternalSubscriptionNodeResponse])
+def portal_list_external_subscription_nodes(
+    source_id: int, page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    search: Optional[str] = Query(default=None, max_length=256),
+    active: Optional[bool] = Query(default=None),
+    ids: Optional[str] = Query(default=None, max_length=12_000),
+    db: Session = Depends(get_db), account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    return admin_list_external_subscription_nodes(source_id, page, page_size, search, active, ids, db, account)
+
+
+@router.delete("/api/portal/external-subscriptions/{source_id}", status_code=204)
+def portal_delete_external_subscription(
+    source_id: int, db: Session = Depends(get_db),
+    account: PortalAccount = Depends(get_current_portal_account),
+):
+    _get_owned_external_source(db, source_id, account)
+    return admin_delete_external_subscription(source_id, db, account)
 
 
 @router.get(

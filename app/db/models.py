@@ -355,6 +355,14 @@ class ExternalSubscriptionSource(Base):
 
     __tablename__ = "external_subscription_sources"
     __table_args__ = (
+        # NULL owners are shared. A checked scope key also makes their names
+        # unique on databases where UNIQUE treats NULL values as distinct.
+        CheckConstraint(
+            "scope_key = COALESCE(owner_account_id, 0)",
+            name="ck_external_sources_scope",
+        ),
+        UniqueConstraint("scope_key", "name", name="uq_external_sources_scope_name"),
+        UniqueConstraint("scope_key", "group_name", name="uq_external_sources_scope_group"),
         CheckConstraint(
             "refresh_interval_minutes >= 15",
             name="ck_external_sources_refresh_interval",
@@ -366,15 +374,18 @@ class ExternalSubscriptionSource(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(128), nullable=False, unique=True)
+    owner_account_id = Column(
+        Integer, ForeignKey("portal_accounts.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    scope_key = Column(Integer, nullable=False, default=0, server_default="0")
+    name = Column(String(128), nullable=False)
     # Group names are immutable after creation so existing client-side group
     # references do not silently change on the next subscription update.
-    group_name = Column(String(128), nullable=False, unique=True)
+    group_name = Column(String(128), nullable=False)
     url_ciphertext = Column(Text, nullable=True)
     url_revision = Column(Integer, nullable=False, default=0, server_default="0")
-    # Backward-compatible API/DB name: this flag enables scheduled refreshes.
-    # Manual refreshes and last-known-good node delivery remain available when
-    # it is false.
+    # Shared sources retain last-known-good delivery when auto-refresh is off.
+    # Private sources also stop mixing when this flag is false.
     enabled = Column(Boolean, nullable=False, default=True, server_default="1")
     refresh_interval_minutes = Column(
         Integer,
@@ -407,6 +418,7 @@ class ExternalSubscriptionSource(Base):
         back_populates="source",
         cascade="all, delete-orphan",
     )
+    owner = relationship("PortalAccount")
     plan_selections = relationship(
         "SubscriptionPlanExternalSelection",
         back_populates="source",
@@ -416,6 +428,10 @@ class ExternalSubscriptionSource(Base):
     @property
     def credential_configured(self) -> bool:
         return bool(self.url_ciphertext)
+
+    @property
+    def owner_username(self) -> str | None:
+        return self.owner.username if self.owner else None
 
 
 class ExternalSubscriptionNode(Base):

@@ -332,6 +332,8 @@ def _build_external_selections(
 
     result = []
     for selection in selections:
+        if sources[selection.source_id].owner_account_id is not None:
+            raise PlanConfigurationError("Private external subscriptions cannot be shared through plans")
         selected_nodes = []
         if selection.mode == "selected":
             selected_nodes = (

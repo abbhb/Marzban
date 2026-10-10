@@ -614,5 +614,20 @@
   "rules.saved": "规则已保存，用户更新订阅后生效",
   "rules.reload": "重新加载（放弃编辑）",
   "rules.prepareReset": "恢复文件模板…",
-  "rules.confirmReset": "确认恢复文件模板"
+  "rules.confirmReset": "确认恢复文件模板",
+  "commerce.privateExternalTitle": "我的外部订阅",
+  "commerce.privateExternalHelp": "仅混入你自己的 Clash / Mihomo / 小火箭订阅，与套餐节点一起使用。保存后下次更新客户端订阅生效。",
+  "commerce.privateExternalBoundary": "仅导入节点，不导入上游规则、DNS 或脚本。链接加密保存且不回显；管理员可管理你的私有订阅。每个账户最多 10 个订阅、合计 1000 个节点及 2 MiB 节点数据。",
+  "commerce.privateExternalEnabled": "启用混入和自动更新",
+  "commerce.externalAdminHelp": "管理公共订阅及全部用户的私有订阅。公共订阅可用于套餐；私有订阅仅对所属用户生效。可搜索用户名或账户 ID。",
+  "commerce.externalScopeFilter": "订阅归属筛选",
+  "commerce.externalScopeAll": "全部订阅",
+  "commerce.externalShared": "公共（套餐分发）",
+  "commerce.externalPrivate": "用户私有",
+  "commerce.externalOwner": "私有 · {{username}}（账户 #{{id}}）",
+  "commerce.externalErrors.private_source_limit_exceeded": "每个账户最多添加 10 个私有订阅。",
+  "commerce.externalErrors.private_overlay_limit_exceeded": "私有节点合计不能超过 1000 个或 2 MiB；原有节点已保留。",
+  "commerce.externalErrors.credential_not_configured": "请先添加订阅链接，或导入 YAML 快照。",
+  "commerce.externalErrors.refresh_in_progress": "该订阅正在刷新，请稍后再试。",
+  "commerce.externalErrors.https_required": "订阅链接必须使用 HTTPS。"
 }

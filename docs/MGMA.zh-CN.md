@@ -155,3 +155,5 @@ docker buildx build \
 11. 不把临时订阅 smoke test 配成周期监控。
 
 APNIC 数据源：<https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest>；字段语义：<https://www.apnic.net/about-apnic/corporate-documents/documents/resource-guidelines/rir-statistics-exchange-format/>。
+
+用户私有外部订阅及管理员管理说明见 [PRIVATE-EXTERNAL-SUBSCRIPTIONS.zh-CN.md](PRIVATE-EXTERNAL-SUBSCRIPTIONS.zh-CN.md)。

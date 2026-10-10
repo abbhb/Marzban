@@ -22,6 +22,7 @@ import {
   HomeIcon,
   KeyIcon,
   LinkIcon,
+  GlobeAltIcon,
   MoonIcon,
   ShoppingBagIcon,
   SunIcon,
@@ -55,6 +56,7 @@ const iconStyle = { baseStyle: { w: 5, h: 5 } };
 const OverviewIcon = chakra(HomeIcon, iconStyle);
 const PlansIcon = chakra(ShoppingBagIcon, iconStyle);
 const AccessIcon = chakra(LinkIcon, iconStyle);
+const ExternalIcon = chakra(GlobeAltIcon, iconStyle);
 const WalletNavIcon = chakra(WalletIcon, iconStyle);
 const AccountSecurityIcon = chakra(KeyIcon, iconStyle);
 const LogoutIcon = chakra(ArrowLeftOnRectangleIcon, iconStyle);
@@ -81,6 +83,7 @@ const navigation = [
   { to: "/portal", key: "portal.navOverview", icon: OverviewIcon, end: true },
   { to: "/portal/plans", key: "portal.navPlans", icon: PlansIcon },
   { to: "/portal/access", key: "portal.navAccess", icon: AccessIcon },
+  { to: "/portal/external-subscriptions", key: "commerce.privateExternalTitle", icon: ExternalIcon },
   { to: "/portal/wallet", key: "portal.navWallet", icon: WalletNavIcon },
   {
     to: "/portal/account",
@@ -94,6 +97,7 @@ const pageTitles: Record<string, string> = {
   "/portal/": "portal.overviewTitle",
   "/portal/plans": "portal.storeTitle",
   "/portal/access": "portal.accessTitle",
+  "/portal/external-subscriptions": "commerce.privateExternalTitle",
   "/portal/wallet": "portal.walletTitle",
   "/portal/account": "portal.accountSecurityTitle",
 };

@@ -37,6 +37,8 @@ export type ExternalSubscriptionStatus =
  */
 export type ExternalSubscriptionSource = {
   id: number;
+  owner_account_id?: number | null;
+  owner_username?: string | null;
   name: string;
   group_name: string;
   enabled: boolean;

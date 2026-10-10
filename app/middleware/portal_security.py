@@ -67,7 +67,10 @@ class PortalSecurityMiddleware(BaseHTTPMiddleware):
         kind = tracked_failure_kind(path)
         enforced = blacklist_enforced(path)
         if not enforced and kind is None:
-            return await call_next(request)
+            response = await call_next(request)
+            if path.startswith("/api/commerce/admin/external-subscriptions"):
+                response.headers["Cache-Control"] = "private, no-store"
+            return response
 
         source_ip = get_real_client_ip(request)
         if not source_ip:
@@ -83,6 +86,8 @@ class PortalSecurityMiddleware(BaseHTTPMiddleware):
                 return blocked_response(expires_at=block.expires_at)
 
         response = await call_next(request)
+        if path.startswith("/api/portal/external-subscriptions"):
+            response.headers["Cache-Control"] = "private, no-store"
         if kind:
             with GetDB() as db:
                 if response.status_code in (status.HTTP_200_OK, status.HTTP_201_CREATED):

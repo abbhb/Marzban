@@ -255,6 +255,8 @@ class ExternalSubscriptionCredentialUpdate(BaseModel):
 
 class ExternalSubscriptionSourceResponse(BaseModel):
     id: int
+    owner_account_id: Optional[int] = None
+    owner_username: Optional[str] = None
     name: str
     group_name: str
     credential_configured: bool

@@ -35,6 +35,7 @@ import {
   ModalHeader,
   ModalOverlay,
   SimpleGrid,
+  Select,
   Spinner,
   Switch,
   Text,
@@ -53,7 +54,7 @@ import dayjs from "dayjs";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
-import { fetch } from "service/http";
+import { fetch, portalFetch } from "service/http";
 import {
   ExternalSubscriptionNode,
   ExternalSubscriptionSource,
@@ -106,11 +107,19 @@ const formatTime = (value?: string | null) =>
 
 export const ExternalSubscriptionsWorkspace = ({
   onReady,
+  privateAccountId,
 }: {
   onReady?: () => void;
+  privateAccountId?: number;
 }) => {
   const { t } = useTranslation();
   const toast = useToast();
+  const isPrivate = privateAccountId !== undefined;
+  const request = isPrivate ? portalFetch : fetch;
+  const apiBase = isPrivate ? "/portal/external-subscriptions" : "/commerce/admin/external-subscriptions";
+  // Include the authenticated account in cache keys to isolate portal sessions.
+  const queryScope = isPrivate ? `portal:${privateAccountId}` : "commerce";
+  const [ownerFilter, setOwnerFilter] = useState("all");
   const queryClient = useQueryClient();
   const createModal = useDisclosure();
   const metadataModal = useDisclosure();
@@ -140,17 +149,17 @@ export const ExternalSubscriptionsWorkspace = ({
   const debouncedNodeSearch = useDebouncedValue(nodeState.search);
 
   const sourcesQuery = useQuery(
-    ["commerce", "external-subscriptions"],
+    [queryScope, "external-subscriptions"],
     ({ signal }) =>
-      fetch<ExternalSubscriptionSource[]>(
-        "/commerce/admin/external-subscriptions",
+      request<ExternalSubscriptionSource[]>(
+        apiBase,
         { timeout: 15000, signal }
       ),
     { retry: false }
   );
   const nodesQuery = useQuery(
     [
-      "commerce",
+      queryScope,
       "external-subscription-nodes",
       selectedSource?.id,
       nodeState.page,
@@ -158,9 +167,9 @@ export const ExternalSubscriptionsWorkspace = ({
       debouncedNodeSearch,
     ],
     ({ signal }) =>
-      fetch<PageResult<ExternalSubscriptionNode>>(
+      request<PageResult<ExternalSubscriptionNode>>(
         pageUrl(
-          `/commerce/admin/external-subscriptions/${selectedSource?.id}/nodes`,
+          `${apiBase}/${selectedSource?.id}/nodes`,
           { ...nodeState, search: debouncedNodeSearch }
         ),
         { timeout: 15000, signal }
@@ -186,9 +195,12 @@ export const ExternalSubscriptionsWorkspace = ({
     setCredential("");
   };
 
-  const showActionError = () =>
+  const showActionError = (error?: any) =>
     toast({
       title: t("commerce.externalActionError"),
+      description: safeErrorCode(error?.data?.detail)
+        ? t(`commerce.externalErrors.${error.data.detail}`, { defaultValue: error.data.detail })
+        : undefined,
       status: "error",
       position: "top",
     });
@@ -198,7 +210,7 @@ export const ExternalSubscriptionsWorkspace = ({
     if (
       !draft.name.trim() ||
       !Number.isInteger(interval) ||
-      interval < 15
+      interval < 15 || interval > 10080
     ) {
       toast({
         title: t("commerce.externalInvalid"),
@@ -209,7 +221,7 @@ export const ExternalSubscriptionsWorkspace = ({
     }
     setSaving(true);
     try {
-      await fetch("/commerce/admin/external-subscriptions", {
+      await request(apiBase, {
         method: "POST",
         body: {
           name: draft.name.trim(),
@@ -220,7 +232,7 @@ export const ExternalSubscriptionsWorkspace = ({
         },
       });
       await queryClient.invalidateQueries([
-        "commerce",
+        queryScope,
         "external-subscriptions",
       ]);
       toast({
@@ -229,8 +241,8 @@ export const ExternalSubscriptionsWorkspace = ({
         position: "top",
       });
       closeCreate();
-    } catch {
-      showActionError();
+    } catch (error) {
+      showActionError(error);
     } finally {
       setSaving(false);
     }
@@ -273,7 +285,7 @@ export const ExternalSubscriptionsWorkspace = ({
     }
     setSaving(true);
     try {
-      await fetch(`/commerce/admin/external-subscriptions/${selectedSource.id}`, {
+      await request(`${apiBase}/${selectedSource.id}`, {
         method: "PUT",
         body: {
           name: metadataDraft.name.trim(),
@@ -282,7 +294,7 @@ export const ExternalSubscriptionsWorkspace = ({
         },
       });
       await queryClient.invalidateQueries([
-        "commerce",
+        queryScope,
         "external-subscriptions",
       ]);
       toast({
@@ -291,8 +303,8 @@ export const ExternalSubscriptionsWorkspace = ({
         position: "top",
       });
       closeMetadata();
-    } catch {
-      showActionError();
+    } catch (error) {
+      showActionError(error);
     } finally {
       setSaving(false);
     }
@@ -307,11 +319,11 @@ export const ExternalSubscriptionsWorkspace = ({
     if (!selectedSource) return;
     setSaving(true);
     try {
-      await fetch(`/commerce/admin/external-subscriptions/${selectedSource.id}`, {
+      await request(`${apiBase}/${selectedSource.id}`, {
         method: "DELETE",
       });
       await Promise.all([
-        queryClient.invalidateQueries(["commerce", "external-subscriptions"]),
+        queryClient.invalidateQueries([queryScope, "external-subscriptions"]),
         queryClient.invalidateQueries(["commerce", "plans"]),
       ]);
       toast({
@@ -338,14 +350,14 @@ export const ExternalSubscriptionsWorkspace = ({
   const refreshSource = async (source: ExternalSubscriptionSource) => {
     setActionId(source.id);
     try {
-      const refreshed = await fetch<ExternalSubscriptionSource>(
-        `/commerce/admin/external-subscriptions/${source.id}/refresh`,
+      const refreshed = await request<ExternalSubscriptionSource>(
+        `${apiBase}/${source.id}/refresh`,
         { method: "POST" }
       );
       await Promise.all([
-        queryClient.invalidateQueries(["commerce", "external-subscriptions"]),
+        queryClient.invalidateQueries([queryScope, "external-subscriptions"]),
         queryClient.invalidateQueries([
-          "commerce",
+          queryScope,
           "external-subscription-nodes",
           source.id,
         ]),
@@ -360,8 +372,8 @@ export const ExternalSubscriptionsWorkspace = ({
         status: reportedError ? "error" : "success",
         position: "top",
       });
-    } catch {
-      showActionError();
+    } catch (error) {
+      showActionError(error);
     } finally {
       setActionId(null);
     }
@@ -371,12 +383,12 @@ export const ExternalSubscriptionsWorkspace = ({
     if (!selectedSource || !credential.trim()) return;
     setSaving(true);
     try {
-      await fetch(
-        `/commerce/admin/external-subscriptions/${selectedSource.id}/credential`,
+      await request(
+        `${apiBase}/${selectedSource.id}/credential`,
         { method: "POST", body: { url: credential.trim() } }
       );
       await queryClient.invalidateQueries([
-        "commerce",
+        queryScope,
         "external-subscriptions",
       ]);
       toast({
@@ -385,8 +397,8 @@ export const ExternalSubscriptionsWorkspace = ({
         position: "top",
       });
       closeCredential();
-    } catch {
-      showActionError();
+    } catch (error) {
+      showActionError(error);
     } finally {
       setSaving(false);
     }
@@ -403,12 +415,12 @@ export const ExternalSubscriptionsWorkspace = ({
     if (!selectedSource) return;
     setSaving(true);
     try {
-      await fetch(
-        `/commerce/admin/external-subscriptions/${selectedSource.id}/credential`,
+      await request(
+        `${apiBase}/${selectedSource.id}/credential`,
         { method: "DELETE" }
       );
       await queryClient.invalidateQueries([
-        "commerce",
+        queryScope,
         "external-subscriptions",
       ]);
       toast({
@@ -418,8 +430,8 @@ export const ExternalSubscriptionsWorkspace = ({
       });
       clearCredentialDialog.onClose();
       setSelectedSource(null);
-    } catch {
-      showActionError();
+    } catch (error) {
+      showActionError(error);
     } finally {
       setSaving(false);
     }
@@ -434,14 +446,14 @@ export const ExternalSubscriptionsWorkspace = ({
     body.append("file", file);
     setActionId(source.id);
     try {
-      await fetch(
-        `/commerce/admin/external-subscriptions/${source.id}/snapshot`,
+      await request(
+        `${apiBase}/${source.id}/snapshot`,
         { method: "POST", body }
       );
       await Promise.all([
-        queryClient.invalidateQueries(["commerce", "external-subscriptions"]),
+        queryClient.invalidateQueries([queryScope, "external-subscriptions"]),
         queryClient.invalidateQueries([
-          "commerce",
+          queryScope,
           "external-subscription-nodes",
           source.id,
         ]),
@@ -451,8 +463,8 @@ export const ExternalSubscriptionsWorkspace = ({
         status: "success",
         position: "top",
       });
-    } catch {
-      showActionError();
+    } catch (error) {
+      showActionError(error);
     } finally {
       setActionId(null);
     }
@@ -493,14 +505,17 @@ export const ExternalSubscriptionsWorkspace = ({
   }
 
   const sources = sourcesQuery.data || [];
+  const ownedSources = sources.filter((source) =>
+    isPrivate || ownerFilter === "all" || (ownerFilter === "private" ? source.owner_account_id != null : source.owner_account_id == null)
+  );
   const normalizedSourceSearch = sourceState.search.trim().toLocaleLowerCase();
   const filteredSources = normalizedSourceSearch
-    ? sources.filter((source) =>
-        [source.name, source.group_name, source.status].some((value) =>
+    ? ownedSources.filter((source) =>
+        [source.name, source.group_name, source.status, source.owner_username || "", String(source.owner_account_id || "")].some((value) =>
           value.toLocaleLowerCase().includes(normalizedSourceSearch)
         )
       )
-    : sources;
+    : ownedSources;
   const sourcePageCount = Math.max(
     1,
     Math.ceil(filteredSources.length / sourceState.pageSize)
@@ -522,18 +537,26 @@ export const ExternalSubscriptionsWorkspace = ({
       >
         <AlertIcon mt="0.5" />
         <AlertDescription fontSize="sm">
-          {t("commerce.externalSecurityBoundary")}
+          {t(isPrivate ? "commerce.privateExternalBoundary" : "commerce.externalSecurityBoundary")}
         </AlertDescription>
       </Alert>
       <DataWorkspace
-        title={t("commerce.externalSubscriptions")}
-        description={t("commerce.externalWorkspaceHelp")}
+        title={t(isPrivate ? "commerce.privateExternalTitle" : "commerce.externalSubscriptions")}
+        description={t(isPrivate ? "commerce.privateExternalHelp" : "commerce.externalAdminHelp")}
         total={filteredSources.length}
         toolbar={
           <HStack
             justify={{ base: "stretch", sm: "flex-end" }}
             flexWrap="wrap"
           >
+            {!isPrivate && (
+              <Select aria-label={t("commerce.externalScopeFilter")} size="sm" w={{ base: "full", md: "180px" }}
+                value={ownerFilter} onChange={(event) => { setOwnerFilter(event.target.value); setSourceState((value) => ({ ...value, page: 1 })); }}>
+                <option value="all">{t("commerce.externalScopeAll")}</option>
+                <option value="shared">{t("commerce.externalShared")}</option>
+                <option value="private">{t("commerce.externalPrivate")}</option>
+              </Select>
+            )}
             <WorkspaceSearch
               state={sourceState}
               setState={setSourceState}
@@ -594,6 +617,13 @@ export const ExternalSubscriptionsWorkspace = ({
                       <Text mt="1" fontSize="sm" color="fg.muted" noOfLines={1}>
                         {source.group_name}
                       </Text>
+                      {!isPrivate && (
+                        <Text mt="1" fontSize="sm" color="fg.muted">
+                          {source.owner_account_id != null
+                            ? t("commerce.externalOwner", { username: source.owner_username, id: source.owner_account_id })
+                            : t("commerce.externalShared")}
+                        </Text>
+                      )}
                     </Box>
                     <Text fontWeight="750" whiteSpace="nowrap">
                       {t("commerce.externalNodeCount", {
@@ -759,6 +789,7 @@ export const ExternalSubscriptionsWorkspace = ({
                 <Input
                   type="number"
                   min="15"
+                  max="10080"
                   step="1"
                   value={draft.refreshIntervalMinutes}
                   onChange={(event) =>
@@ -770,7 +801,7 @@ export const ExternalSubscriptionsWorkspace = ({
                 />
               </FormControl>
               <FormControl display="flex" alignItems="center" justifyContent="space-between">
-                <FormLabel mb="0">{t("commerce.externalEnabled")}</FormLabel>
+                <FormLabel mb="0">{t(isPrivate ? "commerce.privateExternalEnabled" : "commerce.externalEnabled")}</FormLabel>
                 <Switch
                   colorScheme="primary"
                   isChecked={draft.enabled}
@@ -844,7 +875,7 @@ export const ExternalSubscriptionsWorkspace = ({
                 alignItems="center"
                 justifyContent="space-between"
               >
-                <FormLabel mb="0">{t("commerce.externalEnabled")}</FormLabel>
+                <FormLabel mb="0">{t(isPrivate || selectedSource?.owner_account_id != null ? "commerce.privateExternalEnabled" : "commerce.externalEnabled")}</FormLabel>
                 <Switch
                   colorScheme="primary"
                   isChecked={metadataDraft.enabled}
