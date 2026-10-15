@@ -32,6 +32,7 @@ EXTERNAL_AGGREGATE_GROUP_NAME = "MGMA · External"
 EXTERNAL_NODE_NAME_PREFIX = "MGMA-EXT · "
 EXTERNAL_NODE_EXCLUDE_PATTERN = r"^MGMA-EXT · "
 PRIMARY_PROXY_GROUP_NAME = "🚀 节点选择"
+CLAUDE_PROXY_GROUP_NAME = "🤖 AI 服务-Claude"
 
 CLASH_RESERVED_PROXY_NAMES = frozenset({
     "COMPATIBLE",
@@ -339,6 +340,18 @@ def merge_clash_overlay(
 
     if not generated_groups:
         return result
+
+    # Only Claude exposes authorized external nodes directly. Other policy
+    # groups keep the existing external-source isolation and aggregate routing.
+    for group in template_proxy_groups:
+        if (isinstance(group, dict)
+                and group.get("name") == CLAUDE_PROXY_GROUP_NAME
+                and group.get("type") == "select"
+                and isinstance(group.get("proxies"), list)):
+            for source_group in generated_groups:
+                for node_name in source_group["proxies"]:
+                    if node_name not in group["proxies"]:
+                        group["proxies"].append(node_name)
 
     proxy_groups.extend(generated_groups)
     source_group_names = [group["name"] for group in generated_groups]
