@@ -58,3 +58,31 @@ class ClaudePolicyTests(unittest.TestCase):
         self.assertEqual(merge_clash_overlay(document, None, is_meta=True), document)
         group = next(group for group in document['proxy-groups'] if group['name'] == CLAUDE_PROXY_GROUP_NAME)
         self.assertEqual(group['proxies'][0], '🚀 节点选择')
+
+
+    def test_flat_selector_contains_only_authorized_materialized_nodes(self):
+        overlay = {'sources': [{'id': 1, 'group_name': 'Authorized', 'nodes': [
+            _node('External', proxy_type='vmess'), _node('Invalid', port=0),
+        ]}]}
+        builder = ClashConfiguration()
+        builder.data['proxies'] = [_node('US01', proxy_type='vmess'), _node('US02')]
+        builder.inbound_proxy_names = {'US02': ['US02']}
+        for fmt in ('meta', 'shadowrocket'):
+            with self.subTest(fmt=fmt), patch('app.subscription.clash.CLASH_SUBSCRIPTION_TEMPLATE', 'clash/easyus.yml'):
+                result = yaml.safe_load(builder.render(clash_overlay=overlay, is_meta=True))
+                if fmt == 'shadowrocket':
+                    result = prepare_shadowrocket(result)
+                groups = {g['name']: g for g in result['proxy-groups']}
+                self.assertEqual(groups['🚀 节点选择']['proxies'], [p['name'] for p in result['proxies']])
+                self.assertNotIn('DIRECT', groups['🚀 节点选择']['proxies'])
+                self.assertFalse({'🇺🇸 美国出口', '🇺🇸 美国直连', '🇭🇰 香港直连'} & set(groups))
+                self.assertNotIn('x-mgma-flat-primary', result)
+                known = set(groups) | {p['name'] for p in result['proxies']} | {'DIRECT', 'REJECT'}
+                for group in groups.values():
+                    self.assertTrue(set(group['proxies']) <= known)
+        with patch('app.subscription.clash.CLASH_SUBSCRIPTION_TEMPLATE', 'clash/easyus.yml'):
+            selected = yaml.safe_load(builder.render(clash_overlay=overlay, is_meta=True,
+                plan_group_members={'🚀 节点选择': ['inbound:US02']}))
+            self.assertEqual(next(g for g in selected['proxy-groups'] if g['name'] == '🚀 节点选择')['proxies'], ['US02'])
+            empty = yaml.safe_load(ClashConfiguration().render())
+            self.assertEqual(next(g for g in empty['proxy-groups'] if g['name'] == '🚀 节点选择')['proxies'], ['REJECT'])

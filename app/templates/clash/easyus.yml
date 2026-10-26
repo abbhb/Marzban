@@ -1,4 +1,4 @@
-# Marzban Clash/Mihomo template for US01 direct plus premium HK02.
+# Marzban Clash/Mihomo template with a flat primary node selector.
 # Proxies are injected dynamically; this file contains no UUID or subscription token.
 # SECURITY: allow-lan=true and bind-address='*' expose proxy listeners to the LAN.
 # Change them to false and 127.0.0.1 when LAN sharing is not required.
@@ -29,101 +29,61 @@ geo-update-interval: 24
 
 
 {{ {"proxies": conf.get("proxies", [])} | yaml }}
+x-mgma-flat-primary: true
 proxy-groups:
-- name: "🇭🇰 香港直连"
-  type: select
-  proxies:
-  - "🇺🇸 美国出口"
-  include-all-proxies: true
-  filter: "香港直连"
-  exclude-type: "Direct"
-- name: "🇺🇸 美国出口"
-  type: select
-  proxies:
-  - "🇺🇸 美国直连"
-  include-all-proxies: true
-  filter: "香港转美国"
-  exclude-type: "Direct"
-- name: "🇺🇸 美国直连"
-  type: select
-  include-all-proxies: true
-  filter: "美国直连"
-  exclude-type: "Direct"
 - name: "🚀 节点选择"
   type: select
-  proxies:
-  - "🇺🇸 美国出口"
-  - "🇭🇰 香港直连"
-  - DIRECT
+  proxies: []
+  include-all-proxies: true
 - name: "🤖 AI 服务"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇺🇸 美国出口"
-  - "🇭🇰 香港直连"
   - DIRECT
 - name: "🤖 AI 服务-Claude"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇺🇸 美国出口"
-  - "🇭🇰 香港直连"
   - DIRECT
 - name: "🔎 Google 服务"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇺🇸 美国出口"
-  - "🇭🇰 香港直连"
   - DIRECT
 - name: "🌍 国外媒体"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇺🇸 美国出口"
-  - "🇭🇰 香港直连"
   - DIRECT
 - name: "📲 电报信息"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇭🇰 香港直连"
-  - "🇺🇸 美国出口"
   - DIRECT
 - name: "Ⓜ️ 微软服务"
   type: select
   proxies:
   - DIRECT
-  - "🇭🇰 香港直连"
-  - "🇺🇸 美国出口"
   - "🚀 节点选择"
 - name: "🍎 苹果服务"
   type: select
   proxies:
   - "🚀 节点选择"
   - DIRECT
-  - "🇭🇰 香港直连"
-  - "🇺🇸 美国出口"
 - name: "📢 谷歌FCM"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇭🇰 香港直连"
   - DIRECT
-  - "🇺🇸 美国出口"
 - name: "🎯 全球直连"
   type: select
   proxies:
   - DIRECT
-  - "🇭🇰 香港直连"
-  - "🇺🇸 美国出口"
   - "🚀 节点选择"
 - name: "🐟 漏网之鱼"
   type: select
   proxies:
   - "🚀 节点选择"
-  - "🇭🇰 香港直连"
-  - "🇺🇸 美国出口"
   - DIRECT
 - name: PROXY
   type: select
