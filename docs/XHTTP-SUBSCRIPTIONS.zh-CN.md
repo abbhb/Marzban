@@ -40,3 +40,34 @@ XHTTP 的 HTTP 连接复用使用 `xmux`，导出不会叠加 `smux` 或 Vision 
 CDN 仍可能关闭空闲下行流，HTTP 连接保活不能替代应用数据或应用层保活。
 
 此改动针对 Mihomo YAML 导出；其他订阅格式的 XHTTP 导出行为保持现状。
+
+## 同一后端的多个备用入口
+
+一个 XHTTP 入站可以增加 `x-marzban-xhttp-profiles` 数组，导出最多八个有独立名称的
+Mihomo 节点。用户必须拥有该入站权限，每个候选使用当前用户的凭据。配置不会创建
+新监听端口或自动切换策略；入口需要事先转发到同一 XHTTP 后端及相同路径。
+候选数组存在时替换该主机原来的单个导出节点，名称为“主机名称 · label”。
+
+```json
+{
+  "x-marzban-xhttp-profiles": [
+    {
+      "label": "P2 备用 XHTTP REALITY 直连",
+      "address": "origin.example.test",
+      "port": 443,
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "reality",
+        "realitySettings": {"serverName": "front.example.test", "publicKey": "PUBLIC_KEY", "shortId": "abcd", "fingerprint": "chrome"},
+        "xhttpSettings": {"path": "/images/example/", "mode": "packet-up", "xmux": {"maxConcurrency": "16-32"}}
+      }
+    },
+    {"label": "实验 上行 TLS 直连 下行 CDN"}
+  ]
+}
+```
+
+省略候选的 `streamSettings` 时保留主机原来的传输配置；指定时完整替换客户端传输，
+不会继承原来的下行入口。下行仍通过 `xhttpSettings.downloadSettings` 独立配置。
+只导出公开连接参数，忽略服务端私钥和证书文件。REALITY 节点及独立 REALITY 下行
+显式启用 Mihomo 的 `support-x25519mlkem768`，避免新版本服务端拒绝旧式握手。
