@@ -450,6 +450,14 @@ class ClashConfiguration(object):
                 clash_overlay,
                 is_meta=is_meta,
             )
+        if document.pop("x-mgma-flat-primary", False):
+            # Flatten only nodes already authorized and materialized for this user.
+            names = [proxy["name"] for proxy in document.get("proxies", [])]
+            for group in document.get("proxy-groups", []):
+                if group.get("name") == PRIMARY_PROXY_GROUP_NAME:
+                    for key in ("include-all-proxies", "filter", "exclude-filter", "exclude-type", "use"):
+                        group.pop(key, None)
+                    group["proxies"] = names or ["REJECT"]
         if plan_group_members:
             from app.services.plan_groups import apply_members
             document = apply_members(document, plan_group_members, self.inbound_proxy_names)
