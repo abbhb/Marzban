@@ -130,6 +130,12 @@ def _get_account_or_404(db: Session, account_id: int) -> PortalAccount:
     return account
 
 
+@router.get("/api/commerce/admin/group-catalog")
+def admin_group_catalog(admin: Admin = Depends(Admin.check_sudo_admin)):
+    from app.services.plan_groups import group_catalog
+    return {"groups": group_catalog(), "external_group": "MGMA · External"}
+
+
 def _get_plan_or_404(db: Session, plan_id: int) -> SubscriptionPlan:
     plan = commerce.get_plan(db, plan_id)
     if not plan:

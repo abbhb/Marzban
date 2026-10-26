@@ -28,7 +28,7 @@ class ClaudePolicyTests(unittest.TestCase):
         names = [group['name'] for group in document['proxy-groups']]
         self.assertEqual(names[names.index('🤖 AI 服务') + 1], CLAUDE_PROXY_GROUP_NAME)
 
-    def test_only_claude_has_direct_external_members_for_both_clients(self):
+    def test_claude_uses_the_same_external_isolation_as_other_groups(self):
         for is_meta in (False, True):
             with self.subTest(is_meta=is_meta):
                 document = self.document()
@@ -43,7 +43,7 @@ class ClaudePolicyTests(unittest.TestCase):
                 self.assertEqual(len(external), 2 if is_meta else 1)
                 self.assertTrue(all(name.startswith(EXTERNAL_NODE_NAME_PREFIX) for name in external))
                 groups = {group['name']: group for group in result['proxy-groups']}
-                self.assertEqual(groups[CLAUDE_PROXY_GROUP_NAME]['proxies'][-len(external):], external)
+                self.assertFalse(set(external) & set(groups[CLAUDE_PROXY_GROUP_NAME]['proxies']))
                 for group in before['proxy-groups']:
                     if group['name'] != CLAUDE_PROXY_GROUP_NAME:
                         self.assertFalse(set(external) & set(groups[group['name']].get('proxies', [])))
@@ -51,7 +51,7 @@ class ClaudePolicyTests(unittest.TestCase):
                 self.assertEqual(result['rules'], before['rules'])
                 converted = prepare_shadowrocket(result)
                 claude = next(group for group in converted['proxy-groups'] if group['name'] == CLAUDE_PROXY_GROUP_NAME)
-                self.assertTrue(set(external) <= set(claude['proxies']))
+                self.assertFalse(set(external) & set(claude['proxies']))
 
     def test_no_overlay_keeps_fallback_choices(self):
         document = self.document()

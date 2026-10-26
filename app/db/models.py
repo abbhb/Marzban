@@ -557,6 +557,7 @@ class SubscriptionPlan(Base):
     duration_days = Column(Integer, nullable=False)
     data_limit = Column(BigInteger, nullable=False, default=0, server_default="0")
     inbound_tags = Column(JSON, nullable=False, default=list)
+    group_members = Column(JSON, nullable=True, default=dict)
     is_visible = Column(Boolean, nullable=False, default=True, server_default="1")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(

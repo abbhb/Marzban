@@ -30,6 +30,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { DataWorkspace } from "components/DataWorkspace";
+import { PlanGroupEditor, PlanGroupMembers } from "./PlanGroupEditor";
 import { ExternalPlanSelection } from "./ExternalPlanSelection";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,6 +50,7 @@ type Draft = {
   inboundTags: string[];
   externalSelections: PlanExternalSelection[];
   isVisible: boolean;
+  groupMembers: PlanGroupMembers;
 };
 
 const emptyDraft: Draft = {
@@ -60,6 +62,7 @@ const emptyDraft: Draft = {
   inboundTags: [],
   externalSelections: [],
   isVisible: true,
+  groupMembers: {},
 };
 
 export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
@@ -120,6 +123,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       inboundTags: plan.inbound_tags,
       externalSelections: plan.external_selections || [],
       isVisible: plan.is_visible,
+      groupMembers: plan.group_members || {},
     });
     modal.onOpen();
   };
@@ -162,6 +166,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
             duration_days: durationDays,
             data_limit: dataLimit,
             inbound_tags: draft.inboundTags,
+            group_members: Object.fromEntries(Object.entries(draft.groupMembers).map(([group, members]) => [group, members.filter(ref => ref === "external" || draft.inboundTags.includes(ref.slice(8)))])),
             external_selections: draft.externalSelections,
             is_visible: draft.isVisible,
           },
@@ -401,6 +406,9 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
                   />
                 </Box>
               </FormControl>
+              <Box gridColumn={{ md: "1 / -1" }}>
+                <PlanGroupEditor inboundTags={draft.inboundTags} value={draft.groupMembers} onChange={groupMembers => setDraft({ ...draft, groupMembers })} />
+              </Box>
               <Checkbox
                 isChecked={draft.isVisible}
                 onChange={(event) =>

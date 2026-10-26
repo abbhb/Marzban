@@ -341,18 +341,6 @@ def merge_clash_overlay(
     if not generated_groups:
         return result
 
-    # Only Claude exposes authorized external nodes directly. Other policy
-    # groups keep the existing external-source isolation and aggregate routing.
-    for group in template_proxy_groups:
-        if (isinstance(group, dict)
-                and group.get("name") == CLAUDE_PROXY_GROUP_NAME
-                and group.get("type") == "select"
-                and isinstance(group.get("proxies"), list)):
-            for source_group in generated_groups:
-                for node_name in source_group["proxies"]:
-                    if node_name not in group["proxies"]:
-                        group["proxies"].append(node_name)
-
     proxy_groups.extend(generated_groups)
     source_group_names = [group["name"] for group in generated_groups]
 
@@ -426,6 +414,7 @@ class ClashConfiguration(object):
             'rules': []
         }
         self.proxy_remarks = []
+        self.inbound_proxy_names = {}
         self.mux_template = render_template(MUX_TEMPLATE)
         user_agent_data = json.loads(render_template(USER_AGENT_TEMPLATE))
 
@@ -441,7 +430,7 @@ class ClashConfiguration(object):
 
         del user_agent_data
 
-    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None, subscription_group_order: list[str] | None = None):
+    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None, subscription_group_order: list[str] | None = None, plan_group_members: dict | None = None):
         if reverse:
             self.data['proxies'].reverse()
 
@@ -461,6 +450,9 @@ class ClashConfiguration(object):
                 clash_overlay,
                 is_meta=is_meta,
             )
+        if plan_group_members:
+            from app.services.plan_groups import apply_members
+            document = apply_members(document, plan_group_members, self.inbound_proxy_names)
         if subscription_rules is not None:
             document["rules"] = list(subscription_rules)
             document["mode"] = "rule"
@@ -794,6 +786,8 @@ class ClashMetaConfiguration(ClashConfiguration):
 
             if inbound['network'] in ('tcp', 'raw', 'kcp') and inbound['header_type'] != 'http' and inbound['tls'] != 'none':
                 node['flow'] = settings.get('flow', '')
+                if node['flow'] == 'xtls-rprx-vision':
+                    node['packet-encoding'] = 'xudp'
 
         elif inbound['protocol'] == 'trojan':
             node['password'] = settings['password']

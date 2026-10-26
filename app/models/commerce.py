@@ -119,6 +119,7 @@ class ExternalSelectionResponse(ExternalSelectionInput):
 
 
 class SubscriptionPlanBase(BaseModel):
+    group_members: dict[str, list[str]] = Field(default_factory=dict)
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=1000)
     price_minor: int = Field(ge=0, le=10**12)
@@ -161,6 +162,7 @@ class SubscriptionPlanCreate(SubscriptionPlanBase):
 
 
 class SubscriptionPlanUpdate(BaseModel):
+    group_members: Optional[dict[str, list[str]]] = None
     name: Optional[str] = Field(default=None, min_length=1, max_length=128)
     description: Optional[str] = Field(default=None, max_length=1000)
     price_minor: Optional[int] = Field(default=None, ge=0, le=10**12)
@@ -200,6 +202,11 @@ class SubscriptionPlanUpdate(BaseModel):
 
 
 class SubscriptionPlanResponse(SubscriptionPlanBase):
+    @field_validator("group_members", mode="before")
+    @classmethod
+    def default_group_members(cls, value):
+        return value or {}
+
     id: int
     created_at: datetime
     updated_at: datetime

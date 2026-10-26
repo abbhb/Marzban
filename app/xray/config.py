@@ -13,6 +13,7 @@ from app.db import GetDB
 from app.db import models as db_models
 from app.models.proxy import ProxyTypes
 from app.models.user import UserStatus
+from app.xray.flow import FLOW_KEY, settings_for_inbound
 from app.utils.crypto import get_cert_SANs
 from config import DEBUG, XRAY_EXCLUDE_INBOUND_TAGS, XRAY_FALLBACKS_INBOUND_TAG
 
@@ -156,6 +157,7 @@ class XRayConfig(dict):
             settings = {
                 "tag": inbound["tag"],
                 "protocol": inbound["protocol"],
+                "flow_override": inbound.get(FLOW_KEY),
                 "port": None,
                 "network": "tcp",
                 "tls": 'none',
@@ -410,7 +412,7 @@ class XRayConfig(dict):
 
                         client = {
                             "email": f"{user_id}.{username}",
-                            **settings
+                            **settings_for_inbound(settings, inbound)
                         }
 
                         # XTLS currently only supports transmission methods of TCP and mKCP

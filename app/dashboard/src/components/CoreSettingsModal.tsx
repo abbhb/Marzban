@@ -1,3 +1,5 @@
+import { InboundFlows } from "./InboundFlows";
+import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
 import {
   Badge,
   Box,
@@ -400,7 +402,10 @@ export const CoreSettingsModal: FC = () => {
           </HStack>
         </ModalHeader>
         <ModalCloseButton />
-        <CoreSettingModalContent />
+        <Tabs isLazy lazyBehavior="unmount">
+          <TabList px={5}><Tab>{t("flows.title")}</Tab><Tab>{t("flows.advanced")}</Tab></TabList>
+          <TabPanels><TabPanel p={0}><InboundFlows /></TabPanel><TabPanel p={0}><CoreSettingModalContent /></TabPanel></TabPanels>
+        </Tabs>
       </ModalContent>
     </Modal>
   );
