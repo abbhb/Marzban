@@ -13,7 +13,7 @@ import yaml
 from jinja2.exceptions import TemplateNotFound
 
 from app.subscription.funcs import get_grpc_gun
-from app.subscription.xhttp import mihomo_xhttp_options
+from app.subscription.xhttp import mihomo_xhttp_options, mihomo_xhttp_profiles
 from app.subscription.external_policy import (
     EXTERNAL_PROXY_TYPE_RE,
     LEGACY_EXTERNAL_PROXY_TYPES,
@@ -753,7 +753,10 @@ class ClashMetaConfiguration(ClashConfiguration):
         if fp:
             node['client-fingerprint'] = fp
         if pbk:
-            node['reality-opts'] = {"public-key": pbk, "short-id": sid}
+            node['reality-opts'] = {
+                "public-key": pbk, "short-id": sid,
+                "support-x25519mlkem768": True,
+            }
 
         return node
 
@@ -819,5 +822,9 @@ class ClashMetaConfiguration(ClashConfiguration):
         else:
             return
 
-        self.data['proxies'].append(node)
-        self.proxy_remarks.append(proxy_remark)
+        nodes = mihomo_xhttp_profiles(node, inbound.get('xhttpProfiles')) if inbound['network'] in ('xhttp', 'splithttp') else [node]
+        for item in nodes:
+            if item['name'] != proxy_remark:
+                item['name'] = self._remark_validation(item['name'])
+            self.data['proxies'].append(item)
+            self.proxy_remarks.append(item['name'])

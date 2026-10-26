@@ -42,6 +42,30 @@ def _reuse(settings):
     }
 
 
+def _connection_options(settings):
+    options = {}
+    for source, target in (("address", "server"), ("port", "port")):
+        if source in settings:
+            options[target] = settings[source]
+    security = settings.get("security", "none")
+    if security not in ("none", "tls", "reality"):
+        raise ValueError("Unsupported XHTTP connection security")
+    options["tls"] = security != "none"
+    options["reality-opts"] = {"public-key": ""}
+    tls = settings.get(f"{security}Settings") or {}
+    options["servername"] = tls.get("serverName") or settings.get("address", "")
+    options["skip-cert-verify"] = bool(tls.get("allowInsecure", False))
+    options["client-fingerprint"] = tls.get("fingerprint", "chrome")
+    options["alpn"] = tls.get("alpn", ["h2"] if security != "none" else ["http/1.1"])
+    if security == "reality":
+        options["reality-opts"] = {
+            "public-key": tls.get("password") or tls.get("publicKey", ""),
+            "short-id": tls.get("shortId", ""),
+            "support-x25519mlkem768": True,
+        }
+    return deepcopy(options)
+
+
 def mihomo_xhttp_options(settings):
     settings = _effective(settings)
     options = {
@@ -64,27 +88,52 @@ def mihomo_xhttp_options(settings):
         down = {key: deepcopy(transport[key]) for key in ("path", "host", "headers") if key in transport}
         if transport.get("xmux"):
             down["reuse-settings"] = _reuse(transport["xmux"])
-        for source, target in (("address", "server"), ("port", "port")):
-            if source in download:
-                down[target] = download[source]
-        security = download.get("security", "none")
-        if security not in ("none", "tls", "reality"):
-            raise ValueError("Unsupported XHTTP downloadSettings security")
-        down["tls"] = security != "none"
         # The download leg must not inherit an uplink REALITY configuration.
-        down["reality-opts"] = {"public-key": ""}
-        tls = download.get(f"{security}Settings") or {}
-        down["servername"] = tls.get("serverName") or download.get("address", "")
-        down["skip-cert-verify"] = bool(tls.get("allowInsecure", False))
-        for source, target in (("fingerprint", "client-fingerprint"), ("alpn", "alpn")):
-            if source in tls:
-                down[target] = deepcopy(tls[source])
-        if security == "none":
-            down["alpn"] = ["http/1.1"]
-        if security == "reality":
-            down["reality-opts"] = {
-                "public-key": tls.get("password") or tls.get("publicKey", ""),
-                "short-id": tls.get("shortId", ""),
-            }
+        down.update(_connection_options(download))
+        # Mihomo otherwise inherits the uplink Host, which breaks a CDN leg
+        # paired with a different REALITY SNI/authority.
+        down["host"] = transport.get("host") or down["servername"] or down.get("server", "")
         options["download-settings"] = down
     return options
+
+
+def mihomo_xhttp_profiles(base, profiles):
+    """Export named client routes to one authorized XHTTP backend.
+
+    Only transport fields are accepted. Credentials always come from the user
+    and server-side key/certificate material never reaches the subscription.
+    """
+    if profiles is None or profiles == []:
+        return [base]
+    if not isinstance(profiles, list) or len(profiles) > 8:
+        raise ValueError("XHTTP profiles must be a list of at most eight items")
+    nodes = []
+    labels = set()
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            raise ValueError("Invalid XHTTP profile")
+        label = profile.get("label")
+        if not isinstance(label, str) or not label.strip() or label in labels:
+            raise ValueError("XHTTP profiles require distinct nonempty labels")
+        labels.add(label)
+        node = deepcopy(base)
+        node["name"] = f"{base['name']} · {label}"
+        if (stream := profile.get("streamSettings")) is not None:
+            if not isinstance(stream, dict):
+                raise ValueError("Invalid XHTTP profile stream settings")
+            if stream.get("network") not in ("xhttp", "splithttp"):
+                raise ValueError("XHTTP profiles must use the xhttp transport")
+            connection = dict(stream)
+            connection["address"] = profile.get("address", base["server"])
+            connection["port"] = profile.get("port", base["port"])
+            if not isinstance(connection["address"], str) or not connection["address"]:
+                raise ValueError("XHTTP profiles require an address")
+            if type(connection["port"]) is not int or not 1 <= connection["port"] <= 65535:
+                raise ValueError("Invalid XHTTP profile port")
+            node.update(_connection_options(connection))
+            transport = stream.get("xhttpSettings") or stream.get("splithttpSettings") or {}
+            if transport.get("path") != base["xhttp-opts"].get("path"):
+                raise ValueError("XHTTP profiles must reach the same backend path")
+            node["xhttp-opts"] = mihomo_xhttp_options(transport)
+        nodes.append(node)
+    return nodes

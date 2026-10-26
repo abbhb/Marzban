@@ -3,10 +3,13 @@
 import copy
 import json
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from app.subscription.clash import ClashConfiguration, ClashMetaConfiguration
-from app.subscription.xhttp import mihomo_xhttp_options
+from app.subscription.xhttp import mihomo_xhttp_options, mihomo_xhttp_profiles
 from app.xray.config import XRayConfig
+from app.models.proxy import ProxyTypes
 
 
 def xhttp_settings():
@@ -131,8 +134,93 @@ class XhttpSubscriptionTests(unittest.TestCase):
             "address": "cdn.example.test", "security": "tls", "tlsSettings": {},
         }})["download-settings"]
         self.assertEqual(result["servername"], "cdn.example.test")
+        self.assertEqual(result["host"], "cdn.example.test")
         self.assertFalse(result["skip-cert-verify"])
         self.assertEqual(result["reality-opts"], {"public-key": ""})
+
+    def test_named_profiles_preserve_each_users_credentials_and_group_names(self):
+        source = inbound()
+        source["xhttpProfiles"] = [
+            {"label": "P2 direct", "address": "origin.example.test", "port": 443,
+             "streamSettings": {
+                 "network": "xhttp", "security": "reality",
+                 "realitySettings": {"publicKey": "synthetic-public", "shortId": "abcd",
+                                     "serverName": "front.example.test", "privateKey": "server-secret"},
+                 "xhttpSettings": {"path": "/images/synthetic/", "mode": "packet-up"}}},
+            {"label": "P3 CDN", "address": "cdn.example.test", "port": 443,
+             "streamSettings": {
+                 "network": "xhttp", "security": "tls",
+                 "tlsSettings": {"serverName": "cdn.example.test", "alpn": ["h2"]},
+                 "xhttpSettings": {"path": "/images/synthetic/", "mode": "packet-up"}}},
+        ]
+        before = copy.deepcopy(source)
+        for user in ("synthetic-one", "synthetic-two"):
+            conf = ClashMetaConfiguration()
+            conf.add("US02", "origin.example.test", source, {"id": user})
+            first, second = conf.data["proxies"]
+            self.assertEqual([n["uuid"] for n in conf.data["proxies"]], [user, user])
+            self.assertEqual(conf.proxy_remarks, ["US02 · P2 direct", "US02 · P3 CDN"])
+            self.assertTrue(first["reality-opts"]["support-x25519mlkem768"])
+            self.assertEqual(second["reality-opts"], {"public-key": ""})
+            self.assertNotIn("download-settings", first["xhttp-opts"])
+            self.assertNotIn("server-secret", json.dumps(conf.data))
+            second["alpn"].append("http/1.1")
+        self.assertEqual(source, before)
+
+    def test_downlink_reality_enables_mlkem_and_does_not_export_server_keys(self):
+        opts = mihomo_xhttp_options({"downloadSettings": {
+            "network": "xhttp", "security": "reality", "address": "origin.example.test", "port": 443,
+            "realitySettings": {"publicKey": "synthetic-public", "shortId": "abcd", "privateKey": "server-secret"},
+        }})["download-settings"]
+        self.assertTrue(opts["reality-opts"]["support-x25519mlkem768"])
+        self.assertNotIn("server-secret", json.dumps(opts))
+
+    def test_reality_vision_export_enables_mlkem(self):
+        source = inbound()
+        source.update(network="tcp", tls="reality", pbk="synthetic-public", sid="abcd")
+        conf = ClashMetaConfiguration()
+        conf.add("Vision", "origin.example.test", source, {"id": "synthetic-id", "flow": "xtls-rprx-vision"})
+        self.assertTrue(conf.data["proxies"][0]["reality-opts"]["support-x25519mlkem768"])
+
+    def test_profile_validation_rejects_other_backend_paths_and_duplicate_names(self):
+        conf = ClashMetaConfiguration()
+        conf.add("XHTTP", "origin.example.test", inbound(), {"id": "synthetic-id"})
+        base = conf.data["proxies"][0]
+        invalid = [
+            [{"label": "a"}, {"label": "a"}], {},
+            [{"label": "a", "streamSettings": {"network": "ws"}}],
+            [{"label": "a", "port": 0, "streamSettings": {"network": "xhttp"}}],
+            [{"label": "a", "streamSettings": {"network": "xhttp", "xhttpSettings": {"path": "/other/"}}}],
+        ]
+        for profiles in invalid:
+            with self.subTest(profiles=profiles), self.assertRaises(ValueError):
+                mihomo_xhttp_profiles(base, profiles)
+
+    def test_profiles_are_exported_only_for_granted_inbounds_and_group_mapping(self):
+        from app import xray
+        from app.subscription.share import process_inbounds_and_tags
+        source = inbound()
+        source["xhttpProfiles"] = [{"label": "P2 direct"}, {"label": "P3 CDN"}]
+        hosts = {"XHTTP": [{
+            "sni": ["origin.example.test"], "host": ["origin.example.test"],
+            "address": ["origin.example.test"], "path": None, "port": None,
+            "tls": None, "alpn": None, "fingerprint": None, "allowinsecure": None,
+            "mux_enable": False, "fragment_setting": None, "noise_setting": None,
+            "random_user_agent": False, "remark": "US02 {USERNAME}",
+        }]}
+        credentials = MagicMock()
+        credentials.model_dump.return_value = {"id": "synthetic-user"}
+        for granted in ([], ["XHTTP"]):
+            conf = ClashMetaConfiguration()
+            conf.render = lambda **kwargs: conf.data
+            with patch.object(xray, "config", SimpleNamespace(inbounds_by_tag={"XHTTP": source})), patch.object(xray, "hosts", hosts):
+                result = process_inbounds_and_tags(
+                    {ProxyTypes.VLESS: granted}, {ProxyTypes.VLESS: credentials},
+                    {"USERNAME": "test"}, conf,
+                )
+            expected = ["US02 test · P2 direct", "US02 test · P3 CDN"] if granted else []
+            self.assertEqual([n["name"] for n in result["proxies"]], expected)
+            self.assertEqual(conf.inbound_proxy_names.get("XHTTP", []), expected)
 
 
 if __name__ == "__main__":
