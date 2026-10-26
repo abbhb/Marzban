@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetch, errorMessage } from "service/http";
 
-type Settings = { revision: string; inbounds: { tag: string; flow: string | null; supported: boolean }[] };
+type Settings = { revision: string; inbounds: { tag: string; flow: string; supported: boolean }[] };
 export const InboundFlows = () => {
   const { t } = useTranslation();
   const toast = useToast();
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [changes, setChanges] = useState<Record<string, string | null>>({});
+  const [changes, setChanges] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const load = async () => {
@@ -34,9 +34,8 @@ export const InboundFlows = () => {
     {settings?.inbounds.map(inbound => <HStack key={inbound.tag} justify="space-between" flexWrap="wrap">
       <Text fontWeight="medium">{inbound.tag}</Text>
       <Select aria-label={`${inbound.tag} flow`} width={{ base: "full", md: "260px" }} isDisabled={busy}
-        value={(Object.prototype.hasOwnProperty.call(changes, inbound.tag) ? changes[inbound.tag] : inbound.flow) ?? "inherit"}
-        onChange={e => setChanges({ ...changes, [inbound.tag]: e.target.value === "inherit" ? null : e.target.value })}>
-        <option value="inherit">{t("flows.inherit")}</option>
+        value={Object.prototype.hasOwnProperty.call(changes, inbound.tag) ? changes[inbound.tag] : inbound.flow}
+        onChange={e => setChanges({ ...changes, [inbound.tag]: e.target.value })}>
         <option value="">{t("flows.none")}</option>
         <option value="xtls-rprx-vision" disabled={!inbound.supported}>XTLS Vision</option>
       </Select>

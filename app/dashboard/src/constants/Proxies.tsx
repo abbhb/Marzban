@@ -66,10 +66,7 @@ export const proxyFingerprint: { title: string; value: string }[] = [
   ].map((key) => ({ title: key, value: key })),
 ];
 
-export const XTLSFlows = [
-  { title: "none", value: "" },
-  { title: "xtls-rprx-vision", value: "xtls-rprx-vision" },
-];
+
 
 export const shadowsocksMethods = [
   "aes-128-gcm",

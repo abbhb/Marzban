@@ -51,6 +51,8 @@ Claude 保留独立的规则目标组。从 `v0.8.4-mgma.29` 开始，它和其�
 
 ## 按入站选择 Vision（mgma.29）
 
-「核心设置 → 入站传输」为每个 VLESS 入站提供继承账号、标准 TLS（不启用 Vision）、XTLS Vision 选项。其中标准 TLS 选项明确覆盖账号 flow 为空，Vision 明确覆盖为 `xtls-rprx-vision`；继承账号删除覆盖。其他入站互不影响。覆盖保存在核心 JSON 的 `x-marzban-flow` 字段。
+「核心设置 → 入站传输」仅提供 `None` 和 `XTLS Vision`。未设置的入站按 `None` 处理，不读取账号级 flow；Vision 只对明确开启的入站生效。配置保存在核心 JSON 的 `x-marzban-flow` 字段。
 
 服务端启动、动态增改用户以及各客户端订阅共用 flow 解析函数。Mihomo/小火箭的 Vision 节点同时导出 `packet-encoding: xudp`。保存会重载核心与已连接节点，客户端需更新订阅。API `GET/PUT /api/core/inbound-flows` 仅超级管理员可用；读取不返回 Reality 私钥，保存携带核心配置摘要防止覆盖已变化的配置。
+
+`v0.8.4-mgma.30` 移除“继承账号设置”。VLESS 账号模型、编辑表单和类型不再包含 flow，提交账号级 flow 会被拒绝。迁移 `b53d2eaf6910` 仅清理 VLESS 账号 JSON 中的旧 flow，保留 UUID 和其他字段；入站的 Vision 配置保持不变。回退迁移不会重建已经退役的账号级选择。

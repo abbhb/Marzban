@@ -14,7 +14,6 @@ export type ProxyType = {
   };
   vless?: {
     id?: string;
-    flow?: string;
   };
   trojan?: {
     password?: string;
