@@ -10,6 +10,7 @@ from app.models.node import NodeStatus
 from app.models.user import UserResponse
 from app.utils.concurrency import threaded_function
 from app.xray.node import XRayNode
+from app.xray.flow import settings_for_inbound
 from xray_api import XRay as XRayAPI
 from xray_api.types.account import Account, XTLSFlows
 
@@ -66,17 +67,17 @@ def add_user(dbuser: "DBUser"):
             inbound = xray.config.inbounds_by_tag.get(inbound_tag, {})
 
             try:
-                proxy_settings = user.proxies[proxy_type].dict(no_obj=True)
+                proxy_settings = settings_for_inbound(user.proxies[proxy_type].dict(no_obj=True), inbound)
             except KeyError:
                 pass
             account = proxy_type.account_model(email=email, **proxy_settings)
 
             # XTLS currently only supports transmission methods of TCP and mKCP
             if getattr(account, 'flow', None) and (
-                inbound.get('network', 'tcp') not in ('tcp', 'kcp')
+                inbound.get('network', 'tcp') not in ('tcp', 'raw', 'kcp')
                 or
                 (
-                    inbound.get('network', 'tcp') in ('tcp', 'kcp')
+                    inbound.get('network', 'tcp') in ('tcp', 'raw', 'kcp')
                     and
                     inbound.get('tls') not in ('tls', 'reality')
                 )
@@ -112,17 +113,17 @@ def update_user(dbuser: "DBUser"):
             inbound = xray.config.inbounds_by_tag.get(inbound_tag, {})
 
             try:
-                proxy_settings = user.proxies[proxy_type].dict(no_obj=True)
+                proxy_settings = settings_for_inbound(user.proxies[proxy_type].dict(no_obj=True), inbound)
             except KeyError:
                 pass
             account = proxy_type.account_model(email=email, **proxy_settings)
 
             # XTLS currently only supports transmission methods of TCP and mKCP
             if getattr(account, 'flow', None) and (
-                inbound.get('network', 'tcp') not in ('tcp', 'kcp')
+                inbound.get('network', 'tcp') not in ('tcp', 'raw', 'kcp')
                 or
                 (
-                    inbound.get('network', 'tcp') in ('tcp', 'kcp')
+                    inbound.get('network', 'tcp') in ('tcp', 'raw', 'kcp')
                     and
                     inbound.get('tls') not in ('tls', 'reality')
                 )

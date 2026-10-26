@@ -1,4 +1,5 @@
 export type SubscriptionPlan = {
+  group_members?: Record<string, string[]>;
   id: number;
   name: string;
   description: string;

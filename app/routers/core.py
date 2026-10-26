@@ -1,6 +1,10 @@
 import asyncio
 import json
 import time
+import hashlib
+from typing import Literal
+
+from pydantic import BaseModel
 
 import commentjson
 from fastapi import APIRouter, Depends, HTTPException, WebSocket
@@ -13,8 +17,55 @@ from app.models.core import CoreStats
 from app.utils import responses
 from app.xray import XRayConfig
 from config import XRAY_JSON
+from app.xray.flow import FLOW_KEY, supports_vision
 
 router = APIRouter(tags=["Core"], prefix="/api", responses={401: responses._401})
+
+
+def _flow_document():
+    with open(XRAY_JSON) as stream:
+        return commentjson.loads(stream.read())
+
+
+def _flow_revision(document):
+    return hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()
+
+
+class InboundFlowsUpdate(BaseModel):
+    revision: str
+    flows: dict[str, Literal["", "xtls-rprx-vision"] | None]
+
+
+@router.get("/core/inbound-flows")
+def get_inbound_flows(admin: Admin = Depends(Admin.check_sudo_admin)):
+    document = _flow_document()
+    return {"revision": _flow_revision(document), "inbounds": [
+        {"tag": tag, "flow": inbound.get("flow_override"), "supported": supports_vision(inbound)}
+        for tag, inbound in xray.config.inbounds_by_tag.items()
+        if inbound["protocol"] == "vless"
+    ]}
+
+
+@router.put("/core/inbound-flows")
+def put_inbound_flows(values: InboundFlowsUpdate, admin: Admin = Depends(Admin.check_sudo_admin)):
+    document = _flow_document()
+    if _flow_revision(document) != values.revision:
+        raise HTTPException(409, "Core configuration changed; reload before saving")
+    if len(values.flows) > 256:
+        raise HTTPException(400, "Too many inbounds")
+    raw = {i["tag"]: i for i in document["inbounds"]}
+    for tag, flow in values.flows.items():
+        inbound = xray.config.inbounds_by_tag.get(tag)
+        if not inbound or inbound["protocol"] != "vless" or tag not in raw:
+            raise HTTPException(400, "Unknown VLESS inbound")
+        if flow and not supports_vision(inbound):
+            raise HTTPException(400, "Vision requires a supported TLS/Reality transport")
+        if flow is None:
+            raw[tag].pop(FLOW_KEY, None)
+        else:
+            raw[tag][FLOW_KEY] = flow
+    modify_core_config(document, admin)
+    return get_inbound_flows(admin)
 
 
 @router.websocket("/core/logs")
