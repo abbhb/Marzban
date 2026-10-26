@@ -302,6 +302,7 @@ class XRayConfig(dict):
                     settings['host'] = [host]
 
                 elif net in ('splithttp', 'xhttp'):
+                    settings['xhttpSettings'] = deepcopy(net_settings)
                     settings['path'] = net_settings.get('path', '')
                     host = net_settings.get('host', '')
                     settings['host'] = [host]
