@@ -13,6 +13,7 @@ import yaml
 from jinja2.exceptions import TemplateNotFound
 
 from app.subscription.funcs import get_grpc_gun
+from app.subscription.xhttp import mihomo_xhttp_options
 from app.subscription.external_policy import (
     EXTERNAL_PROXY_TYPE_RE,
     LEGACY_EXTERNAL_PROXY_TYPES,
@@ -758,7 +759,7 @@ class ClashMetaConfiguration(ClashConfiguration):
 
     def add(self, remark: str, address: str, inbound: dict, settings: dict):
         # not supported by clash-meta
-        if inbound['network'] in ("kcp", "splithttp", "xhttp") or (inbound['network'] == "quic" and inbound["header_type"] != "none"):
+        if inbound['network'] == "kcp" or (inbound['network'] == "quic" and inbound["header_type"] != "none"):
             return
 
         proxy_remark = self._remark_validation(remark)
@@ -784,6 +785,16 @@ class ClashMetaConfiguration(ClashConfiguration):
             mux_enable=inbound.get('mux_enable', False),
             random_user_agent=inbound.get("random_user_agent")
         )
+
+        if inbound['network'] in ("xhttp", "splithttp"):
+            node['network'] = 'xhttp'
+            node.pop('splithttp-opts', None)
+            node['xhttp-opts'] = mihomo_xhttp_options(inbound.get('xhttpSettings', {}))
+            node['xhttp-opts']['path'] = inbound['path']
+            if inbound['host']:
+                node['xhttp-opts']['host'] = inbound['host']
+            # XHTTP has its own HTTP connection reuse, independent of sing-mux.
+            node.pop('smux', None)
 
         if inbound['protocol'] == 'vmess':
             node['uuid'] = settings['id']
