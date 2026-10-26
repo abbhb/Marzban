@@ -362,6 +362,12 @@ class XRayConfig(dict):
 
     def include_db_users(self) -> XRayConfig:
         config = self.copy()
+        for inbound in self.inbounds_by_protocol.get("vless", []):
+            raw = config.get_inbound(inbound["tag"])
+            raw["settings"]["clients"] = [
+                settings_for_inbound(client, inbound)
+                for client in raw["settings"].get("clients", [])
+            ]
 
         with GetDB() as db:
             query = db.query(

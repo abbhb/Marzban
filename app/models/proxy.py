@@ -72,8 +72,8 @@ class VMessSettings(ProxySettings):
 
 
 class VLESSSettings(ProxySettings):
+    model_config = ConfigDict(extra="forbid", use_enum_values=True)
     id: UUID = Field(default_factory=uuid4)
-    flow: XTLSFlows = XTLSFlows.NONE
 
     def revoke(self):
         self.id = uuid4()

@@ -21,6 +21,8 @@ from app.db import crud, get_db
 from app.models.admin import AdminCreate
 from app.utils.jwt import create_admin_token
 from app.models.proxy import ProxyTypes
+from app.models.proxy import VLESSSettings
+from pydantic import ValidationError
 from tests.test_mgma import MgmaDatabaseTestCase
 
 
@@ -86,6 +88,7 @@ class PlanGroupsAndFlowsTests(MgmaDatabaseTestCase):
         base={'protocol':'vless','network':'tcp','tls':'reality','header_type':''}
         self.assertEqual(settings_for_inbound(user,{**base,'flow_override':VISION})['flow'],VISION)
         self.assertEqual(settings_for_inbound(user,base)['flow'],'')
+        self.assertEqual(settings_for_inbound({'flow':VISION},base)['flow'],'')
         self.assertEqual(settings_for_inbound({'flow':VISION},{**base,'flow_override':''})['flow'],'')
         self.assertEqual(settings_for_inbound(user,{**base,'network':'ws','flow_override':VISION})['flow'],'')
         self.assertEqual(user,{'id':'test','flow':''})
@@ -106,29 +109,50 @@ class PlanGroupsAndFlowsTests(MgmaDatabaseTestCase):
 
     def test_startup_dynamic_updates_and_subscription_use_the_same_inbound_flows(self):
         user=self.create_user()
+        user.proxies[0].settings={**user.proxies[0].settings,'flow':VISION}
+        self.db.commit()
         raw={'inbounds':[
             {'tag':tag,'port':port,'protocol':'vless','settings':{'clients':[],'decryption':'none'},
              'streamSettings':{'network':'tcp','security':'tls','tlsSettings':{}},
              **({'x-marzban-flow':VISION} if tag=='US02' else {})}
             for tag,port in [('LEGACY',12345),('US02',12346)]],
              'outbounds':[{'tag':'DIRECT','protocol':'freedom'}]}
+        raw['inbounds'][0]['settings']['clients']=[{'id':'00000000-0000-0000-0000-000000000001','email':'static','flow':VISION}]
         config=XRayConfig(raw)
         @contextmanager
         def database(): yield self.db
         with patch('app.xray.config.GetDB',database):
             populated=config.include_db_users()
         for tag,expected in [('LEGACY',''),('US02',VISION)]:
-            self.assertEqual(populated.get_inbound(tag)['settings']['clients'][0].get('flow',''),expected)
+            self.assertTrue(all(c.get('flow','')==expected for c in populated.get_inbound(tag)['settings']['clients']))
+        self.assertEqual(raw['inbounds'][0]['settings']['clients'][0]['flow'],VISION)
         response=SimpleNamespace(inbounds={ProxyTypes.VLESS:['LEGACY','US02']},proxies={ProxyTypes.VLESS:MagicMock()})
-        response.proxies[ProxyTypes.VLESS].dict.return_value={'id':user.proxies[0].settings['id'],'flow':''}
+        response.proxies[ProxyTypes.VLESS].dict.return_value={'id':user.proxies[0].settings['id'],'flow':VISION}
         with patch.object(xray,'config',config),patch.object(xray,'nodes',{}),patch.object(operations.UserResponse,'model_validate',return_value=response),patch.object(operations,'_alter_inbound_user') as alter:
             operations.update_user(user)
             self.assertEqual([(call.args[1],call.args[2].flow.value) for call in alter.call_args_list], [('LEGACY',''),('US02',VISION)])
         from app.subscription.share import process_inbounds_and_tags
         captured=[]
         fake=SimpleNamespace(add=lambda **kw:captured.append(kw),render=lambda **kw:'ok')
-        response.proxies[ProxyTypes.VLESS].model_dump.return_value={'id':'test','flow':''}
+        response.proxies[ProxyTypes.VLESS].model_dump.return_value={'id':'test','flow':VISION}
         hosts={tag:[{'sni':[],'host':[],'address':['public.example'],'path':None,'port':None,'tls':None,'alpn':None,'fingerprint':None,'allowinsecure':None,'mux_enable':False,'fragment_setting':None,'noise_setting':None,'random_user_agent':False,'remark':tag}] for tag in ('LEGACY','US02')}
         with patch.object(xray,'config',config),patch.object(xray,'hosts',hosts):
             process_inbounds_and_tags(response.inbounds,response.proxies,{},fake)
         self.assertEqual([c['settings']['flow'] for c in captured],['',VISION])
+
+    def test_account_model_and_inbound_api_reject_account_inheritance(self):
+        self.assertNotIn('flow',VLESSSettings().model_dump())
+        with self.assertRaises(ValidationError): VLESSSettings(flow=VISION)
+        with self.assertRaises(ValidationError): core.InboundFlowsUpdate(revision='test',flows={'US':None})
+
+    def test_retired_account_flow_migration_preserves_identity_and_is_idempotent(self):
+        import importlib
+        migration=importlib.import_module('app.db.migrations.versions.b53d2eaf6910_remove_account_vless_flow')
+        user=self.create_user()
+        identity=user.proxies[0].settings['id']
+        user.proxies[0].settings={'id':identity,'flow':VISION}
+        self.db.commit()
+        with patch.object(migration.op,'get_bind',return_value=self.db.connection()):
+            migration.upgrade(); migration.upgrade()
+        self.db.expire_all()
+        self.assertEqual(user.proxies[0].settings,{'id':identity})

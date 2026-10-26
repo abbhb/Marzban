@@ -33,14 +33,14 @@ def _flow_revision(document):
 
 class InboundFlowsUpdate(BaseModel):
     revision: str
-    flows: dict[str, Literal["", "xtls-rprx-vision"] | None]
+    flows: dict[str, Literal["", "xtls-rprx-vision"]]
 
 
 @router.get("/core/inbound-flows")
 def get_inbound_flows(admin: Admin = Depends(Admin.check_sudo_admin)):
     document = _flow_document()
     return {"revision": _flow_revision(document), "inbounds": [
-        {"tag": tag, "flow": inbound.get("flow_override"), "supported": supports_vision(inbound)}
+        {"tag": tag, "flow": inbound.get("flow_override") or "", "supported": supports_vision(inbound)}
         for tag, inbound in xray.config.inbounds_by_tag.items()
         if inbound["protocol"] == "vless"
     ]}
@@ -60,10 +60,7 @@ def put_inbound_flows(values: InboundFlowsUpdate, admin: Admin = Depends(Admin.c
             raise HTTPException(400, "Unknown VLESS inbound")
         if flow and not supports_vision(inbound):
             raise HTTPException(400, "Vision requires a supported TLS/Reality transport")
-        if flow is None:
-            raw[tag].pop(FLOW_KEY, None)
-        else:
-            raw[tag][FLOW_KEY] = flow
+        raw[tag][FLOW_KEY] = flow
     modify_core_config(document, admin)
     return get_inbound_flows(admin)
 

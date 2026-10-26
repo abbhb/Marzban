@@ -20,7 +20,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { EllipsisVerticalIcon } from "@heroicons/react/24/outline";
-import { shadowsocksMethods, XTLSFlows } from "constants/Proxies";
+import { shadowsocksMethods } from "constants/Proxies";
 import {
   InboundType,
   ProtocolType,
@@ -370,23 +370,6 @@ const RadioCard: FC<
                   placeholder={t("userDialog.generatedByDefault")}
                   {...form.register("proxies.vless.id")}
                 />
-              </FormControl>
-              <FormControl height="66px">
-                <Text fontSize="sm" pb={1}>
-                  Flow
-                </Text>
-                <Select
-                  fontSize="xs"
-                  size="sm"
-                  borderRadius="6px"
-                  {...form.register("proxies.vless.flow")}
-                >
-                  {XTLSFlows.map((entry) => (
-                    <option key={entry.title} value={entry.value}>
-                      {entry.title}
-                    </option>
-                  ))}
-                </Select>
               </FormControl>
             </VStack>
           )}
