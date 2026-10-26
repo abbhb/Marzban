@@ -73,7 +73,7 @@ class ClaudePolicyTests(unittest.TestCase):
                 if fmt == 'shadowrocket':
                     result = prepare_shadowrocket(result)
                 groups = {g['name']: g for g in result['proxy-groups']}
-                self.assertEqual(groups['🚀 节点选择']['proxies'], [p['name'] for p in result['proxies']])
+                self.assertEqual(groups['🚀 节点选择']['proxies'], ['US01', 'US02', 'MGMA · External'])
                 self.assertNotIn('DIRECT', groups['🚀 节点选择']['proxies'])
                 self.assertFalse({'🇺🇸 美国出口', '🇺🇸 美国直连', '🇭🇰 香港直连'} & set(groups))
                 self.assertNotIn('x-mgma-flat-primary', result)
