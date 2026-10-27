@@ -2,9 +2,13 @@ import asyncio
 import json
 import time
 import hashlib
+import os
+from pathlib import Path
+import tempfile
+from threading import RLock
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 import commentjson
 from fastapi import APIRouter, Depends, HTTPException, WebSocket
@@ -18,8 +22,11 @@ from app.utils import responses
 from app.xray import XRayConfig
 from config import XRAY_JSON
 from app.xray.flow import FLOW_KEY, supports_vision
+from app.services.xhttp_profiles import PROFILE_KEY, profile_document, validate_profiles
 
 router = APIRouter(tags=["Core"], prefix="/api", responses={401: responses._401})
+# main.py deliberately runs one worker: serialize its core-file writers.
+_core_config_lock = RLock()
 
 
 def _flow_document():
@@ -29,6 +36,68 @@ def _flow_document():
 
 def _flow_revision(document):
     return hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()
+
+
+def _write_core_document(document):
+    """An interrupted write must not truncate the live configuration."""
+    target = Path(XRAY_JSON)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+    try:
+        with os.fdopen(descriptor, "w") as stream:
+            os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
+            json.dump(document, stream, indent=4)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+class XhttpProfilesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: str = Field(min_length=1, max_length=64)
+    inbounds: dict[str, list[dict]] = Field(max_length=256)
+
+
+@router.get("/core/xhttp-profiles")
+def get_xhttp_profiles(admin: Admin = Depends(Admin.check_sudo_admin)):
+    with _core_config_lock:
+        document = _flow_document()
+        try:
+            return profile_document(XRayConfig(document, api_port=xray.config.api_port), xray.hosts, _flow_revision(document))
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+
+
+@router.put("/core/xhttp-profiles")
+def put_xhttp_profiles(values: XhttpProfilesUpdate, admin: Admin = Depends(Admin.check_sudo_admin)):
+    with _core_config_lock:
+        document = _flow_document()
+        if _flow_revision(document) != values.revision:
+            raise HTTPException(409, "Core configuration changed; reload before saving")
+        if len(json.dumps(values.inbounds)) > 262144:
+            raise HTTPException(400, "XHTTP profiles are too large")
+        current = XRayConfig(document, api_port=xray.config.api_port)
+        raw = {item["tag"]: item for item in document["inbounds"]}
+        for tag, profiles in values.inbounds.items():
+            inbound = current.inbounds_by_tag.get(tag)
+            if not inbound or inbound["network"] not in ("xhttp", "splithttp"):
+                raise HTTPException(400, "Unknown XHTTP inbound")
+            try:
+                raw[tag][PROFILE_KEY] = validate_profiles(profiles, inbound.get("path", ""))
+            except ValueError as error:
+                raise HTTPException(400, f"{tag}: {error}") from None
+        candidate = XRayConfig(document, api_port=xray.config.api_port)
+        # Build the response before committing so validation failures cannot
+        # leave a partially saved document. No listener or account data changes.
+        response = profile_document(candidate, xray.hosts, _flow_revision(document))
+        try:
+            _write_core_document(document)
+        except OSError:
+            raise HTTPException(503, "Could not save XHTTP profiles; retry later") from None
+        xray.config = candidate
+        return response
 
 
 class InboundFlowsUpdate(BaseModel):
@@ -48,21 +117,22 @@ def get_inbound_flows(admin: Admin = Depends(Admin.check_sudo_admin)):
 
 @router.put("/core/inbound-flows")
 def put_inbound_flows(values: InboundFlowsUpdate, admin: Admin = Depends(Admin.check_sudo_admin)):
-    document = _flow_document()
-    if _flow_revision(document) != values.revision:
-        raise HTTPException(409, "Core configuration changed; reload before saving")
-    if len(values.flows) > 256:
-        raise HTTPException(400, "Too many inbounds")
-    raw = {i["tag"]: i for i in document["inbounds"]}
-    for tag, flow in values.flows.items():
-        inbound = xray.config.inbounds_by_tag.get(tag)
-        if not inbound or inbound["protocol"] != "vless" or tag not in raw:
-            raise HTTPException(400, "Unknown VLESS inbound")
-        if flow and not supports_vision(inbound):
-            raise HTTPException(400, "Vision requires a supported TLS/Reality transport")
-        raw[tag][FLOW_KEY] = flow
-    modify_core_config(document, admin)
-    return get_inbound_flows(admin)
+    with _core_config_lock:
+        document = _flow_document()
+        if _flow_revision(document) != values.revision:
+            raise HTTPException(409, "Core configuration changed; reload before saving")
+        if len(values.flows) > 256:
+            raise HTTPException(400, "Too many inbounds")
+        raw = {i["tag"]: i for i in document["inbounds"]}
+        for tag, flow in values.flows.items():
+            inbound = xray.config.inbounds_by_tag.get(tag)
+            if not inbound or inbound["protocol"] != "vless" or tag not in raw:
+                raise HTTPException(400, "Unknown VLESS inbound")
+            if flow and not supports_vision(inbound):
+                raise HTTPException(400, "Vision requires a supported TLS/Reality transport")
+            raw[tag][FLOW_KEY] = flow
+        modify_core_config(document, admin)
+        return get_inbound_flows(admin)
 
 
 @router.websocket("/core/logs")
@@ -160,21 +230,19 @@ def modify_core_config(
     payload: dict, admin: Admin = Depends(Admin.check_sudo_admin)
 ) -> dict:
     """Modify the core configuration and restart the core."""
-    try:
-        config = XRayConfig(payload, api_port=xray.config.api_port)
-    except ValueError as err:
-        raise HTTPException(status_code=400, detail=str(err))
+    with _core_config_lock:
+        try:
+            config = XRayConfig(payload, api_port=xray.config.api_port)
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
 
-    xray.config = config
-    with open(XRAY_JSON, "w") as f:
-        f.write(json.dumps(payload, indent=4))
+        _write_core_document(payload)
+        xray.config = config
+        startup_config = xray.config.include_db_users()
+        xray.core.restart(startup_config)
+        for node_id, node in list(xray.nodes.items()):
+            if node.connected:
+                xray.operations.restart_node(node_id, startup_config)
 
-    startup_config = xray.config.include_db_users()
-    xray.core.restart(startup_config)
-    for node_id, node in list(xray.nodes.items()):
-        if node.connected:
-            xray.operations.restart_node(node_id, startup_config)
-
-    xray.hosts.update()
-
-    return payload
+        xray.hosts.update()
+        return payload
