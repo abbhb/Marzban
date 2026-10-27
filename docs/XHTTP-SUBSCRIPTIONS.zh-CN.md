@@ -7,6 +7,11 @@ Clash Meta、Mihomo 和使用相同导出流程的 Shadowrocket YAML 订阅支�
 ALPN。由 NGINX 终止 TLS 时，核心入站可以只监听本地 HTTP；对外主机设置选择 TLS。
 用户仍须拥有该入站的访问权限，导出使用各自的用户凭据。
 
+当已导出的节点上行服务器或独立下行服务器使用 IPv6 地址时，面板自动将订阅顶层
+`ipv6` 设为 `true`。Mihomo 的 `ipv6: false` 会在实际拨号前拒绝 IPv6 服务器地址，
+即使地址已经直接写入节点也一样。`dns.ipv6` 的 AAAA 应答策略不随此修改；没有 IPv6
+入口的订阅继续保留原模板设置。客户端的全局覆写仍可能覆盖订阅，手机需要允许 IPv6。
+
 `xhttpSettings` 中的 `path`、`mode`、POST 参数、`xmux` 和 `downloadSettings`
 会转换为 Mihomo 的 `xhttp-opts`。除 `host`、`path`、`mode` 外，这些客户端选项
 也可以放在 `extra` 中；设置 `extra` 时，与 Xray 一致，以其内容替换其他外层选项。

@@ -5,6 +5,7 @@ import math
 import re
 import unicodedata
 from collections import Counter
+from ipaddress import ip_address
 from random import choice
 from typing import Any
 from uuid import UUID
@@ -50,6 +51,24 @@ _MAX_EXTERNAL_STRING_LENGTH = 65536
 _MAX_EXTERNAL_COLLECTION_LENGTH = 2048
 _MAX_EXTERNAL_VALUE_DEPTH = 12
 _MAX_EXTERNAL_NODE_BYTES = 262144
+
+
+def _uses_ipv6_endpoint(node: dict) -> bool:
+    """Mihomo's global IPv6 switch also gates literal proxy endpoints."""
+    if not isinstance(node, dict):
+        return False
+    transport = node.get("xhttp-opts")
+    download = transport.get("download-settings") if isinstance(transport, dict) else None
+    download = download if isinstance(download, dict) else {}
+    for value in (node.get("server"), download.get("server")):
+        if not isinstance(value, str):
+            continue
+        try:
+            if ip_address(value.strip("[]")).version == 6:
+                return True
+        except ValueError:
+            pass
+    return False
 
 
 def _clean_external_name(value: Any) -> str | None:
@@ -466,6 +485,11 @@ class ClashConfiguration(object):
         if subscription_rules is not None:
             document["rules"] = list(subscription_rules)
             document["mode"] = "rule"
+        if any(_uses_ipv6_endpoint(node) for node in document.get("proxies") or []):
+            # With ipv6:false Mihomo rejects even a literal IPv6 server before
+            # dialing it. Keep DNS AAAA policy independent and leave IPv4-only
+            # subscriptions' existing preference intact.
+            document["ipv6"] = True
         return yaml.dump(
             document,
             sort_keys=False,
