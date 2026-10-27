@@ -200,7 +200,6 @@ class XhttpSubscriptionTests(unittest.TestCase):
         from app import xray
         from app.subscription.share import process_inbounds_and_tags
         source = inbound()
-        source["xhttpProfiles"] = [{"label": "P2 direct"}, {"label": "P3 CDN"}]
         hosts = {"XHTTP": [{
             "sni": ["origin.example.test"], "host": ["origin.example.test"],
             "address": ["origin.example.test"], "path": None, "port": None,
@@ -210,17 +209,24 @@ class XhttpSubscriptionTests(unittest.TestCase):
         }]}
         credentials = MagicMock()
         credentials.model_dump.return_value = {"id": "synthetic-user"}
-        for granted in ([], ["XHTTP"]):
-            conf = ClashMetaConfiguration()
-            conf.render = lambda **kwargs: conf.data
-            with patch.object(xray, "config", SimpleNamespace(inbounds_by_tag={"XHTTP": source})), patch.object(xray, "hosts", hosts):
-                result = process_inbounds_and_tags(
-                    {ProxyTypes.VLESS: granted}, {ProxyTypes.VLESS: credentials},
-                    {"USERNAME": "test"}, conf,
-                )
-            expected = ["US02 test · P2 direct", "US02 test · P3 CDN"] if granted else []
-            self.assertEqual([n["name"] for n in result["proxies"]], expected)
-            self.assertEqual(conf.inbound_proxy_names.get("XHTTP", []), expected)
+        cases = [
+            ([{"label": "P2 direct"}, {"label": "P3 CDN"}], ["P2 direct", "P3 CDN"]),
+            ([{"label": "P3 CDN"}, {"label": "P2 direct", "enabled": False}], ["P3 CDN"]),
+            ([{"label": "P3 CDN", "enabled": False}, {"label": "P2 direct", "enabled": False}], []),
+        ]
+        for profiles, labels in cases:
+            source["xhttpProfiles"] = profiles
+            for granted in ([], ["XHTTP"]):
+                conf = ClashMetaConfiguration()
+                conf.render = lambda **kwargs: conf.data
+                with patch.object(xray, "config", SimpleNamespace(inbounds_by_tag={"XHTTP": source})), patch.object(xray, "hosts", hosts):
+                    result = process_inbounds_and_tags(
+                        {ProxyTypes.VLESS: granted}, {ProxyTypes.VLESS: credentials},
+                        {"USERNAME": "test"}, conf,
+                    )
+                expected = [f"US02 test · {label}" for label in labels] if granted else []
+                self.assertEqual([n["name"] for n in result["proxies"]], expected)
+                self.assertEqual(conf.inbound_proxy_names.get("XHTTP", []), expected)
 
 
 if __name__ == "__main__":

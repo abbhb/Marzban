@@ -39,11 +39,12 @@ class PlanGroupsAndFlowsTests(MgmaDatabaseTestCase):
         admin=crud.create_admin(self.db,AdminCreate(username='flow-limited',password='test-only',is_sudo=False))
         with patch('app.utils.jwt.get_secret_key',return_value='test-flow-secret'):
             token=create_admin_token(admin.username,False)
-            for path in ('/api/core/inbound-flows','/api/commerce/admin/group-catalog'):
+            for path in ('/api/core/inbound-flows','/api/core/xhttp-profiles','/api/commerce/admin/group-catalog'):
                 with self.subTest(path=path):
                     self.assertIn(self.request('GET',path).status,(401,403))
                     self.assertEqual(self.request('GET',path,token=token).status,403)
             self.assertEqual(self.request('PUT','/api/core/inbound-flows',token=token,payload={'revision':'test','flows':{}}).status,403)
+            self.assertEqual(self.request('PUT','/api/core/xhttp-profiles',token=token,payload={'revision':'test','inbounds':{}}).status,403)
 
     def test_plan_groups_persist_and_reject_unowned_or_external_node_references(self):
         with patch.object(plan_groups, 'group_catalog', return_value=['AI', 'Claude']):

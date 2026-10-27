@@ -2,6 +2,8 @@
 
 from copy import deepcopy
 
+MAX_XHTTP_PROFILES = 8
+
 
 _TRANSPORT_FIELDS = {
     "path": "path",
@@ -105,7 +107,7 @@ def mihomo_xhttp_profiles(base, profiles):
     """
     if profiles is None or profiles == []:
         return [base]
-    if not isinstance(profiles, list) or len(profiles) > 8:
+    if not isinstance(profiles, list) or len(profiles) > MAX_XHTTP_PROFILES:
         raise ValueError("XHTTP profiles must be a list of at most eight items")
     nodes = []
     labels = set()
@@ -116,6 +118,9 @@ def mihomo_xhttp_profiles(base, profiles):
         if not isinstance(label, str) or not label.strip() or label in labels:
             raise ValueError("XHTTP profiles require distinct nonempty labels")
         labels.add(label)
+        enabled = profile.get("enabled", True)
+        if type(enabled) is not bool:
+            raise ValueError("XHTTP profile enabled must be a boolean")
         node = deepcopy(base)
         node["name"] = f"{base['name']} · {label}"
         if (stream := profile.get("streamSettings")) is not None:
@@ -135,5 +140,6 @@ def mihomo_xhttp_profiles(base, profiles):
             if transport.get("path") != base["xhttp-opts"].get("path"):
                 raise ValueError("XHTTP profiles must reach the same backend path")
             node["xhttp-opts"] = mihomo_xhttp_options(transport)
-        nodes.append(node)
+        if enabled:
+            nodes.append(node)
     return nodes

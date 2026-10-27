@@ -31,6 +31,11 @@ import {
   PopoverTrigger,
   Portal,
   Switch,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Text,
   Tooltip,
   VStack,
@@ -68,6 +73,7 @@ import { useDashboard } from "../contexts/DashboardContext";
 import { DeleteIcon } from "./DeleteUserModal";
 import { Icon } from "./Icon";
 import { Input as CustomInput } from "./Input";
+import { XhttpProfiles } from "./XhttpProfiles";
 
 export const DuplicateIcon = chakra(DocumentDuplicateIcon, {
   baseStyle: {
@@ -1197,6 +1203,7 @@ export const HostsDialog: FC = () => {
   const toast = useToast();
   const { t } = useTranslation();
   const [openAccordions, setOpenAccordions] = useState<any>({});
+  const [xhttpDirty, setXhttpDirty] = useState(false);
 
   useEffect(() => {
     if (isEditingHosts) fetchHosts();
@@ -1212,6 +1219,8 @@ export const HostsDialog: FC = () => {
   }, [hosts]);
 
   const onClose = () => {
+    if (xhttpDirty && !window.confirm(t("xhttp.discard"))) return;
+    setXhttpDirty(false);
     setOpenAccordions({});
     onEditingHosts(false);
   };
@@ -1265,14 +1274,17 @@ export const HostsDialog: FC = () => {
         bg="blackAlpha.300"
         backdropFilter="var(--marzban-overlay-filter)"
       />
-      <ModalContent mx="3" w="fit-content" maxW="3xl">
+      <ModalContent mx="3" w="full" maxW="3xl">
         <ModalHeader pt={6}>
           <Icon color="primary">
             <ModalIcon color="white" />
           </Icon>
         </ModalHeader>
         <ModalCloseButton />
-        <ModalBody w="440px" pb={3} pt={3}>
+        <ModalBody minW={0} pb={3} pt={3}>
+          <Tabs isLazy>
+            <TabList><Tab>{t("xhttp.baseHosts")}</Tab><Tab>{t("xhttp.title")}</Tab></TabList>
+            <TabPanels><TabPanel px={0} maxW="440px" mx="auto">
           <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(handleFormSubmit)}>
               <Text mb={3} opacity={0.8} fontSize="sm">
@@ -1321,6 +1333,8 @@ export const HostsDialog: FC = () => {
               </HStack>
             </form>
           </FormProvider>
+            </TabPanel><TabPanel px={0}><XhttpProfiles onDirtyChange={setXhttpDirty} /></TabPanel></TabPanels>
+          </Tabs>
         </ModalBody>
       </ModalContent>
     </Modal>
