@@ -135,4 +135,3 @@ class XhttpProfileManagementTests(unittest.TestCase):
         result = validate_profiles([row], '/test/')[0]
         self.assertEqual(result['address'], '2001:db8::10')
         self.assertEqual(result['streamSettings'], row['streamSettings'])
-
