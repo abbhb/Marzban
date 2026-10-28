@@ -120,6 +120,7 @@ class ExternalSelectionResponse(ExternalSelectionInput):
 
 class SubscriptionPlanBase(BaseModel):
     group_members: dict[str, list[str]] = Field(default_factory=dict)
+    local_node_selections: dict[str, list[str]] = Field(default_factory=dict)
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=1000)
     price_minor: int = Field(ge=0, le=10**12)
@@ -144,6 +145,18 @@ class SubscriptionPlanBase(BaseModel):
             raise ValueError("Inbound tags must be unique")
         return cleaned
 
+    @field_validator("local_node_selections")
+    @classmethod
+    def validate_local_node_selections(cls, value):
+        if len(value) > 64:
+            raise ValueError("At most 64 inbound selections are allowed")
+        for tag, selected in value.items():
+            if (not tag or len(tag) > 256 or not selected or len(selected) > 256
+                    or len(set(selected)) != len(selected)
+                    or any(len(item) != 64 or any(c not in "0123456789abcdef" for c in item) for item in selected)):
+                raise ValueError("Select unique valid local route IDs or use all routes")
+        return value
+
 
 class SubscriptionPlanCreate(SubscriptionPlanBase):
     external_selections: List[ExternalSelectionInput] = Field(
@@ -163,6 +176,11 @@ class SubscriptionPlanCreate(SubscriptionPlanBase):
 
 class SubscriptionPlanUpdate(BaseModel):
     group_members: Optional[dict[str, list[str]]] = None
+    local_node_selections: dict[str, list[str]] = Field(default_factory=dict)
+
+    _validate_local_selections = field_validator("local_node_selections")(
+        SubscriptionPlanBase.validate_local_node_selections.__func__
+    )
     name: Optional[str] = Field(default=None, min_length=1, max_length=128)
     description: Optional[str] = Field(default=None, max_length=1000)
     price_minor: Optional[int] = Field(default=None, ge=0, le=10**12)
@@ -202,6 +220,11 @@ class SubscriptionPlanUpdate(BaseModel):
 
 
 class SubscriptionPlanResponse(SubscriptionPlanBase):
+    @field_validator("local_node_selections", mode="before")
+    @classmethod
+    def default_local_selections(cls, value):
+        return value or {}
+
     @field_validator("group_members", mode="before")
     @classmethod
     def default_group_members(cls, value):

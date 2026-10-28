@@ -437,7 +437,9 @@ def _lock_current_plan_external_state(
 def create_plan(db: Session, values: SubscriptionPlanCreate) -> SubscriptionPlan:
     validate_plan_inbounds(values.inbound_tags)
     from app.services.plan_groups import validate_members
+    from app.services.local_nodes import validate_selections
     try:
+        validate_selections(values.local_node_selections, values.inbound_tags)
         validate_members(values.group_members, values.inbound_tags)
     except ValueError as exc:
         raise PlanConfigurationError(str(exc)) from None
@@ -499,6 +501,17 @@ def update_plan(
                 raise PlanConfigurationError(exc.code) from None
             raise
     final_inbounds = changes.get("inbound_tags", plan.inbound_tags)
+    if "local_node_selections" not in changes and "inbound_tags" in changes:
+        changes["local_node_selections"] = {
+            tag: selected for tag, selected in (plan.local_node_selections or {}).items()
+            if tag in final_inbounds
+        }
+    if "local_node_selections" in values.model_fields_set:
+        from app.services.local_nodes import validate_selections
+        try:
+            validate_selections(changes["local_node_selections"], final_inbounds)
+        except ValueError as exc:
+            raise PlanConfigurationError(str(exc)) from None
     final_has_external = (
         bool(external_selections)
         if external_selections is not None

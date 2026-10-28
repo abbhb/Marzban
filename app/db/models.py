@@ -123,6 +123,14 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+    portal_account = relationship("PortalAccount", back_populates="proxy_user", uselist=False)
+
+    @property
+    def local_node_selections(self):
+        account = self.portal_account
+        subscription = account.subscription if account else None
+        return (subscription.plan.local_node_selections or {}) if subscription else {}
+
     @hybrid_property
     def reseted_usage(self) -> int:
         return int(sum([log.used_traffic_at_reset for log in self.usage_logs]))
@@ -558,6 +566,7 @@ class SubscriptionPlan(Base):
     data_limit = Column(BigInteger, nullable=False, default=0, server_default="0")
     inbound_tags = Column(JSON, nullable=False, default=list)
     group_members = Column(JSON, nullable=True, default=dict)
+    local_node_selections = Column(JSON, nullable=True, default=dict)
     is_visible = Column(Boolean, nullable=False, default=True, server_default="1")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
@@ -605,7 +614,7 @@ class PortalAccount(Base):
         onupdate=datetime.utcnow,
     )
 
-    proxy_user = relationship("User", foreign_keys=[user_id])
+    proxy_user = relationship("User", foreign_keys=[user_id], back_populates="portal_account")
     subscription = relationship(
         "PortalSubscription",
         uselist=False,
