@@ -154,9 +154,8 @@ class LocalNodeEntitlementsTests(CommerceDatabaseTestCase):
         self.assertEqual(plan.local_node_selections, self.selection)
         commerce.update_plan(self.db, plan, SubscriptionPlanUpdate(inbound_tags=['VISION']))
         self.assertEqual(plan.local_node_selections, {'VISION': self.selection['VISION']})
-        with self.assertRaises(commerce.PlanConfigurationError):
-            commerce.update_plan(self.db, plan, SubscriptionPlanUpdate(local_node_selections=self.selection))
-        self.db.rollback()
+        commerce.update_plan(self.db, plan, SubscriptionPlanUpdate(local_node_selections=self.selection))
+        self.assertEqual(plan.local_node_selections, {'VISION': self.selection['VISION']})
 
     def test_disabled_new_or_changed_routes_never_expand_a_custom_selection(self):
         plan = self.make_plan(local_node_selections=self.selection)
@@ -240,3 +239,114 @@ class LocalNodeEntitlementsTests(CommerceDatabaseTestCase):
             self.assertIsNone(row[1])
         plan = self.db.query(SubscriptionPlan).one()
         self.assertEqual(SubscriptionPlanResponse.model_validate(plan).local_node_selections, {})
+
+    def test_save_prunes_deleted_inbound_and_group_references_without_blocking_edit(self):
+        from app.models.admin import Admin
+        plan = self.make_plan(local_node_selections=self.selection)
+        user = self.subscribe(plan)
+        identity = copy.deepcopy(user.proxies[0].settings)
+        plan.inbound_tags = [*plan.inbound_tags, 'REMOVED']
+        plan.local_node_selections = {**self.selection, 'REMOVED': ['f' * 64]}
+        plan.group_members = {'🚀 节点选择': ['inbound:REMOVED', 'inbound:VISION'],
+                              'REMOVED GROUP': ['inbound:VISION']}
+        self.db.commit()
+        background = BackgroundTasks()
+        commerce_router.admin_update_plan(plan.id, SubscriptionPlanUpdate(description='now editable'),
+                                          background, self.db, Admin(username='test', is_sudo=True))
+        self.assertEqual(plan.inbound_tags, ['VISION', 'XHTTP'])
+        self.assertEqual(plan.local_node_selections, self.selection)
+        self.assertEqual(plan.group_members, {'🚀 节点选择': ['inbound:VISION']})
+        self.assertEqual(plan.description, 'now editable')
+        self.assertEqual(len(background.tasks), 1)
+        self.assertEqual(user.proxies[0].settings, identity)
+
+    def test_save_prunes_stale_payload_and_keeps_empty_group_explicit(self):
+        plan = self.make_plan(local_node_selections=self.selection)
+        commerce.update_plan(self.db, plan, SubscriptionPlanUpdate(
+            inbound_tags=['VISION', 'REMOVED'],
+            local_node_selections={**self.selection, 'REMOVED': ['f' * 64]},
+            group_members={'🚀 节点选择': ['inbound:REMOVED']}))
+        self.assertEqual(plan.inbound_tags, ['VISION'])
+        self.assertEqual(plan.local_node_selections, {'VISION': self.selection['VISION']})
+        self.assertEqual(plan.group_members, {'🚀 节点选择': []})
+
+    def test_cleanup_removes_only_stale_profiles_without_authorizing_new_routes(self):
+        plan = self.make_plan(local_node_selections=self.selection)
+        user = self.subscribe(plan)
+        self.inbounds['XHTTP']['xhttpProfiles'].pop(1)
+        changed, users = commerce.cleanup_plan_local_nodes(self.db, plan.id)
+        self.assertTrue(changed)
+        self.assertEqual(users, [])
+        self.assertEqual(plan.local_node_selections['XHTTP'], self.selection['XHTTP'][1:])
+        result = yaml.safe_load(build_subscription_response(UserResponse.model_validate(user), client_type='clash-meta', db=self.db, user_id=user.id).body)
+        self.assertEqual(len(result['proxies']), 2)
+        self.assertTrue(all(node['name'].startswith('[ipv6] ') for node in result['proxies']))
+
+    def test_cleanup_last_custom_profile_removes_inbound_and_preserves_purchase_facts(self):
+        from app.db.models import PortalPurchase
+        plan = self.make_plan(local_node_selections=self.selection)
+        user = self.subscribe(plan)
+        purchase = self.db.query(PortalPurchase).one()
+        facts = (purchase.inbound_tags[:], purchase.duration_days, purchase.data_limit,
+                 user.proxies[0].settings.copy(), user.used_traffic, user.expire)
+        self.inbounds['XHTTP']['xhttpProfiles'] = self.inbounds['XHTTP']['xhttpProfiles'][:1]
+        changed, affected = commerce.cleanup_plan_local_nodes(self.db, plan.id)
+        self.assertTrue(changed)
+        self.assertEqual([value[0] for value in affected], [user.id])
+        self.assertEqual(plan.inbound_tags, ['VISION'])
+        self.assertEqual(plan.local_node_selections, {'VISION': self.selection['VISION']})
+        self.assertEqual(user.inbounds[ProxyTypes.VLESS], ['VISION'])
+        self.assertEqual(user.portal_account.subscription.inbound_tags, ['VISION'])
+        self.assertEqual((purchase.inbound_tags, purchase.duration_days, purchase.data_limit,
+                          user.proxies[0].settings, user.used_traffic, user.expire), facts)
+
+    def test_fully_empty_plan_is_hidden_editable_and_cannot_be_granted(self):
+        plan = self.make_plan(local_node_selections=self.selection)
+        user = self.subscribe(plan)
+        self.hosts['VISION'].pop(1)
+        self.inbounds['XHTTP']['xhttpProfiles'] = self.inbounds['XHTTP']['xhttpProfiles'][:1]
+        commerce.cleanup_plan_local_nodes(self.db, plan.id)
+        self.assertEqual(plan.inbound_tags, [])
+        self.assertEqual(plan.local_node_selections, {})
+        self.assertFalse(plan.is_visible)
+        self.assertEqual(user.inbounds[ProxyTypes.VLESS], [])
+        commerce.update_plan(self.db, plan, SubscriptionPlanUpdate(name='still editable', is_visible=True))
+        self.assertEqual(plan.name, 'still editable')
+        self.assertFalse(plan.is_visible)
+        bob = self.register('bob-empty')
+        with self.assertRaises(commerce.PlanConfigurationError):
+            commerce.grant_plan(self.db, bob, plan, actor_admin='test', idempotency_key='empty-grant')
+        self.db.rollback()
+
+    def test_noop_cleanup_does_not_update_plan_or_subscribers(self):
+        plan = self.make_plan(local_node_selections=self.selection)
+        self.subscribe(plan)
+        before = plan.updated_at
+        self.assertEqual(commerce.cleanup_plan_local_nodes(self.db, plan.id), (False, []))
+        self.assertEqual(plan.updated_at, before)
+
+    def test_scheduled_cleanup_syncs_users_and_retries_failed_runtime_updates(self):
+        from contextlib import contextmanager
+        from pathlib import Path
+        from app import scheduler
+        from app.models.user import UserStatus
+        plan = self.make_plan(local_node_selections=self.selection)
+        user = self.subscribe(plan)
+        user_id = user.id
+        self.inbounds['XHTTP']['xhttpProfiles'] = self.inbounds['XHTTP']['xhttpProfiles'][:1]
+        spec = importlib.util.spec_from_file_location('isolated_plan_cleanup_job', Path(__file__).parents[1] / 'app/jobs/plan_entitlements.py')
+        job = importlib.util.module_from_spec(spec); spec.loader.exec_module(job)
+        self.addCleanup(scheduler.remove_job, 'cleanup_stale_plan_nodes')
+        self.assertEqual(scheduler.get_job('cleanup_stale_plan_nodes').trigger.interval.total_seconds(), 300)
+        @contextmanager
+        def database():
+            with self.Session() as db: yield db
+        with patch.object(job, 'GetDB', database), patch.object(xray.operations, 'update_user_by_id', side_effect=RuntimeError('transient')) as update:
+            job.cleanup_stale_plan_nodes()
+        update.assert_called_once_with(user_id=user_id)
+        self.assertEqual(job._pending_users, {user_id})
+        self.db.expire_all(); user.status = UserStatus.disabled; self.db.commit()
+        with patch.object(job, 'GetDB', database), patch.object(xray.operations, 'remove_user_by_id') as remove:
+            job.cleanup_stale_plan_nodes()
+        remove.assert_called_once_with(user_id=user_id)
+        self.assertFalse(job._pending_users)
