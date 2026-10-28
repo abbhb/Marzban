@@ -257,7 +257,7 @@ class LocalNodeEntitlementsTests(CommerceDatabaseTestCase):
         self.assertEqual(plan.local_node_selections, self.selection)
         self.assertEqual(plan.group_members, {'🚀 节点选择': ['inbound:VISION']})
         self.assertEqual(plan.description, 'now editable')
-        self.assertEqual(len(background.tasks), 1)
+        self.assertEqual(len(background.tasks), 0)
         self.assertEqual(user.proxies[0].settings, identity)
 
     def test_save_prunes_stale_payload_and_keeps_empty_group_explicit(self):
@@ -324,6 +324,20 @@ class LocalNodeEntitlementsTests(CommerceDatabaseTestCase):
         before = plan.updated_at
         self.assertEqual(commerce.cleanup_plan_local_nodes(self.db, plan.id), (False, []))
         self.assertEqual(plan.updated_at, before)
+
+    def test_cleanup_neither_grants_nor_revokes_other_existing_live_permissions(self):
+        from app.db import crud
+        plan = self.make_plan(local_node_selections=self.selection)
+        user = self.subscribe(plan)
+        # A legacy extra grant and a stricter exclusion must both survive
+        # cleanup of a deleted tag. Cleanup is not a full plan reconciliation.
+        plan.inbound_tags = ['VISION', 'REMOVED']
+        user.proxies[0].excluded_inbounds = [crud.get_or_create_inbound(self.db, 'VISION')]
+        self.db.commit()
+        before = user.inbounds
+        commerce.cleanup_plan_local_nodes(self.db, plan.id)
+        self.assertEqual(user.inbounds, before)
+        self.assertEqual(user.inbounds[ProxyTypes.VLESS], ['XHTTP'])
 
     def test_scheduled_cleanup_syncs_users_and_retries_failed_runtime_updates(self):
         from contextlib import contextmanager

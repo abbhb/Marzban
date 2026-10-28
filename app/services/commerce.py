@@ -508,6 +508,7 @@ def update_plan(
         catalog=catalog, group_names=group_names,
     )
     tags_changed = final_inbounds != plan.inbound_tags
+    previous_tags = set(plan.inbound_tags)
     changes.update(inbound_tags=final_inbounds, local_node_selections=selected, group_members=members)
     final_has_external = (
         bool(external_selections)
@@ -539,7 +540,11 @@ def update_plan(
             db.add(selection)
     plan.updated_at = utc_now()
     plan._reconciled_user_states = (
-        reconcile_plan_entitlements(db, plan, commit=False) if tags_changed else []
+        reconcile_plan_entitlements(
+            db, plan, commit=False,
+            removed_tags=(previous_tags - set(final_inbounds))
+            if not (set(final_inbounds) - previous_tags) else None,
+        ) if tags_changed else []
     )
     db.commit()
     db.expire(plan)
@@ -564,10 +569,11 @@ def cleanup_plan_local_nodes(db: Session, plan_id: int):
         db.rollback()
         return False, []
     tags_changed = tags != plan.inbound_tags
+    removed_tags = set(plan.inbound_tags) - set(tags)
     plan.inbound_tags, plan.local_node_selections = tags, selected
     plan.group_members, plan.is_visible = groups, visible
     plan.updated_at = utc_now()
-    affected = reconcile_plan_entitlements(db, plan, commit=False) if tags_changed else []
+    affected = reconcile_plan_entitlements(db, plan, commit=False, removed_tags=removed_tags) if tags_changed else []
     db.commit()
     return True, affected
 
@@ -777,6 +783,7 @@ def reconcile_plan_entitlements(
     plan: SubscriptionPlan,
     *,
     commit: bool = True,
+    removed_tags: set[str] | None = None,
 ) -> list[tuple[int, UserStatus]]:
     """Make every current subscriber inherit the plan's node entitlement.
 
@@ -797,9 +804,8 @@ def reconcile_plan_entitlements(
         )
 
     inbound_rows = _inbound_rows(db, all_vless_tags)
-    excluded = [
-        inbound_rows[tag] for tag in all_vless_tags if tag not in plan.inbound_tags
-    ]
+    excluded = [inbound_rows[tag] for tag in all_vless_tags
+                if (tag in removed_tags if removed_tags is not None else tag not in plan.inbound_tags)]
     subscriptions = (
         db.query(PortalSubscription)
         .options(
@@ -819,11 +825,20 @@ def reconcile_plan_entitlements(
         user = subscription.account.proxy_user
         if not user:
             continue
+        runtime_changed = False
         for proxy in user.proxies:
             if ProxyTypes(proxy.type) == ProxyTypes.VLESS:
-                proxy.excluded_inbounds = list(excluded)
-        user.edit_at = now
-        affected.append((user.id, UserStatus(user.status)))
+                if removed_tags is None:
+                    proxy.excluded_inbounds = list(excluded)
+                    runtime_changed = True
+                else:
+                    existing = {row.tag for row in proxy.excluded_inbounds}
+                    additions = [row for row in excluded if row.tag not in existing]
+                    proxy.excluded_inbounds.extend(additions)
+                    runtime_changed = runtime_changed or bool(additions)
+        if runtime_changed:
+            user.edit_at = now
+            affected.append((user.id, UserStatus(user.status)))
 
     if commit:
         db.commit()
