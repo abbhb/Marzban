@@ -719,5 +719,15 @@
   "flows.reloadHelp": "保存会重载核心和已连接节点。客户端需要更新订阅后使用；请勿与高级核心配置同时编辑。",
   "flows.reload": "重新加载",
   "flows.save": "保存并重载",
-  "flows.saved": "入站流控已更新，请更新客户端订阅"
+  "flows.saved": "入站流控已更新，请更新客户端订阅",
+  "commerce.localRoutesHelp": "展开入站可只授权 IPv6 或自选方案。全部方案会包含后续新增方案；自选只下发勾选项。",
+  "commerce.localAll": "全部方案",
+  "commerce.localSelected": "已选 {{count}} 个方案",
+  "commerce.localExpand": "展开或收起 {{tag}} 的方案",
+  "commerce.localOnlyIpv6": "仅 IPv6",
+  "commerce.localOnlyIpv4": "仅 IPv4",
+  "commerce.localUnavailable": "有 {{count}} 个已选方案不可用，不会下发。连接参数变更后请重新选择。",
+  "commerce.localRemoveUnavailable": "移除失效选择",
+  "commerce.localEmpty": "此入站尚无可导出的主机方案",
+  "commerce.localDisabled": "已停用"
 }

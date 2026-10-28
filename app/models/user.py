@@ -277,6 +277,8 @@ class UserModify(User):
 
 
 class UserResponse(User):
+    # Internal rendering entitlement; never accepted from user create/modify.
+    local_node_selections: dict[str, list[str]] = Field(default_factory=dict, exclude=True)
     username: str
     status: UserStatus
     used_traffic: int
@@ -297,6 +299,7 @@ class UserResponse(User):
         if not self.links:
             self.links = generate_v2ray_links(
                 self.proxies, self.inbounds, extra_data=self.model_dump(), reverse=False,
+                local_node_selections=self.local_node_selections,
             )
         return self
 

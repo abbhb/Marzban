@@ -479,6 +479,12 @@ def admin_create_plan(
         raise HTTPException(status_code=409, detail="Plan name already exists") from None
 
 
+@router.get("/api/commerce/admin/local-node-catalog")
+def admin_local_node_catalog(_admin: Admin = Depends(Admin.check_sudo_admin)):
+    from app.services.local_nodes import node_catalog
+    return node_catalog()
+
+
 @router.put(
     "/api/commerce/admin/plans/{plan_id}",
     response_model=SubscriptionPlanAdminResponse,

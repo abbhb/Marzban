@@ -579,5 +579,15 @@
   "flows.reloadHelp": "Saving reloads the core and connected nodes. Update client subscriptions afterwards. Do not edit advanced core configuration concurrently.",
   "flows.reload": "Reload settings",
   "flows.save": "Save and reload core",
-  "flows.saved": "Inbound flows updated; update client subscriptions"
+  "flows.saved": "Inbound flows updated; update client subscriptions",
+  "commerce.localRoutesHelp": "Expand an inbound to select only IPv6 or individual routes. All routes includes future additions; a custom selection includes only checked routes.",
+  "commerce.localAll": "All routes",
+  "commerce.localSelected": "{{count}} routes selected",
+  "commerce.localExpand": "Expand or collapse routes for {{tag}}",
+  "commerce.localOnlyIpv6": "IPv6 only",
+  "commerce.localOnlyIpv4": "IPv4 only",
+  "commerce.localUnavailable": "{{count}} selected routes are unavailable and will not be exported. Reselect after connection settings change.",
+  "commerce.localRemoveUnavailable": "Remove unavailable",
+  "commerce.localEmpty": "No exportable host routes configured",
+  "commerce.localDisabled": "Disabled"
 }

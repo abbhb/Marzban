@@ -14,6 +14,7 @@ from app.utils.system import get_public_ip, get_public_ipv6, readable_size
 
 from . import *
 from .shadowrocket import prepare_shadowrocket
+from .local_nodes import selected_route
 from app.xray.flow import settings_for_inbound
 
 if TYPE_CHECKING:
@@ -47,10 +48,12 @@ STATUS_TEXTS = {
 }
 
 
-def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool) -> list:
+def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+                         local_node_selections: dict | None = None) -> list:
     format_variables = setup_format_variables(extra_data)
     conf = V2rayShareLink()
-    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse)
+    return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+                                    local_node_selections=local_node_selections)
 
 
 def generate_clash_subscription(
@@ -59,6 +62,7 @@ def generate_clash_subscription(
         subscription_rules: list[str] | None = None,
         subscription_group_order: list[str] | None = None,
         plan_group_members: dict | None = None,
+        local_node_selections: dict | None = None,
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -72,40 +76,47 @@ def generate_clash_subscription(
         format_variables,
         conf=conf,
         reverse=reverse,
+        local_node_selections=local_node_selections,
         render_options={"clash_overlay": clash_overlay, "is_meta": is_meta, "subscription_rules": subscription_rules, "subscription_group_order": subscription_group_order, "plan_group_members": plan_group_members},
     )
 
 
 def generate_singbox_subscription(
-        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool
+        proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+        local_node_selections: dict | None = None,
 ) -> str:
     conf = SingBoxConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+        local_node_selections=local_node_selections,
     )
 
 
 def generate_outline_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+        local_node_selections: dict | None = None,
 ) -> str:
     conf = OutlineConfiguration()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+        local_node_selections=local_node_selections,
     )
 
 
 def generate_v2ray_json_subscription(
         proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
+        local_node_selections: dict | None = None,
 ) -> str:
     conf = V2rayJsonConfig()
 
     format_variables = setup_format_variables(extra_data)
     return process_inbounds_and_tags(
-        inbounds, proxies, format_variables, conf=conf, reverse=reverse
+        inbounds, proxies, format_variables, conf=conf, reverse=reverse,
+        local_node_selections=local_node_selections,
     )
 
 
@@ -124,6 +135,7 @@ def generate_subscription(
         "inbounds": user.inbounds,
         "extra_data": user.__dict__,
         "reverse": reverse,
+        "local_node_selections": getattr(user, "local_node_selections", {}),
     }
 
     if config_format == "shadowrocket":
@@ -275,6 +287,7 @@ def process_inbounds_and_tags(
         ],
         reverse=False,
         render_options: dict | None = None,
+        local_node_selections: dict | None = None,
 ) -> Union[List, str]:
     _inbounds = []
     for protocol, tags in inbounds.items():
@@ -297,8 +310,18 @@ def process_inbounds_and_tags(
                 continue
 
             format_variables.update({"TRANSPORT": inbound["network"]})
-            host_inbound = inbound.copy()
             for host in xray.hosts.get(tag, []):
+                allowed = (local_node_selections or {}).get(tag)
+                host_inbound = selected_route(host, inbound, allowed)
+                if host_inbound is None:
+                    continue
+                # Only Mihomo/Shadowrocket can represent the configured split
+                # routes. Other formats must not fall back to the base route
+                # when the plan explicitly selected derived XHTTP routes.
+                if (allowed is not None and inbound.get("xhttpProfiles")
+                        and inbound["network"] in ("xhttp", "splithttp")
+                        and not isinstance(conf, ClashMetaConfiguration)):
+                    continue
                 sni = ""
                 sni_list = host["sni"] or inbound["sni"]
                 if sni_list:

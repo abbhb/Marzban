@@ -1,4 +1,5 @@
 export type SubscriptionPlan = {
+  local_node_selections?: Record<string, string[]>;
   group_members?: Record<string, string[]>;
   id: number;
   name: string;
@@ -13,6 +14,11 @@ export type SubscriptionPlan = {
   is_visible: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type LocalInbound = {
+  tag: string;
+  nodes: { id: string; name: string; ipv6: boolean; enabled: boolean }[];
 };
 
 export type ExternalSelectionMode = "all" | "selected";

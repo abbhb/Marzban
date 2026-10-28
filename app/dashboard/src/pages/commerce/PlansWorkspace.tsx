@@ -32,15 +32,15 @@ import {
 import { DataWorkspace } from "components/DataWorkspace";
 import { PlanGroupEditor, PlanGroupMembers } from "./PlanGroupEditor";
 import { ExternalPlanSelection } from "./ExternalPlanSelection";
+import { LocalPlanSelection } from "./LocalPlanSelection";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
 import { fetch } from "service/http";
-import { PlanExternalSelection, SubscriptionPlan } from "types/Commerce";
+import { LocalInbound, PlanExternalSelection, SubscriptionPlan } from "types/Commerce";
 import { formatBytes } from "utils/formatByte";
 import { money } from "./shared";
 
-type Inbound = { tag: string; protocol: string };
 type Draft = {
   name: string;
   description: string;
@@ -48,6 +48,7 @@ type Draft = {
   durationDays: string;
   dataLimitGb: string;
   inboundTags: string[];
+  localNodeSelections: Record<string, string[]>;
   externalSelections: PlanExternalSelection[];
   isVisible: boolean;
   groupMembers: PlanGroupMembers;
@@ -60,6 +61,7 @@ const emptyDraft: Draft = {
   durationDays: "30",
   dataLimitGb: "100",
   inboundTags: [],
+  localNodeSelections: {},
   externalSelections: [],
   isVisible: true,
   groupMembers: {},
@@ -83,18 +85,16 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
     { retry: false }
   );
   const inboundsQuery = useQuery(
-    ["commerce", "inbounds"],
+    ["commerce", "local-node-catalog"],
     ({ signal }) =>
-      fetch<Record<string, Inbound[]>>("/inbounds", {
+      fetch<LocalInbound[]>("/commerce/admin/local-node-catalog", {
         timeout: 15000,
         signal,
       }),
     { retry: false }
   );
   const plans = plansQuery.data || [];
-  const inbounds = Object.values(inboundsQuery.data || {})
-    .flat()
-    .filter((item) => item.protocol === "vless");
+  const inbounds = inboundsQuery.data || [];
 
   useEffect(() => {
     if (!plansQuery.isLoading && !inboundsQuery.isLoading) onReady?.();
@@ -121,6 +121,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       durationDays: String(plan.duration_days),
       dataLimitGb: String(plan.data_limit / 1024 ** 3),
       inboundTags: plan.inbound_tags,
+      localNodeSelections: plan.local_node_selections || {},
       externalSelections: plan.external_selections || [],
       isVisible: plan.is_visible,
       groupMembers: plan.group_members || {},
@@ -166,6 +167,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
             duration_days: durationDays,
             data_limit: dataLimit,
             inbound_tags: draft.inboundTags,
+            local_node_selections: draft.localNodeSelections,
             group_members: Object.fromEntries(Object.entries(draft.groupMembers).map(([group, members]) => [group, members.filter(ref => ref === "external" || draft.inboundTags.includes(ref.slice(8)))])),
             external_selections: draft.externalSelections,
             is_visible: draft.isVisible,
@@ -356,34 +358,9 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
               </FormControl>
               <FormControl gridColumn={{ md: "1 / -1" }}>
                 <FormLabel>{t("commerce.allowedNodes")}</FormLabel>
-                <SimpleGrid
-                  columns={{ base: 1, md: 2 }}
-                  spacing="2"
-                  maxH="240px"
-                  overflowY="auto"
-                  p="3"
-                  layerStyle="glassSubtle"
-                  rounded="xl"
-                >
-                  {inbounds.map((inbound) => (
-                    <Checkbox
-                      key={inbound.tag}
-                      isChecked={draft.inboundTags.includes(inbound.tag)}
-                      onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          inboundTags: event.target.checked
-                            ? [...draft.inboundTags, inbound.tag]
-                            : draft.inboundTags.filter(
-                                (tag) => tag !== inbound.tag
-                              ),
-                        })
-                      }
-                    >
-                      {inbound.tag}
-                    </Checkbox>
-                  ))}
-                </SimpleGrid>
+                <LocalPlanSelection inbounds={inbounds} inboundTags={draft.inboundTags}
+                  selections={draft.localNodeSelections}
+                  onChange={(inboundTags, localNodeSelections) => setDraft({ ...draft, inboundTags, localNodeSelections })} />
               </FormControl>
               <FormControl gridColumn={{ md: "1 / -1" }}>
                 <FormLabel>{t("commerce.externalPlanSources")}</FormLabel>
