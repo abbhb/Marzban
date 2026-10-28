@@ -33,6 +33,7 @@ import { DataWorkspace } from "components/DataWorkspace";
 import { PlanGroupEditor, PlanGroupMembers } from "./PlanGroupEditor";
 import { ExternalPlanSelection } from "./ExternalPlanSelection";
 import { LocalPlanSelection } from "./LocalPlanSelection";
+import { pruneLocalPlan } from "./localPlanCleanup";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "react-query";
@@ -75,6 +76,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [removedStaleNodes, setRemovedStaleNodes] = useState(false);
   const plansQuery = useQuery(
     ["commerce", "plans"],
     ({ signal }) =>
@@ -104,15 +106,20 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
     modal.onClose();
     setEditingId(null);
     setDraft(emptyDraft);
+    setRemovedStaleNodes(false);
   };
 
   const create = () => {
+    setRemovedStaleNodes(false);
     setEditingId(null);
     setDraft(emptyDraft);
     modal.onOpen();
   };
 
   const edit = (plan: SubscriptionPlan) => {
+    const cleaned = pruneLocalPlan(plan.inbound_tags, plan.local_node_selections || {}, plan.group_members || {}, inbounds);
+    setRemovedStaleNodes(JSON.stringify([cleaned.inboundTags, cleaned.localNodeSelections, cleaned.groupMembers]) !==
+      JSON.stringify([plan.inbound_tags, plan.local_node_selections || {}, plan.group_members || {}]));
     setEditingId(plan.id);
     setDraft({
       name: plan.name,
@@ -120,11 +127,11 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       price: (plan.price_minor / 100).toFixed(2),
       durationDays: String(plan.duration_days),
       dataLimitGb: String(plan.data_limit / 1024 ** 3),
-      inboundTags: plan.inbound_tags,
-      localNodeSelections: plan.local_node_selections || {},
+      inboundTags: cleaned.inboundTags,
+      localNodeSelections: cleaned.localNodeSelections,
       externalSelections: plan.external_selections || [],
       isVisible: plan.is_visible,
-      groupMembers: plan.group_members || {},
+      groupMembers: cleaned.groupMembers,
     });
     modal.onOpen();
   };
@@ -138,7 +145,7 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
       !Number.isFinite(priceMinor) ||
       !Number.isFinite(durationDays) ||
       !Number.isFinite(dataLimit) ||
-      (!draft.inboundTags.length && !draft.externalSelections.length) ||
+      (!editingId && !draft.inboundTags.length && !draft.externalSelections.length) ||
       draft.externalSelections.some(
         (selection) =>
           selection.mode === "selected" && !selection.node_ids.length
@@ -153,6 +160,15 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
     }
     setSaving(true);
     try {
+      const [catalog, groupCatalog] = await Promise.all([
+        fetch<LocalInbound[]>("/commerce/admin/local-node-catalog", { timeout: 15000 }),
+        fetch<{ groups: string[] }>("/commerce/admin/group-catalog", { timeout: 15000 }),
+      ]);
+      const cleaned = pruneLocalPlan(draft.inboundTags, draft.localNodeSelections, draft.groupMembers, catalog, groupCatalog.groups);
+      if (!editingId && !cleaned.inboundTags.length && !draft.externalSelections.length) {
+        toast({ title: t("commerce.invalidPlan"), status: "error", position: "top" });
+        return;
+      }
       await fetch(
         editingId
           ? `/commerce/admin/plans/${editingId}`
@@ -166,11 +182,11 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
             currency: "CNY",
             duration_days: durationDays,
             data_limit: dataLimit,
-            inbound_tags: draft.inboundTags,
-            local_node_selections: draft.localNodeSelections,
-            group_members: Object.fromEntries(Object.entries(draft.groupMembers).map(([group, members]) => [group, members.filter(ref => ref === "external" || draft.inboundTags.includes(ref.slice(8)))])),
+            inbound_tags: cleaned.inboundTags,
+            local_node_selections: cleaned.localNodeSelections,
+            group_members: cleaned.groupMembers,
             external_selections: draft.externalSelections,
-            is_visible: draft.isVisible,
+            is_visible: (cleaned.inboundTags.length || draft.externalSelections.length) ? draft.isVisible : false,
           },
         }
       );
@@ -358,6 +374,9 @@ export const PlansWorkspace = ({ onReady }: { onReady?: () => void }) => {
               </FormControl>
               <FormControl gridColumn={{ md: "1 / -1" }}>
                 <FormLabel>{t("commerce.allowedNodes")}</FormLabel>
+                {removedStaleNodes && <Alert status="info" rounded="xl" mb="3">
+                  <AlertIcon /><AlertDescription>{t("commerce.localStaleCleaned")}</AlertDescription>
+                </Alert>}
                 <LocalPlanSelection inbounds={inbounds} inboundTags={draft.inboundTags}
                   selections={draft.localNodeSelections}
                   onChange={(inboundTags, localNodeSelections) => setDraft({ ...draft, inboundTags, localNodeSelections })} />

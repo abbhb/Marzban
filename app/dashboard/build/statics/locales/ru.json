@@ -584,5 +584,6 @@
   "commerce.localUnavailable": "{{count}} selected routes are unavailable and will not be exported. Reselect after connection settings change.",
   "commerce.localRemoveUnavailable": "Remove unavailable",
   "commerce.localEmpty": "No exportable host routes configured",
-  "commerce.localDisabled": "Disabled"
+  "commerce.localDisabled": "Disabled",
+  "commerce.localStaleCleaned": "Unavailable node selections were removed. Save to apply. Plans without nodes or external sources are hidden automatically and remain editable."
 }

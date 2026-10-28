@@ -463,8 +463,9 @@ def update_plan(
 ) -> SubscriptionPlan:
     changes = values.model_dump(exclude_unset=True)
     external_values = changes.pop("external_selections", None)
-    if "inbound_tags" in changes:
-        validate_plan_inbounds(changes["inbound_tags"])
+    from app.services.local_nodes import node_catalog, prune_entitlements
+    from app.services.plan_groups import group_catalog
+    catalog, group_names = node_catalog(), group_catalog()
     # Do not derive current selections from the plan object loaded by the
     # router: under MySQL REPEATABLE READ it may predate a mutex wait. Acquire
     # the common lock first, then use locking/current reads for every row that
@@ -500,25 +501,22 @@ def update_plan(
             if exc.code == "overlay_limit_exceeded":
                 raise PlanConfigurationError(exc.code) from None
             raise
-    final_inbounds = changes.get("inbound_tags", plan.inbound_tags)
-    if "local_node_selections" not in changes and "inbound_tags" in changes:
-        changes["local_node_selections"] = {
-            tag: selected for tag, selected in (plan.local_node_selections or {}).items()
-            if tag in final_inbounds
-        }
-    if "local_node_selections" in values.model_fields_set:
-        from app.services.local_nodes import validate_selections
-        try:
-            validate_selections(changes["local_node_selections"], final_inbounds)
-        except ValueError as exc:
-            raise PlanConfigurationError(str(exc)) from None
+    final_inbounds, selected, members = prune_entitlements(
+        changes.get("inbound_tags", plan.inbound_tags),
+        changes.get("local_node_selections", plan.local_node_selections),
+        changes.get("group_members", plan.group_members),
+        catalog=catalog, group_names=group_names,
+    )
+    tags_changed = final_inbounds != plan.inbound_tags
+    previous_tags = set(plan.inbound_tags)
+    changes.update(inbound_tags=final_inbounds, local_node_selections=selected, group_members=members)
     final_has_external = (
         bool(external_selections)
         if external_selections is not None
         else bool(current_specs)
     )
     if not final_inbounds and not final_has_external:
-        raise PlanConfigurationError("A plan requires a local inbound or external selection")
+        changes["is_visible"] = False
     from app.services.plan_groups import validate_members
     try:
         validate_members(changes.get("group_members", plan.group_members) or {}, final_inbounds)
@@ -541,12 +539,43 @@ def update_plan(
             selection.plan_id = plan.id
             db.add(selection)
     plan.updated_at = utc_now()
-    if "inbound_tags" in changes:
-        reconcile_plan_entitlements(db, plan, commit=False)
+    plan._reconciled_user_states = (
+        reconcile_plan_entitlements(
+            db, plan, commit=False,
+            removed_tags=(previous_tags - set(final_inbounds))
+            if not (set(final_inbounds) - previous_tags) else None,
+        ) if tags_changed else []
+    )
     db.commit()
     db.expire(plan)
     db.refresh(plan)
     return plan
+
+
+def cleanup_plan_local_nodes(db: Session, plan_id: int):
+    """One locked, idempotent cleanup transaction; purchases remain snapshots."""
+    from app.services.local_nodes import node_catalog, prune_entitlements
+    from app.services.plan_groups import group_catalog
+    catalog, names = node_catalog(), group_catalog()
+    external_subscriptions.lock_external_budget_for_update(db)
+    plan, _selections, specs = _lock_current_plan_external_state(db, plan_id)
+    tags, selected, groups = prune_entitlements(
+        plan.inbound_tags, plan.local_node_selections, plan.group_members,
+        catalog=catalog, group_names=names)
+    visible = plan.is_visible if tags or specs else False
+    changed = (tags, selected, groups, visible) != (
+        plan.inbound_tags, plan.local_node_selections or {}, plan.group_members or {}, plan.is_visible)
+    if not changed:
+        db.rollback()
+        return False, []
+    tags_changed = tags != plan.inbound_tags
+    removed_tags = set(plan.inbound_tags) - set(tags)
+    plan.inbound_tags, plan.local_node_selections = tags, selected
+    plan.group_members, plan.is_visible = groups, visible
+    plan.updated_at = utc_now()
+    affected = reconcile_plan_entitlements(db, plan, commit=False, removed_tags=removed_tags) if tags_changed else []
+    db.commit()
+    return True, affected
 
 
 def get_plan(db: Session, plan_id: int) -> Optional[SubscriptionPlan]:
@@ -754,6 +783,7 @@ def reconcile_plan_entitlements(
     plan: SubscriptionPlan,
     *,
     commit: bool = True,
+    removed_tags: set[str] | None = None,
 ) -> list[tuple[int, UserStatus]]:
     """Make every current subscriber inherit the plan's node entitlement.
 
@@ -774,9 +804,8 @@ def reconcile_plan_entitlements(
         )
 
     inbound_rows = _inbound_rows(db, all_vless_tags)
-    excluded = [
-        inbound_rows[tag] for tag in all_vless_tags if tag not in plan.inbound_tags
-    ]
+    excluded = [inbound_rows[tag] for tag in all_vless_tags
+                if (tag in removed_tags if removed_tags is not None else tag not in plan.inbound_tags)]
     subscriptions = (
         db.query(PortalSubscription)
         .options(
@@ -796,11 +825,20 @@ def reconcile_plan_entitlements(
         user = subscription.account.proxy_user
         if not user:
             continue
+        runtime_changed = False
         for proxy in user.proxies:
             if ProxyTypes(proxy.type) == ProxyTypes.VLESS:
-                proxy.excluded_inbounds = list(excluded)
-        user.edit_at = now
-        affected.append((user.id, UserStatus(user.status)))
+                if removed_tags is None:
+                    proxy.excluded_inbounds = list(excluded)
+                    runtime_changed = True
+                else:
+                    existing = {row.tag for row in proxy.excluded_inbounds}
+                    additions = [row for row in excluded if row.tag not in existing]
+                    proxy.excluded_inbounds.extend(additions)
+                    runtime_changed = runtime_changed or bool(additions)
+        if runtime_changed:
+            user.edit_at = now
+            affected.append((user.id, UserStatus(user.status)))
 
     if commit:
         db.commit()
@@ -837,6 +875,8 @@ def _apply_proxy_plan(
     expires_at: datetime,
     now: datetime,
 ) -> tuple[User, bool]:
+    if not plan.inbound_tags and not plan.external_selections:
+        raise PlanConfigurationError("The plan has no available nodes")
     validate_plan_inbounds(plan.inbound_tags)
     all_vless_tags = _all_vless_tags()
     if plan.inbound_tags and (

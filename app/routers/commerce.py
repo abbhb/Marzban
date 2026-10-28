@@ -499,16 +499,13 @@ def admin_update_plan(
     plan = _get_plan_or_404(db, plan_id)
     try:
         updated = commerce.update_plan(db, plan, values)
-        if "inbound_tags" in values.model_fields_set:
-            for user_id, user_status in commerce.plan_managed_user_states(
-                db, updated.id
-            ):
-                operation = (
-                    xray.operations.update_user_by_id
-                    if user_status in (UserStatus.active, UserStatus.on_hold)
-                    else xray.operations.remove_user_by_id
-                )
-                bg.add_task(operation, user_id=user_id)
+        for user_id, user_status in updated._reconciled_user_states:
+            operation = (
+                xray.operations.update_user_by_id
+                if user_status in (UserStatus.active, UserStatus.on_hold)
+                else xray.operations.remove_user_by_id
+            )
+            bg.add_task(operation, user_id=user_id)
         return updated
     except commerce.PlanConfigurationError as exc:
         db.rollback()

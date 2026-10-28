@@ -35,3 +35,25 @@ def validate_selections(selections, inbound_tags):
     for tag, selected in selections.items():
         if not selected or set(selected) - catalog.get(tag, set()):
             raise ValueError("Selected local routes are unavailable; reload and select the current routes")
+
+
+def prune_entitlements(inbound_tags, selections, groups, *, catalog=None, group_names=None):
+    """Remove obsolete references without turning an empty selection into all."""
+    from app.services.plan_groups import group_catalog
+    catalog = node_catalog() if catalog is None else catalog
+    group_names = set(group_catalog() if group_names is None else group_names)
+    available = {item["tag"]: {node["id"] for node in item["nodes"]} for item in catalog}
+    tags, selected = [], {}
+    for tag in inbound_tags:
+        if tag not in available:
+            continue
+        if tag in (selections or {}):
+            ids = [value for value in selections[tag] if value in available[tag]]
+            if not ids:
+                continue
+            selected[tag] = list(dict.fromkeys(ids))
+        tags.append(tag)
+    allowed = {"external"} | {"inbound:" + tag for tag in tags}
+    members = {name: list(dict.fromkeys(ref for ref in refs if ref in allowed))
+               for name, refs in (groups or {}).items() if name in group_names}
+    return tags, selected, members

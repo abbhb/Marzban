@@ -729,5 +729,6 @@
   "commerce.localUnavailable": "有 {{count}} 个已选方案不可用，不会下发。连接参数变更后请重新选择。",
   "commerce.localRemoveUnavailable": "移除失效选择",
   "commerce.localEmpty": "此入站尚无可导出的主机方案",
-  "commerce.localDisabled": "已停用"
+  "commerce.localDisabled": "已停用",
+  "commerce.localStaleCleaned": "已自动移除失效的节点选择，保存后生效。无节点或外部来源的套餐将自动隐藏，仍可继续编辑。"
 }
