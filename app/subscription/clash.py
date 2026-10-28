@@ -32,7 +32,8 @@ from config import (
 
 EXTERNAL_AGGREGATE_GROUP_NAME = "MGMA · External"
 EXTERNAL_NODE_NAME_PREFIX = "MGMA-EXT · "
-EXTERNAL_NODE_EXCLUDE_PATTERN = r"^MGMA-EXT · "
+EXTERNAL_NODE_EXCLUDE_PATTERN = r"^(?:\[ipv6\] )?MGMA-EXT · "
+IPV6_NODE_PREFIX = "[ipv6] "
 PRIMARY_PROXY_GROUP_NAME = "🚀 节点选择"
 CLAUDE_PROXY_GROUP_NAME = "🤖 AI 服务-Claude"
 
@@ -69,6 +70,78 @@ def _uses_ipv6_endpoint(node: dict) -> bool:
         except ValueError:
             pass
     return False
+
+
+def present_ipv6_nodes(document: dict) -> dict:
+    """Label literal IPv6 routes and keep their references and order coherent."""
+    result = copy.deepcopy(document)
+    proxies = result.get("proxies")
+    if not isinstance(proxies, list):
+        return result
+    ipv6_nodes = [node for node in proxies if _uses_ipv6_endpoint(node) and isinstance(node.get("name"), str)]
+    if not ipv6_nodes:
+        return result
+
+    groups = result.get("proxy-groups") or []
+    used_names = _document_names(proxies, groups) | set(CLASH_RESERVED_PROXY_NAMES)
+    renamed: dict[str, str] = {}
+    ipv6_names: set[str] = set()
+    for node in ipv6_nodes:
+        old = node["name"]
+        if old.startswith(IPV6_NODE_PREFIX):
+            ipv6_names.add(old)
+            continue
+        name = IPV6_NODE_PREFIX + old
+        if name in used_names:
+            name = _allocate_stable_name(name, used_names, f"ipv6:{old}")
+        used_names.add(name)
+        renamed[old] = name
+        node["name"] = name
+        ipv6_names.add(name)
+
+    # Stable partition preserves administrator-defined order within each family.
+    result["proxies"] = sorted(proxies, key=lambda node: not (
+        isinstance(node, dict) and node.get("name") in ipv6_names
+    ))
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        members = group.get("proxies")
+        if isinstance(members, list):
+            members = [renamed.get(name, name) for name in members]
+            group["proxies"] = (sorted(members, key=lambda name: name not in ipv6_names)
+                                if group.get("name") == PRIMARY_PROXY_GROUP_NAME else members)
+        if isinstance(group.get("default-selected"), str):
+            group["default-selected"] = renamed.get(group["default-selected"], group["default-selected"])
+
+    def rename_detours(value):
+        if isinstance(value, dict):
+            if isinstance(value.get("dialer-proxy"), str):
+                value["dialer-proxy"] = renamed.get(value["dialer-proxy"], value["dialer-proxy"])
+            for child in value.values():
+                rename_detours(child)
+        elif isinstance(value, list):
+            for child in value:
+                rename_detours(child)
+
+    rename_detours(result)
+
+    def rename_rule(rule):
+        if not isinstance(rule, str):
+            return rule
+        # Match the final policy exactly, including the optional no-resolve flag.
+        for old in sorted(renamed, key=len, reverse=True):
+            for suffix in ("," + old + ",no-resolve", "," + old):
+                if rule.endswith(suffix):
+                    return rule[:-len(suffix)] + "," + renamed[old] + (",no-resolve" if suffix.endswith(",no-resolve") else "")
+        return rule
+
+    if isinstance(result.get("rules"), list):
+        result["rules"] = [rename_rule(rule) for rule in result["rules"]]
+    for name, rules in (result.get("sub-rules") or {}).items():
+        if isinstance(rules, list):
+            result["sub-rules"][name] = [rename_rule(rule) for rule in rules]
+    return result
 
 
 def _clean_external_name(value: Any) -> str | None:
@@ -485,6 +558,7 @@ class ClashConfiguration(object):
         if subscription_rules is not None:
             document["rules"] = list(subscription_rules)
             document["mode"] = "rule"
+        document = present_ipv6_nodes(document)
         if any(_uses_ipv6_endpoint(node) for node in document.get("proxies") or []):
             # With ipv6:false Mihomo rejects even a literal IPv6 server before
             # dialing it. Keep DNS AAAA policy independent and leave IPv4-only

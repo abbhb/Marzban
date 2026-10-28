@@ -24,7 +24,8 @@ class Ipv6SubscriptionTests(unittest.TestCase):
                 before, result = self.render([{'name': 'v6', 'type': 'vless', 'server': address}], meta=meta)
                 self.assertIs(result['ipv6'], True)
                 self.assertEqual(result['dns'], before['dns'])
-                self.assertEqual(result['proxies'], before['proxies'])
+                self.assertEqual(result['proxies'][0]['name'], '[ipv6] v6')
+                self.assertEqual(result['proxies'][0]['server'], address)
                 self.assertEqual(result['rules'], before['rules'])
                 self.assertIs(prepare_shadowrocket(result)['ipv6'], True)
 
@@ -33,7 +34,8 @@ class Ipv6SubscriptionTests(unittest.TestCase):
                   'xhttp-opts': {'download-settings': {'server': '2001:db8::10'}}}]
         before, result = self.render(nodes)
         self.assertIs(result['ipv6'], True)
-        self.assertEqual(result['proxies'], before['proxies'])
+        self.assertEqual(result['proxies'][0]['name'], '[ipv6] CDN up / IPv6 down')
+        self.assertEqual(result['proxies'][0]['xhttp-opts'], before['proxies'][0]['xhttp-opts'])
 
     def test_ipv4_and_hostname_endpoints_preserve_template_preference(self):
         for setting in (False, True):
