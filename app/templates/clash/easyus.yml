@@ -8,6 +8,7 @@ bind-address: '*'
 mode: rule
 log-level: info
 ipv6: false
+x-mgma-secure-dns: true
 external-controller: 127.0.0.1:9090
 unified-delay: true
 global-client-fingerprint: chrome

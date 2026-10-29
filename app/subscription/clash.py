@@ -14,6 +14,7 @@ import yaml
 from jinja2.exceptions import TemplateNotFound
 
 from app.subscription.funcs import get_grpc_gun
+from app.subscription.dns_security import secure_mihomo_dns
 from app.subscription.xhttp import mihomo_xhttp_options, mihomo_xhttp_profiles
 from app.subscription.external_policy import (
     EXTERNAL_PROXY_TYPE_RE,
@@ -27,6 +28,7 @@ from config import (
     CLASH_SUBSCRIPTION_TEMPLATE,
     MUX_TEMPLATE,
     USER_AGENT_TEMPLATE,
+    XRAY_SUBSCRIPTION_URL_PREFIX,
 )
 
 
@@ -523,7 +525,7 @@ class ClashConfiguration(object):
 
         del user_agent_data
 
-    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None, subscription_group_order: list[str] | None = None, plan_group_members: dict | None = None):
+    def render(self, reverse=False, clash_overlay: dict | None = None, is_meta: bool = False, subscription_rules: list[str] | None = None, subscription_group_order: list[str] | None = None, plan_group_members: dict | None = None, secure_dns: bool = True):
         if reverse:
             self.data['proxies'].reverse()
 
@@ -564,6 +566,9 @@ class ClashConfiguration(object):
             # dialing it. Keep DNS AAAA policy independent and leave IPv4-only
             # subscriptions' existing preference intact.
             document["ipv6"] = True
+        dns_opt_in = document.pop("x-mgma-secure-dns", False)
+        if dns_opt_in and is_meta and secure_dns:
+            secure_mihomo_dns(document, PRIMARY_PROXY_GROUP_NAME, XRAY_SUBSCRIPTION_URL_PREFIX)
         return yaml.dump(
             document,
             sort_keys=False,
