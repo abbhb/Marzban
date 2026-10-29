@@ -63,6 +63,7 @@ def generate_clash_subscription(
         subscription_group_order: list[str] | None = None,
         plan_group_members: dict | None = None,
         local_node_selections: dict | None = None,
+        secure_dns: bool = True,
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -77,7 +78,7 @@ def generate_clash_subscription(
         conf=conf,
         reverse=reverse,
         local_node_selections=local_node_selections,
-        render_options={"clash_overlay": clash_overlay, "is_meta": is_meta, "subscription_rules": subscription_rules, "subscription_group_order": subscription_group_order, "plan_group_members": plan_group_members},
+        render_options={"clash_overlay": clash_overlay, "is_meta": is_meta, "subscription_rules": subscription_rules, "subscription_group_order": subscription_group_order, "plan_group_members": plan_group_members, "secure_dns": secure_dns},
     )
 
 
@@ -140,7 +141,7 @@ def generate_subscription(
 
     if config_format == "shadowrocket":
         document = yaml.safe_load(generate_clash_subscription(
-            **kwargs, is_meta=True, clash_overlay=clash_overlay, subscription_rules=subscription_rules, subscription_group_order=subscription_group_order, plan_group_members=plan_group_members,
+            **kwargs, is_meta=True, secure_dns=False, clash_overlay=clash_overlay, subscription_rules=subscription_rules, subscription_group_order=subscription_group_order, plan_group_members=plan_group_members,
         ))
         config = yaml.safe_dump(prepare_shadowrocket(document), allow_unicode=True, sort_keys=False)
     elif config_format == "v2ray":

@@ -1,5 +1,35 @@
 # Mihomo XHTTP 订阅
 
+## DNS 与 IPv6 接管
+
+`easyus.yml` 通过 `x-mgma-secure-dns: true` 为 Mihomo / Clash Meta 导出启用安全 DNS。
+普通域名只通过“节点选择”发送到 Cloudflare / Google 的 HTTPS DNS；包括直连业务
+最终需要的真实地址，也不回退到本机系统 DNS、运营商 DNS 或明文 UDP/TCP 53。
+选中的代理失效时解析失败，不自动降级到直连。节点选择及其嵌套来源必须只有代理和
+拒绝选项；发现 DIRECT、未知引用、循环或未展开的提供者时，普通 DNS 改为 REJECT。
+
+节点域名的启动解析单独通过阿里 HTTPS DNS 的固定 IP 直连，避免解析代理节点时
+依赖代理本身；订阅 URL 中的面板域名也使用这组加密直连解析，保留面板直连规则。
+这两类查询会被对应的 DNS 服务商看到；“加密”并不代表 DNS 服务商不知道查询内容。
+其他普通域名不发送给这组启动解析器。没有写死公司域名、内网 DNS 或 VPN 网卡；
+UniVPN 继续由客户端动态合并其 `nameserver-policy` 和路由策略。
+
+DNS 使用 fake-ip，暂不返回 AAAA，但全局允许 IPv6 节点和 IPv6 字面地址。
+下发 TUN 的 IPv6 地址、UDP/TCP 53 接管和严格路由默认值，不从订阅开启 TUN。
+传统 Clash、Shadowrocket 及未启用该标记的其他模板保持原来的 DNS/TUN 行为。
+
+客户端最终设置仍需满足以下条件，订阅无法越过客户端权限替用户开启：
+
+- Clash Verge：使用订阅 DNS，或把本机 DNS 覆写同步为同一安全配置；开启 TUN，
+  保留 IPv6 接管和 UDP/TCP DNS 劫持。UniVPN 的动态策略需在合并后仍保留。
+- Clash Meta for Android：开启 VPN 和 IPv6 路由，不启用追加系统 DNS，不将需要
+  保护的应用排除在 VPN 外；需要断线保护时开启 Android 的始终开启 VPN、阻止
+  未经 VPN 的连接。客户端覆写优先于订阅，更新订阅后要核对最终配置。
+- 浏览器自带安全 DNS、Android 私人 DNS或其他应用自建 DoH 不受普通 53 劫持控制，
+  必须依赖应用流量被 VPN/TUN 接管。关闭代理或绕过 VPN 的流量不在订阅保护范围。
+
+没有在真实终端的 IPv6 网络上验证之前，不能把这些默认值当作已完成终端防泄漏验收。
+
 Clash Meta、Mihomo 和使用相同导出流程的 Shadowrocket YAML 订阅支持原生
 `xhttp` / `splithttp` 入站。传统 Clash 订阅继续忽略这些入站。
 

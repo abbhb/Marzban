@@ -58,7 +58,8 @@ class RulesTests(unittest.TestCase):
 
     def test_rules_override_changes_mode_and_preserves_template_configuration(self):
         with patch("app.subscription.clash.render_template", side_effect=lambda name, context=None:
-                   '{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT)):
+                   '{"clash": {}}' if name == 'mux/default.json' else
+                       ('{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT))):
             config = ClashConfiguration()
             result = yaml.safe_load(config.render(subscription_rules=["MATCH,REJECT"]))
         self.assertEqual(result["rules"], ["MATCH,REJECT"])
@@ -77,7 +78,8 @@ class SubscriptionRuleIntegrationTests(MgmaDatabaseTestCase):
                 "app.routers.subscription.load_external_overlays_for_user", return_value=[]
             ), patch(
                 "app.subscription.clash.render_template", side_effect=lambda name, context=None:
-                '{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT)
+                '{"clash": {}}' if name == 'mux/default.json' else
+                    ('{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT))
             ):
                 response = build_subscription_response(
                     UserResponse.model_validate(user), client_type=client,

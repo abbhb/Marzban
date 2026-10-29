@@ -76,7 +76,8 @@ class GroupOrderTests(MgmaDatabaseTestCase):
     def test_external_groups_stay_last_and_group_contents_are_preserved(self):
         for overlay in (None, OVERLAY):
             with self.subTest(overlay=bool(overlay)), patch("app.subscription.clash.render_template", side_effect=lambda name, context=None:
-                    '{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT)):
+                    '{"clash": {}}' if name == 'mux/default.json' else
+                        ('{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT))):
                 result = yaml.safe_load(ClashConfiguration().render(subscription_group_order=["C", "A", "B"], clash_overlay=overlay, is_meta=True))
             names = [g["name"] for g in result["proxy-groups"]]
             self.assertEqual(names[:3], ["C", "A", "B"])
@@ -91,7 +92,8 @@ class GroupOrderTests(MgmaDatabaseTestCase):
         for client in ("clash", "clash-meta", "shadowrocket"):
             with self.subTest(client=client), patch("app.routers.subscription.load_external_overlays_for_user", return_value=[]), patch(
                 "app.subscription.clash.render_template", side_effect=lambda name, context=None:
-                '{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT)):
+                '{"clash": {}}' if name == 'mux/default.json' else
+                    ('{}' if name != 'clash/default.yml' else yaml.safe_dump(DOCUMENT))):
                 result = yaml.safe_load(build_subscription_response(UserResponse.model_validate(user), client_type=client, db=self.db, user_id=user.id).body)
             self.assertEqual([g["name"] for g in result["proxy-groups"]], ["C", "A", "B", EXTERNAL_AGGREGATE_GROUP_NAME])
             self.assertEqual(result["rules"], DOCUMENT["rules"])
