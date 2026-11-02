@@ -1,7 +1,7 @@
 import json
 import re
 from enum import Enum
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -155,6 +155,9 @@ class ProxyHost(BaseModel):
     noise_setting: Optional[str] = Field(None, nullable=True)
     random_user_agent: Union[bool, None] = None
     use_sni_as_host: Union[bool, None] = None
+    cascade_mode: Literal["off", "replace", "additional"] = "off"
+    cascade_entry_id: Optional[int] = Field(None, gt=0)
+    cascade_entry_yaml: Optional[str] = Field(None, max_length=32768, repr=False)
     model_config = ConfigDict(from_attributes=True)
 
     @field_validator("remark", mode="after")

@@ -1,4 +1,34 @@
 {
+  "cascade": {
+    "title": "Cascaded route",
+    "off": "Off, keep the original route",
+    "replace": "Connect through an entry, keep the node name",
+    "additional": "Keep the direct route and add a cascaded route",
+    "modeHelp": "Uses existing plan entitlements and each user's landing credentials. Additional routes use a cascade suffix.",
+    "clientHelp": "Cascades require a Clash Verge / Mihomo subscription. Other formats return an explicit error instead of falling back to a direct connection.",
+    "source": "Entry source",
+    "paste": "Paste node YAML",
+    "external": "Select an existing external node",
+    "search": "Search entry nodes",
+    "entry": "Entry node",
+    "loading": "Loading entries…",
+    "choose": "Choose an entry",
+    "unavailable": "Entry #{{id}} is unavailable; select another",
+    "loadError": "Could not load entries. Retry or paste YAML.",
+    "externalHelp": "Search shared external subscriptions; up to 100 matches are shown. Follows upstream refreshes. Entry credentials are included in users' subscriptions.",
+    "yaml": "Complete entry configuration",
+    "yamlHelp": "Accepts a single node, a one-item list or a one-node proxies document. Keeps protocol, TLS, Reality and transport options. References to other nodes or groups are unsupported. Credentials are encrypted at rest and included in users' subscriptions.",
+    "check": "Check YAML format",
+    "checkError": "The format check request failed. Please retry.",
+    "valid": "Format accepted: {{name}} · {{type}} · {{server}}:{{port}}. Network connectivity has not been tested.",
+    "path": "Connection order: device → selected entry → this self-hosted node → destination. Verify the complete route in your client.",
+    "errors": {
+      "cascade_invalid_yaml": "Paste one complete standalone node with a name, protocol, server and port, without references to other nodes or groups.",
+      "cascade_choose_one_entry": "Select one external entry or paste one entry YAML.",
+      "cascade_entry_unavailable": "The entry is disabled, removed or unavailable. Select another entry.",
+      "encryption_key_unavailable": "Configure EXTERNAL_SUBSCRIPTION_ENCRYPTION_KEY before saving entry credentials."
+    }
+  },
   "xhttp": {
     "title": "XHTTP profiles",
     "baseHosts": "Base hosts",

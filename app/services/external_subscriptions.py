@@ -1272,6 +1272,11 @@ def _apply_snapshot(
         )
         .all()
     }
+    # Cascaded routes also retain tombstones, so disappearance fails closed
+    # and a later reappearance can restore the same panel-owned reference.
+    from app.db.models import ProxyHost
+    selected_node_ids.update(node_id for (node_id,) in db.query(ProxyHost.cascade_entry_id)
+                             .filter(ProxyHost.cascade_entry_id.isnot(None)).all())
     seen = set()
     for parsed, ciphertext in encrypted:
         seen.add(parsed.external_key)

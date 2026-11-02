@@ -16,6 +16,7 @@ from . import *
 from .shadowrocket import prepare_shadowrocket
 from .local_nodes import selected_route
 from app.xray.flow import settings_for_inbound
+from app.subscription.cascade import entry_key
 
 if TYPE_CHECKING:
     from app.models.user import UserResponse
@@ -49,11 +50,11 @@ STATUS_TEXTS = {
 
 
 def generate_v2ray_links(proxies: dict, inbounds: dict, extra_data: dict, reverse: bool,
-                         local_node_selections: dict | None = None) -> list:
+                         local_node_selections: dict | None = None, omit_cascades: bool = False) -> list:
     format_variables = setup_format_variables(extra_data)
     conf = V2rayShareLink()
     return process_inbounds_and_tags(inbounds, proxies, format_variables, conf=conf, reverse=reverse,
-                                    local_node_selections=local_node_selections)
+                                    local_node_selections=local_node_selections, omit_cascades=omit_cascades)
 
 
 def generate_clash_subscription(
@@ -64,6 +65,7 @@ def generate_clash_subscription(
         plan_group_members: dict | None = None,
         local_node_selections: dict | None = None,
         secure_dns: bool = True,
+        cascade_nodes: dict | None = None,
 ) -> str:
     if is_meta is True:
         conf = ClashMetaConfiguration()
@@ -78,6 +80,7 @@ def generate_clash_subscription(
         conf=conf,
         reverse=reverse,
         local_node_selections=local_node_selections,
+        cascade_nodes=cascade_nodes,
         render_options={"clash_overlay": clash_overlay, "is_meta": is_meta, "subscription_rules": subscription_rules, "subscription_group_order": subscription_group_order, "plan_group_members": plan_group_members, "secure_dns": secure_dns},
     )
 
@@ -130,6 +133,7 @@ def generate_subscription(
         subscription_rules: list[str] | None = None,
         subscription_group_order: list[str] | None = None,
         plan_group_members: dict | None = None,
+        cascade_nodes: dict | None = None,
 ) -> str:
     kwargs = {
         "proxies": user.proxies,
@@ -150,6 +154,7 @@ def generate_subscription(
         config = generate_clash_subscription(
             **kwargs,
             is_meta=True,
+            cascade_nodes=cascade_nodes,
             clash_overlay=clash_overlay,
             subscription_rules=subscription_rules,
             subscription_group_order=subscription_group_order, plan_group_members=plan_group_members,
@@ -289,6 +294,8 @@ def process_inbounds_and_tags(
         reverse=False,
         render_options: dict | None = None,
         local_node_selections: dict | None = None,
+        cascade_nodes: dict | None = None,
+        omit_cascades: bool = False,
 ) -> Union[List, str]:
     _inbounds = []
     for protocol, tags in inbounds.items():
@@ -312,6 +319,8 @@ def process_inbounds_and_tags(
 
             format_variables.update({"TRANSPORT": inbound["network"]})
             for host in xray.hosts.get(tag, []):
+                if omit_cascades and host.get("cascade_mode", "off") != "off":
+                    continue
                 allowed = (local_node_selections or {}).get(tag)
                 host_inbound = selected_route(host, inbound, allowed)
                 if host_inbound is None:
@@ -370,13 +379,30 @@ def process_inbounds_and_tags(
                     }
                 )
 
+                cascade_mode = host.get("cascade_mode", "off")
+                entry = (cascade_nodes or {}).get(host.get("id"))
+                if cascade_mode != "off" and (not isinstance(conf, ClashMetaConfiguration) or entry is None):
+                    from app.services.cascades import CascadeError
+                    raise CascadeError("cascade_requires_mihomo" if not isinstance(conf, ClashMetaConfiguration)
+                                       else "cascade_entry_unavailable")
+                remark = host["remark"].format_map(format_variables)
+                account = settings_for_inbound(settings.model_dump(), inbound)
                 before = len(conf.data["proxies"]) if hasattr(conf, "inbound_proxy_names") else 0
+                if cascade_mode == "additional":
+                    conf.add(remark=remark, address=address.format_map(format_variables),
+                             inbound=host_inbound, settings=account)
+                cascade_start = len(conf.data["proxies"]) if entry else 0
                 conf.add(
-                    remark=host["remark"].format_map(format_variables),
+                    remark=remark + " · 级联" if cascade_mode == "additional" else remark,
                     address=address.format_map(format_variables),
                     inbound=host_inbound,
-                    settings=settings_for_inbound(settings.model_dump(), inbound)
+                    settings=account
                 )
+                if entry:
+                    key = entry_key(entry)
+                    conf.cascade_entries[key] = entry
+                    for node in conf.data["proxies"][cascade_start:]:
+                        node["dialer-proxy"] = key
 
                 if hasattr(conf, "inbound_proxy_names"):
                     conf.inbound_proxy_names.setdefault(tag, []).extend(p["name"] for p in conf.data["proxies"][before:])

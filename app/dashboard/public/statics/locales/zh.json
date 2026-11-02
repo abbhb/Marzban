@@ -1,4 +1,34 @@
 {
+  "cascade": {
+    "title": "级联线路",
+    "off": "关闭，保持原线路",
+    "replace": "通过入口连接，保留原节点名称",
+    "additional": "保留直连，并新增级联线路",
+    "modeHelp": "沿用原套餐的线路授权和每位用户自己的落地账号。新增线路的名称带有“级联”后缀。",
+    "clientHelp": "级联仅支持 Clash Verge / Mihomo 订阅。启用后，其他订阅格式会提示使用 Mihomo，不会退回直连。",
+    "source": "入口来源",
+    "paste": "粘贴节点 YAML",
+    "external": "选择已有外部节点",
+    "search": "搜索入口节点",
+    "entry": "入口节点",
+    "loading": "正在加载入口…",
+    "choose": "请选择入口",
+    "unavailable": "入口 #{{id}} 当前不可用，请重新选择",
+    "loadError": "入口加载失败，请重试或粘贴 YAML。",
+    "externalHelp": "搜索共享外部订阅中的节点，最多显示 100 个结果。自动跟随上游刷新；入口凭据会随用户订阅下发。",
+    "yaml": "完整入口配置",
+    "yamlHelp": "支持单个节点、单项列表或仅含一个节点的 proxies 文档。保留协议、TLS、Reality 和传输参数；不支持依赖其他节点或组的入口。凭据加密保存，并随用户订阅下发。",
+    "check": "检查 YAML 格式",
+    "checkError": "格式检查请求失败，请稍后重试。",
+    "valid": "格式通过：{{name}} · {{type}} · {{server}}:{{port}}。尚未测试网络连通性。",
+    "path": "连接顺序：用户设备 → 所选入口 → 当前自建节点 → 目标网站。请在客户端验证整条线路。",
+    "errors": {
+      "cascade_invalid_yaml": "请粘贴一个完整、独立的节点 YAML，包含名称、协议、服务器和端口，不要包含其他节点或组的引用。",
+      "cascade_choose_one_entry": "请选择一个外部入口，或粘贴一个入口 YAML。",
+      "cascade_entry_unavailable": "入口已停用、移除或不可用，请选择其他入口。",
+      "encryption_key_unavailable": "请先配置 EXTERNAL_SUBSCRIPTION_ENCRYPTION_KEY，再保存入口凭据。"
+    }
+  },
   "xhttp": {
     "title": "XHTTP 方案",
     "baseHosts": "基础主机",
