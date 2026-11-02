@@ -1419,6 +1419,7 @@ class ExternalSubscriptionRouteTests(unittest.TestCase):
         self.dbuser = SimpleNamespace(id=73)
         self.user = SimpleNamespace(
             username="synthetic-user",
+            inbounds={},
             used_traffic=0,
             data_limit=1024,
             expire=0,

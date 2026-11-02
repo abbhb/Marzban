@@ -7,7 +7,8 @@ import json
 
 def route_id(host, profile=None, inbound=None):
     # Names and enabled flags may change without granting a different route.
-    endpoint = {key: value for key, value in host.items() if key != "remark"}
+    endpoint = {key: value for key, value in host.items()
+                if key not in {"remark", "id", "cascade_mode"}}
     transport = {key: value for key, value in (profile or {}).items()
                  if key not in {"label", "enabled"}}
     defaults = {key: (inbound or {}).get(key) for key in (

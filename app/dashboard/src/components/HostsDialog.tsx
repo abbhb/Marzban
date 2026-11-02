@@ -73,6 +73,7 @@ import { useDashboard } from "../contexts/DashboardContext";
 import { DeleteIcon } from "./DeleteUserModal";
 import { Icon } from "./Icon";
 import { Input as CustomInput } from "./Input";
+import { CascadeFields } from "./CascadeFields";
 import { XhttpProfiles } from "./XhttpProfiles";
 
 export const DuplicateIcon = chakra(DocumentDuplicateIcon, {
@@ -153,6 +154,16 @@ const hostsSchema = z.record(
       alpn: z.string(),
       fingerprint: z.string(),
       use_sni_as_host: z.boolean().default(false),
+      cascade_mode: z.enum(["off", "replace", "additional"]).default("off"),
+      cascade_entry_id: z.number().int().positive().nullable().default(null),
+      cascade_entry_yaml: z.string().max(32768).nullable().default(null),
+    }).superRefine((host, context) => {
+      if (host.cascade_mode === "off") return;
+      if (!!host.cascade_entry_id === !!host.cascade_entry_yaml?.trim()) {
+        for (const field of ["cascade_entry_id", "cascade_entry_yaml"]) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: "cascade.errors.cascade_choose_one_entry" });
+        }
+      }
     })
   )
 );
@@ -214,6 +225,9 @@ const AccordionInbound: FC<AccordionInboundType> = ({
       alpn: "",
       fingerprint: "",
       use_sni_as_host: false,
+      cascade_mode: "off",
+      cascade_entry_id: null,
+      cascade_entry_yaml: null,
     });
   };
   const duplicateHost = (index: number) => {
@@ -536,6 +550,7 @@ const AccordionInbound: FC<AccordionInboundType> = ({
                     )}
                   </FormControl>
 
+                  <CascadeFields path={`${hostKey}.${index}`} />
                   <Accordion w="full" allowToggle>
                     <AccordionItem border="0">
                       <div style={{ display: "flex", alignItems: "center" }}>
@@ -1239,7 +1254,7 @@ export const HostsDialog: FC = () => {
       .catch((err) => {
         if (err?.response?.status === 409 || err?.response?.status === 400) {
           toast({
-            title: err.response?._data?.detail,
+            title: t(`cascade.errors.${err.response?._data?.detail}`, { defaultValue: err.response?._data?.detail }),
             status: "error",
             isClosable: true,
             position: "top",

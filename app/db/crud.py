@@ -121,7 +121,10 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
             inbound=inbound,
             security=host.security,
             alpn=host.alpn,
-            fingerprint=host.fingerprint
+            fingerprint=host.fingerprint,
+            cascade_mode=host.cascade_mode,
+            cascade_entry_id=host.cascade_entry_id if host.cascade_mode != "off" else None,
+            cascade_entry_yaml=host.cascade_entry_yaml if host.cascade_mode != "off" else None,
         )
     )
     db.commit()
@@ -129,7 +132,7 @@ def add_host(db: Session, inbound_tag: str, host: ProxyHostModify) -> List[Proxy
     return inbound.hosts
 
 
-def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostModify]) -> List[ProxyHost]:
+def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostModify], *, commit: bool = True) -> List[ProxyHost]:
     """
     Updates hosts for a given inbound tag.
 
@@ -141,7 +144,13 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostMo
     Returns:
         List[ProxyHost]: Updated list of hosts for the inbound.
     """
-    inbound = get_or_create_inbound(db, inbound_tag)
+    if commit:
+        inbound = get_or_create_inbound(db, inbound_tag)
+    else:
+        inbound = db.query(ProxyInbound).filter_by(tag=inbound_tag).first()
+        if inbound is None:
+            inbound = ProxyInbound(tag=inbound_tag)
+            db.add(inbound)
     inbound.hosts = [
         ProxyHost(
             remark=host.remark,
@@ -161,9 +170,15 @@ def update_hosts(db: Session, inbound_tag: str, modified_hosts: List[ProxyHostMo
             noise_setting=host.noise_setting,
             random_user_agent=host.random_user_agent,
             use_sni_as_host=host.use_sni_as_host,
+            cascade_mode=host.cascade_mode,
+            cascade_entry_id=host.cascade_entry_id if host.cascade_mode != "off" else None,
+            cascade_entry_yaml=host.cascade_entry_yaml if host.cascade_mode != "off" else None,
         ) for host in modified_hosts
     ]
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(inbound)
     return inbound.hosts
 

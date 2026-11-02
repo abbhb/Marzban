@@ -15,6 +15,7 @@ from jinja2.exceptions import TemplateNotFound
 
 from app.subscription.funcs import get_grpc_gun
 from app.subscription.dns_security import secure_mihomo_dns
+from app.subscription.cascade import apply_cascades
 from app.subscription.xhttp import mihomo_xhttp_options, mihomo_xhttp_profiles
 from app.subscription.external_policy import (
     EXTERNAL_PROXY_TYPE_RE,
@@ -510,6 +511,7 @@ class ClashConfiguration(object):
         }
         self.proxy_remarks = []
         self.inbound_proxy_names = {}
+        self.cascade_entries = {}
         self.mux_template = render_template(MUX_TEMPLATE)
         user_agent_data = json.loads(render_template(USER_AGENT_TEMPLATE))
 
@@ -561,6 +563,7 @@ class ClashConfiguration(object):
             document["rules"] = list(subscription_rules)
             document["mode"] = "rule"
         document = present_ipv6_nodes(document)
+        document = apply_cascades(document, self.cascade_entries)
         if any(_uses_ipv6_endpoint(node) for node in document.get("proxies") or []):
             # With ipv6:false Mihomo rejects even a literal IPv6 server before
             # dialing it. Keep DNS AAAA policy independent and leave IPv4-only

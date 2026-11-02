@@ -752,7 +752,11 @@ def admin_delete_external_subscription(
         )[source_id]
     except external_subscriptions.ExternalSubscriptionError as exc:
         raise _external_error(exc) from None
-    if source.plan_selections:
+    from app.db.models import ProxyHost
+    used_by_cascade = db.query(ProxyHost.id).join(
+        ExternalSubscriptionNode, ProxyHost.cascade_entry_id == ExternalSubscriptionNode.id
+    ).filter(ExternalSubscriptionNode.source_id == source_id).first()
+    if source.plan_selections or used_by_cascade:
         db.rollback()
         raise HTTPException(
             status_code=409,

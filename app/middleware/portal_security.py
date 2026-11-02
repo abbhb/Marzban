@@ -68,7 +68,8 @@ class PortalSecurityMiddleware(BaseHTTPMiddleware):
         enforced = blacklist_enforced(path)
         if not enforced and kind is None:
             response = await call_next(request)
-            if path.startswith("/api/commerce/admin/external-subscriptions"):
+            if (path.startswith("/api/commerce/admin/external-subscriptions")
+                    or path == "/api/hosts" or path.startswith("/api/hosts/")):
                 response.headers["Cache-Control"] = "private, no-store"
             return response
 

@@ -293,6 +293,28 @@ class ProxyHost(Base):
     noise_setting = Column(String(2000), nullable=True)
     random_user_agent = Column(Boolean, nullable=False, default=False, server_default='0')
     use_sni_as_host = Column(Boolean, nullable=False, default=False, server_default="0")
+    cascade_mode = Column(String(16), nullable=False, default="off", server_default="off")
+    cascade_entry_id = Column(
+        Integer, ForeignKey("external_subscription_nodes.id", ondelete="RESTRICT"), nullable=True
+    )
+    cascade_entry_ciphertext = Column(Text, nullable=True)
+
+    @property
+    def cascade_entry_yaml(self):
+        if not self.cascade_entry_ciphertext:
+            return None
+        import yaml
+        from app.services.external_subscriptions import decrypt_proxy_payload
+        return yaml.safe_dump(decrypt_proxy_payload(self.cascade_entry_ciphertext), allow_unicode=True, sort_keys=False)
+
+    @cascade_entry_yaml.setter
+    def cascade_entry_yaml(self, value):
+        if not value:
+            self.cascade_entry_ciphertext = None
+            return
+        from app.services.cascades import parse_entry_yaml
+        from app.services.external_subscriptions import encrypt_proxy_payload
+        self.cascade_entry_ciphertext = encrypt_proxy_payload(parse_entry_yaml(value))
 
 
 class System(Base):

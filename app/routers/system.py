@@ -1,6 +1,8 @@
 from typing import Dict, List, Union
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 
 from app import __version__, xray
 from app.db import Session, crud, get_db
@@ -10,8 +12,29 @@ from app.models.system import SystemStats
 from app.models.user import UserStatus
 from app.utils import responses
 from app.utils.system import cpu_usage, memory_usage, realtime_bandwidth
+from app.services import cascades
+from app.services.external_subscriptions import ExternalSubscriptionError
 
 router = APIRouter(tags=["System"], prefix="/api", responses={401: responses._401})
+
+
+@router.get("/hosts/cascade-entries")
+def get_cascade_entries(search: str = Query("", max_length=256), selected_id: int | None = Query(None, gt=0),
+                        db: Session = Depends(get_db), admin: Admin = Depends(Admin.check_sudo_admin)):
+    return cascades.entry_choices(db, search.strip(), selected_id)
+
+
+class CascadePreview(BaseModel):
+    yaml_text: str = Field(alias="yaml", max_length=32768, repr=False)
+
+
+@router.post("/hosts/cascade-preview")
+def preview_cascade_entry(body: CascadePreview, admin: Admin = Depends(Admin.check_sudo_admin)):
+    try:
+        node = cascades.parse_entry_yaml(body.yaml_text)
+    except cascades.CascadeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    return {key: node[key] for key in ("name", "type", "server", "port")}
 
 
 @router.get("/system", response_model=SystemStats)
@@ -95,8 +118,17 @@ def modify_hosts(
                 status_code=400, detail=f"Inbound {inbound_tag} doesn't exist"
             )
 
-    for inbound_tag, hosts in modified_hosts.items():
-        crud.update_hosts(db, inbound_tag, hosts)
+    try:
+        cascades.validate_hosts(db, modified_hosts)
+        for inbound_tag, hosts in modified_hosts.items():
+            crud.update_hosts(db, inbound_tag, hosts, commit=False)
+        db.commit()
+    except (cascades.CascadeError, ExternalSubscriptionError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="cascade_entry_unavailable") from None
 
     xray.hosts.update()
 

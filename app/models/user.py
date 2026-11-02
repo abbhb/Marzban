@@ -300,6 +300,7 @@ class UserResponse(User):
             self.links = generate_v2ray_links(
                 self.proxies, self.inbounds, extra_data=self.model_dump(), reverse=False,
                 local_node_selections=self.local_node_selections,
+                omit_cascades=True,
             )
         return self
 
