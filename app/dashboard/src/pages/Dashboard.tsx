@@ -21,11 +21,6 @@ const CoreSettingsModal = lazy(() =>
     default: CoreSettingsModal,
   }))
 );
-const HostsDialog = lazy(() =>
-  import("components/HostsDialog").then(({ HostsDialog }) => ({
-    default: HostsDialog,
-  }))
-);
 const MgmaLinkModal = lazy(() =>
   import("components/MgmaLinkModal").then(({ MgmaLinkModal }) => ({
     default: MgmaLinkModal,
@@ -105,7 +100,6 @@ export const Dashboard: FC = () => {
   const showUserDialog = useDashboard(
     (state) => state.isCreatingNewUser || Boolean(state.editingUser)
   );
-  const showHosts = useDashboard((state) => state.isEditingHosts);
   const showNodes = useDashboard((state) => state.isEditingNodes);
   const showNodesUsage = useDashboard((state) => state.isShowingNodesUsage);
   const showCoreSettings = useDashboard((state) => state.isEditingCore);
@@ -118,18 +112,17 @@ export const Dashboard: FC = () => {
   );
 
   useEffect(() => {
-    if ((showUserDialog || showHosts) && inboundsStatus === "idle") {
+    if (showUserDialog && inboundsStatus === "idle") {
       void fetchInbounds().catch((error) => {
         console.error("Failed to load inbound options", error);
       });
     }
-  }, [inboundsStatus, showHosts, showUserDialog]);
+  }, [inboundsStatus, showUserDialog]);
 
   const closeInboundDialog = () => {
     useDashboard.setState({
       isCreatingNewUser: false,
       editingUser: null,
-      isEditingHosts: false,
     });
   };
 
@@ -145,8 +138,8 @@ export const Dashboard: FC = () => {
 
     switch (panel) {
       case "hosts":
-        useDashboard.getState().onEditingHosts(true);
-        break;
+        navigate("/hosts", { replace: true });
+        return;
       case "nodes":
         useDashboard.getState().onEditingNodes(true);
         break;
@@ -187,7 +180,7 @@ export const Dashboard: FC = () => {
           <ResetUserUsageModal />
           <RevokeSubscriptionModal />
           <ResetAllUsageModal />
-          {(showUserDialog || showHosts) && !inboundsLoaded ? (
+          {showUserDialog && !inboundsLoaded ? (
             <DeferredDialogFallback
               failed={inboundsFailed}
               onRetry={retryInbounds}
@@ -197,7 +190,6 @@ export const Dashboard: FC = () => {
           <Suspense fallback={<DeferredDialogFallback />}>
             {showUserDialog && inboundsLoaded ? <UserDialog /> : null}
             {showMgma ? <MgmaLinkModal /> : null}
-            {showHosts && inboundsLoaded ? <HostsDialog /> : null}
             {showNodes ? <NodesDialog /> : null}
             {showNodesUsage ? <NodesUsage /> : null}
             {showCoreSettings ? <CoreSettingsModal /> : null}
