@@ -22,6 +22,7 @@ import { removePortalAuthToken } from "../utils/portalAuthStorage";
 const Dashboard = lazy(() =>
     import("./Dashboard").then(({ Dashboard }) => ({ default: Dashboard }))
 );
+const Hosts = lazy(() => import("./Hosts").then(({ Hosts }) => ({ default: Hosts })));
 const AdminError = lazy(() =>
     import("./AdminError").then(({ AdminError }) => ({ default: AdminError }))
 );
@@ -111,6 +112,10 @@ export const preloadInitialRoute = async () => {
         return Promise.all([import("./portal/PortalLayout"), leaf]);
     }
 
+    if (path === "/hosts") {
+        if (!getAuthToken()) return import("./Login");
+        return import("./Hosts");
+    }
     if (path === "/commerce") {
         if (!getAuthToken()) return import("./Login");
         return Promise.all([
@@ -215,6 +220,16 @@ export const router = createHashRouter([
         element: routeElement(Dashboard),
         errorElement: routeElement(AdminError),
         loader: fetchDashboardLoader,
+    },
+    {
+        path: "/hosts/",
+        element: routeElement(Hosts, false),
+        errorElement: routeElement(AdminError),
+        loader: async (args) => {
+            const admin = await fetchAdminLoader(args);
+            if (!admin.is_sudo) throw redirect("/");
+            return admin;
+        },
     },
     {
         path: "/commerce/",

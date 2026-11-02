@@ -40,7 +40,6 @@ import { ElementType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLoaderData, useLocation, useNavigate } from "react-router-dom";
 import { UserApi } from "types/User";
-import { removeAuthToken } from "utils/authStorage";
 import { updateThemeColor } from "utils/themeColor";
 
 type AdminShellProps = {
@@ -98,7 +97,7 @@ const Navigation = ({
       : item.tab
       ? location.pathname.replace(/\/+$/, "") === "/commerce" &&
         activeCommerceTab === item.tab
-      : location.pathname === item.path && !activePanel;
+      : (location.pathname.replace(/\/+$/, "") || "/") === item.path && !activePanel;
 
     return (
       <Button
@@ -234,8 +233,7 @@ export const AdminShell = ({ children }: AdminShellProps) => {
               {
                 icon: LinkIcon,
                 label: t("header.hostSettings"),
-                path: "/",
-                panel: "hosts",
+                path: "/hosts",
               },
               {
                 icon: SquaresPlusIcon,
@@ -300,7 +298,7 @@ export const AdminShell = ({ children }: AdminShellProps) => {
   };
 
   const logout = () => {
-    removeAuthToken();
+    // Login clears the token after navigation; a draft guard may cancel logout.
     drawer.onClose();
     navigate("/login/admin");
   };

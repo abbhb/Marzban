@@ -25,6 +25,7 @@ const ROUTE_FIXED_REQUEST_OVERHEAD = 2;
 
 const ROUTE_PROFILES = {
   admin: ["/src/pages/Dashboard.tsx"],
+  "host-settings": ["/src/pages/Hosts.tsx"],
   "admin-login": ["/src/pages/Login.tsx"],
   "portal-login": ["/src/pages/PortalLogin.tsx"],
   "portal-overview": [
