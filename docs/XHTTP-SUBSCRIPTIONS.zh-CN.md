@@ -18,6 +18,18 @@ DNS 使用 fake-ip，暂不返回 AAAA，但全局允许 IPv6 节点和 IPv6 字
 下发 TUN 的 IPv6 地址、UDP/TCP 53 接管和严格路由默认值，不从订阅开启 TUN。
 传统 Clash、Shadowrocket 及未启用该标记的其他模板保持原来的 DNS/TUN 行为。
 
+fake-ip 例外按用途维护：局域网名称（含 `.localdomain`、`.home.arpa`）、常见校时
+域名、STUN、Windows 网络检测，以及 QQ 的两个本机登录回调域名。这些例外返回真实
+解析结果，仍遵守上述加密 DNS 和业务路由；它们不表示直连，也不会添加系统 DNS 备用。
+普通网站继续使用 fake-ip，不把整个 QQ、腾讯、Netflix 或音乐/CDN 域名排除。
+局域网名称的私有 DNS 仍需要客户端/VPN 提供对应的 `nameserver-policy`；仅设置
+fake-ip 例外不会让公共解析器知道内网地址。保留配置中的 `hosts` 应答能力。
+
+字段语义见 [Mihomo DNS 文档](https://wiki.metacubex.one/config/dns/)。可运行
+`MIHOMO_TEST_BINARY=/path/to/mihomo python -m unittest tests.test_dns_runtime`，使用
+回环地址上的模拟 DNS 验证例外返回真实 IP、普通域名仍返回 fake-ip，以及 hosts 覆盖。
+该测试不修改正在运行的客户端，不开启 TUN，也不连接公共 DNS。
+
 客户端最终设置仍需满足以下条件，订阅无法越过客户端权限替用户开启：
 
 - Clash Verge：使用订阅 DNS，或把本机 DNS 覆写同步为同一安全配置；开启 TUN，

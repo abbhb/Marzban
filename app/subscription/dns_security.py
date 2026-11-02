@@ -9,6 +9,29 @@ BOOTSTRAP_DOH = (
 )
 PUBLIC_DOH = ("https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query")
 
+# These exceptions require real answers, not a different resolver or outbound.
+# Keep ordinary websites out of this list: broad service suffixes unnecessarily
+# replace fake-IP mappings with upstream lookups for unrelated application traffic.
+LOCAL_FAKE_IP_EXCEPTIONS = (
+    "+.lan", "+.local", "+.localhost", "+.internal", "+.localdomain",
+    "+.home.arpa", "WORKGROUP",
+)
+TIME_FAKE_IP_EXCEPTIONS = (
+    "time.*.com", "time.*.gov", "time.*.edu.cn", "time.*.apple.com",
+    "time-ios.apple.com", "ntp.*.com", "*.time.edu.cn", "*.ntp.org.cn",
+    "+.pool.ntp.org",
+    *(f"time{number}.*.com" for number in range(1, 8)),
+    *(f"ntp{number}.*.com" for number in range(1, 8)),
+)
+STUN_FAKE_IP_EXCEPTIONS = (
+    "+.stun.*.*", "+.stun.*.*.*", "+.stun.*.*.*.*", "+.stun.*.*.*.*.*",
+    "+.stun.playstation.net",
+)
+CONNECTIVITY_FAKE_IP_EXCEPTIONS = (
+    "+.msftconnecttest.com", "+.msftncsi.com",
+    "localhost.ptlogin2.qq.com", "localhost.sec.qq.com",
+)
+
 
 def _proxy_only(document: dict, name: str, active: frozenset = frozenset()) -> bool:
     """Every selectable path must terminate in a proxy or rejection."""
@@ -51,7 +74,14 @@ def secure_mihomo_dns(document: dict, primary_group: str, subscription_url: str)
         "ipv6": False,
         "enhanced-mode": "fake-ip",
         "fake-ip-range": "198.18.0.1/16",
-        "fake-ip-filter": ["+.lan", "+.local", "+.localhost", "+.internal"],
+        "fake-ip-filter-mode": "blacklist",
+        "fake-ip-filter": [
+            *LOCAL_FAKE_IP_EXCEPTIONS,
+            *TIME_FAKE_IP_EXCEPTIONS,
+            *STUN_FAKE_IP_EXCEPTIONS,
+            *CONNECTIVITY_FAKE_IP_EXCEPTIONS,
+        ],
+        "use-hosts": True,
         "prefer-h3": False,
         "respect-rules": True,
         "default-nameserver": list(BOOTSTRAP_DOH),
