@@ -49,10 +49,10 @@ class SingBoxConfiguration(str):
         self.config["outbounds"].append(outbound_data)
 
     def render(self, reverse=False):
-        urltest_types = ["vmess", "vless", "trojan", "shadowsocks"]
+        urltest_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2"]
         urltest_tags = [outbound["tag"]
                         for outbound in self.config["outbounds"] if outbound["type"] in urltest_types]
-        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "urltest"]
+        selector_types = ["vmess", "vless", "trojan", "shadowsocks", "hysteria2", "urltest"]
         selector_tags = [outbound["tag"]
                          for outbound in self.config["outbounds"] if outbound["type"] in selector_types]
 
@@ -284,6 +284,17 @@ class SingBoxConfiguration(str):
         return config
 
     def add(self, remark: str, address: str, inbound: dict, settings: dict):
+
+        if inbound['protocol'] == 'hysteria':
+            if inbound['network'] != 'hysteria' or inbound['tls'] != 'tls':
+                return
+            name = self._remark_validation(remark)
+            self.proxy_remarks.append(name)
+            self.add_outbound({'type': 'hysteria2', 'tag': name, 'server': address,
+                               'server_port': inbound['port'], 'password': settings['auth'],
+                               'tls': {'enabled': True, 'server_name': inbound['sni'],
+                                       'insecure': bool(inbound.get('ais', False))}})
+            return
 
         net = inbound["network"]
         path = inbound["path"]

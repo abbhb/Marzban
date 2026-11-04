@@ -132,11 +132,32 @@ class XRayConfig(dict):
         if not self.get("outbounds"):
             raise ValueError("config doesn't have outbounds")
 
+        dedicated = self.get("x-marzban-dedicated-node-ids", [])
+        if (not isinstance(dedicated, list) or
+                any(type(node_id) is not int or node_id <= 0 for node_id in dedicated) or
+                len(dedicated) != len(set(dedicated))):
+            raise ValueError("x-marzban-dedicated-node-ids must contain unique positive node IDs")
+
         for inbound in self['inbounds']:
             if not inbound.get("tag"):
                 raise ValueError("all inbounds must have a unique tag")
             if ',' in inbound.get("tag"):
                 raise ValueError("character «,» is not allowed in inbound tag")
+            if "x-marzban-node-ids" in inbound:
+                node_ids = inbound["x-marzban-node-ids"]
+                if (not isinstance(node_ids, list) or not node_ids or
+                        any(type(node_id) is not int or node_id <= 0 for node_id in node_ids) or
+                        len(node_ids) != len(set(node_ids))):
+                    raise ValueError("x-marzban-node-ids must contain unique positive node IDs")
+            if inbound.get("protocol") == "hysteria":
+                targets = inbound.get("x-marzban-node-ids")
+                if not targets or not set(targets).issubset(dedicated):
+                    raise ValueError("Hysteria inbounds require dedicated target nodes")
+                stream = inbound.get("streamSettings") or {}
+                if stream.get("network") != "hysteria" or stream.get("security") != "tls":
+                    raise ValueError("Hysteria requires the hysteria transport and TLS")
+            elif set(inbound.get("x-marzban-node-ids", [])) & set(dedicated):
+                raise ValueError("Dedicated Hysteria nodes cannot host other scoped inbounds")
         for outbound in self['outbounds']:
             if not outbound.get("tag"):
                 raise ValueError("all outbounds must have a unique tag")
@@ -157,6 +178,7 @@ class XRayConfig(dict):
             settings = {
                 "tag": inbound["tag"],
                 "protocol": inbound["protocol"],
+                "node_ids": inbound.get("x-marzban-node-ids"),
                 "flow_override": inbound.get(FLOW_KEY),
                 "port": None,
                 "network": "tcp",
@@ -361,6 +383,31 @@ class XRayConfig(dict):
 
     def copy(self):
         return deepcopy(self)
+
+    def for_node(self, node_id: int | None) -> XRayConfig:
+        """Restrict explicitly scoped inbounds without mutating the shared config.
+
+        None represents the panel's local core; unscoped inbounds retain their
+        historical behavior on every core. The metadata is never sent to Xray.
+        """
+        result = self.copy()
+        dedicated = result.pop("x-marzban-dedicated-node-ids", [])
+        inbounds = []
+        for inbound in result.get("inbounds", []):
+            targets = inbound.pop("x-marzban-node-ids", None)
+            if (inbound.get("tag") == "API_INBOUND" or
+                    (targets is None and node_id not in dedicated) or
+                    (targets is not None and node_id in targets)):
+                inbounds.append(inbound)
+        result["inbounds"] = inbounds
+        return result
+
+    def has_inbound_on(self, tag: str, node_id: int | None) -> bool:
+        inbound = self.inbounds_by_tag[tag]
+        targets = inbound.get("node_ids")
+        dedicated = self.get("x-marzban-dedicated-node-ids", [])
+        return ((targets is None and node_id not in dedicated) or
+                (targets is not None and node_id in targets))
 
     def include_db_users(self) -> XRayConfig:
         config = self.copy()

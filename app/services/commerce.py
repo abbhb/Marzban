@@ -41,7 +41,7 @@ from app.models.commerce import (
     UserEntitlementResponse,
     UserExternalEntitlementResponse,
 )
-from app.models.proxy import ProxyTypes, VLESSSettings
+from app.models.proxy import HysteriaSettings, ProxyTypes, VLESSSettings
 from app.models.user import UserDataLimitResetStrategy, UserStatus
 from app.services import external_subscriptions, portal_security
 
@@ -297,10 +297,11 @@ def _plan_protocol(tag: str) -> Optional[str]:
 
 def validate_plan_inbounds(tags: Iterable[str]) -> list[str]:
     values = list(tags)
-    invalid = [tag for tag in values if _plan_protocol(tag) != ProxyTypes.VLESS.value]
+    invalid = [tag for tag in values if _plan_protocol(tag) not in
+               (ProxyTypes.VLESS.value, ProxyTypes.Hysteria.value)]
     if invalid:
         raise PlanConfigurationError(
-            "Plans may contain existing VLESS inbound tags only: " + ", ".join(invalid)
+            "Plans may contain existing VLESS or Hysteria inbound tags only: " + ", ".join(invalid)
         )
     return values
 
@@ -756,6 +757,40 @@ def _all_vless_tags() -> list[str]:
     ]
 
 
+def _all_hysteria_tags() -> list[str]:
+    return [inbound["tag"] for inbound in
+            xray.config.inbounds_by_protocol.get(ProxyTypes.Hysteria, [])]
+
+
+def _apply_plan_hysteria(db, user, plan_tags, *, removed_tags=None):
+    """Reconcile HY2 without granting routes absent from the current plan."""
+    all_tags = _all_hysteria_tags()
+    selected = set(plan_tags) & set(all_tags)
+    proxies = [p for p in user.proxies if ProxyTypes(p.type) == ProxyTypes.Hysteria]
+    if not proxies and not selected:
+        return False
+    if not proxies:
+        proxy = Proxy(type=ProxyTypes.Hysteria.value,
+                      settings=HysteriaSettings().dict(no_obj=True))
+        user.proxies.append(proxy)
+        changed = True
+    else:
+        proxy = proxies[0]
+        changed = False
+    rows = _inbound_rows(db, all_tags)
+    if removed_tags is None or changed:
+        desired = [rows[tag] for tag in all_tags if tag not in selected]
+        if {r.tag for r in proxy.excluded_inbounds} != {r.tag for r in desired}:
+            proxy.excluded_inbounds = desired
+            changed = True
+    else:
+        existing = {row.tag for row in proxy.excluded_inbounds}
+        additions = [rows[tag] for tag in all_tags if tag in removed_tags and tag not in existing]
+        proxy.excluded_inbounds.extend(additions)
+        changed = changed or bool(additions)
+    return changed
+
+
 def _inbound_rows(db: Session, tags: Iterable[str]) -> dict[str, ProxyInbound]:
     tags = list(tags)
     rows = {
@@ -795,9 +830,10 @@ def reconcile_plan_entitlements(
 
     validate_plan_inbounds(plan.inbound_tags)
     all_vless_tags = _all_vless_tags()
-    if plan.inbound_tags and (
+    vless_plan_tags = [tag for tag in plan.inbound_tags if _plan_protocol(tag) == ProxyTypes.VLESS.value]
+    if vless_plan_tags and (
         not all_vless_tags
-        or any(tag not in all_vless_tags for tag in plan.inbound_tags)
+        or any(tag not in all_vless_tags for tag in vless_plan_tags)
     ):
         raise PlanConfigurationError(
             "The plan no longer matches the active VLESS inbounds"
@@ -836,6 +872,9 @@ def reconcile_plan_entitlements(
                     additions = [row for row in excluded if row.tag not in existing]
                     proxy.excluded_inbounds.extend(additions)
                     runtime_changed = runtime_changed or bool(additions)
+        runtime_changed = _apply_plan_hysteria(
+            db, user, plan.inbound_tags, removed_tags=removed_tags
+        ) or runtime_changed
         if runtime_changed:
             user.edit_at = now
             affected.append((user.id, UserStatus(user.status)))
@@ -879,8 +918,9 @@ def _apply_proxy_plan(
         raise PlanConfigurationError("The plan has no available nodes")
     validate_plan_inbounds(plan.inbound_tags)
     all_vless_tags = _all_vless_tags()
-    if plan.inbound_tags and (
-        not all_vless_tags or any(tag not in all_vless_tags for tag in plan.inbound_tags)
+    vless_plan_tags = [tag for tag in plan.inbound_tags if _plan_protocol(tag) == ProxyTypes.VLESS.value]
+    if vless_plan_tags and (
+        not all_vless_tags or any(tag not in all_vless_tags for tag in vless_plan_tags)
     ):
         raise PlanConfigurationError("The plan no longer matches the active VLESS inbounds")
 
@@ -946,10 +986,11 @@ def _apply_proxy_plan(
             )
             user.proxies.append(proxy)
         for other in list(user.proxies):
-            if other is not proxy and ProxyTypes(other.type) != ProxyTypes.VLESS:
+            if other is not proxy and ProxyTypes(other.type) not in (ProxyTypes.VLESS, ProxyTypes.Hysteria):
                 db.delete(other)
         proxy.excluded_inbounds = excluded
 
+    _apply_plan_hysteria(db, user, plan.inbound_tags)
     account.updated_at = now
     return user, created_user
 

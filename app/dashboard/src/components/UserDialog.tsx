@@ -139,6 +139,7 @@ const getDefaultValues = (): FormType => {
       vmess: { id: "" },
       trojan: { password: "" },
       shadowsocks: { password: "", method: "chacha20-ietf-poly1305" },
+      hysteria: { auth: "" },
     },
   };
 };
@@ -179,6 +180,7 @@ const baseSchema = {
       deleteIfEmpty(ins.trojan, "password");
       deleteIfEmpty(ins.shadowsocks, "password");
       deleteIfEmpty(ins.shadowsocks, "method");
+      deleteIfEmpty(ins.hysteria, "auth");
       return ins;
     }),
   data_limit: z
@@ -1192,6 +1194,10 @@ export const UserDialog: FC<UserDialogProps> = () => {
                                     description: t(
                                       "userDialog.shadowsocksDesc"
                                     ),
+                                  },
+                                  {
+                                    title: "hysteria",
+                                    description: "Hysteria 2 (UDP)",
                                   },
                                 ]}
                                 disabled={disabled}
