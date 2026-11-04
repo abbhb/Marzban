@@ -867,6 +867,17 @@ class ClashMetaConfiguration(ClashConfiguration):
         return node
 
     def add(self, remark: str, address: str, inbound: dict, settings: dict):
+        if inbound['protocol'] == 'hysteria':
+            if inbound['network'] != 'hysteria' or inbound['tls'] != 'tls':
+                return
+            name = self._remark_validation(remark)
+            node = {'name': name, 'type': 'hysteria2', 'server': address,
+                    'port': inbound['port'], 'password': settings['auth'],
+                    'sni': inbound['sni'], 'udp': True,
+                    'skip-cert-verify': bool(inbound.get('ais', False))}
+            self.data['proxies'].append(node)
+            self.proxy_remarks.append(name)
+            return
         # not supported by clash-meta
         if inbound['network'] == "kcp" or (inbound['network'] == "quic" and inbound["header_type"] != "none"):
             return

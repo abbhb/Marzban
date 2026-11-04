@@ -155,6 +155,15 @@ class V2rayShareLink(str):
                 password=settings["password"],
                 method=settings["method"],
             )
+        elif inbound["protocol"] == "hysteria":
+            if net != "hysteria" or inbound["tls"] != "tls":
+                return
+            host = f"[{address}]" if ':' in address and not address.startswith('[') else address
+            params = {"sni": inbound.get("sni", "")}
+            if inbound.get("ais"):
+                params["insecure"] = "1"
+            link = (f"hysteria2://{quote(settings['auth'], safe='')}@{host}:{inbound['port']}"
+                    f"/?{urlparse.urlencode(params)}#{quote(remark, safe='')}")
         else:
             return
 
@@ -991,6 +1000,20 @@ class V2rayJsonConfig(str):
         if isinstance(port, str):
             ports = port.split(',')
             port = int(choice(ports))
+
+        if protocol == 'hysteria':
+            if net != 'hysteria' or inbound['tls'] != 'tls':
+                return
+            self.add_config(remarks=remark, outbounds=[{
+                'tag': 'proxy', 'protocol': 'hysteria',
+                'settings': {'version': 2, 'address': address, 'port': port},
+                'streamSettings': {'network': 'hysteria', 'security': 'tls',
+                                   'tlsSettings': {'serverName': inbound['sni'],
+                                                   'allowInsecure': bool(inbound.get('ais', False)),
+                                                   'alpn': ['h3']},
+                                   'hysteriaSettings': {'version': 2, 'auth': settings['auth']}},
+            }])
+            return
 
         tls = (inbound['tls'])
         headers = inbound['header_type']

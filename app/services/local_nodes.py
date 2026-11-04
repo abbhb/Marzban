@@ -6,7 +6,7 @@ from app.subscription.local_nodes import route_id, route_uses_ipv6
 def node_catalog():
     result = []
     for tag, inbound in xray.config.inbounds_by_tag.items():
-        if inbound.get("protocol") != "vless":
+        if inbound.get("protocol") not in ("vless", "hysteria"):
             continue
         nodes = []
         profiles = (inbound.get("xhttpProfiles") if inbound.get("network") in ("xhttp", "splithttp") else None) or [None]

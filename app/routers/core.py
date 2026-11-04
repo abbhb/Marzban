@@ -236,12 +236,15 @@ def modify_core_config(
         except ValueError as err:
             raise HTTPException(status_code=400, detail=str(err))
 
+        previous_config = xray.config.include_db_users()
         _write_core_document(payload)
         xray.config = config
         startup_config = xray.config.include_db_users()
-        xray.core.restart(startup_config)
+        if previous_config.for_node(None) != startup_config.for_node(None):
+            xray.core.restart(startup_config)
         for node_id, node in list(xray.nodes.items()):
-            if node.connected:
+            if (previous_config.for_node(node_id) != startup_config.for_node(node_id)
+                    and node.connected):
                 xray.operations.restart_node(node_id, startup_config)
 
         xray.hosts.update()

@@ -166,6 +166,22 @@ class ReSTXRayNode:
         res = self.make_request("/connect", timeout=3)
         self._session_id = res['session_id']
 
+    def adopt_session(self, session_id: str):
+        """Attach to a running REST node without replacing its control session."""
+        self._node_cert = ssl.get_server_certificate((self.address, self.port))
+        self._node_certfile = string_to_temp_file(self._node_cert)
+        self.session.verify = self._node_certfile.name
+        self._session_id = session_id
+        self.check_connection()
+        if not self.check_started():
+            raise ConnectionError('Node core is not running; session was not adopted')
+        self._started = True
+        try:
+            grpc.channel_ready_future(self.api._channel).result(timeout=5)
+        except grpc.FutureTimeoutError as exc:
+            self._started = False
+            raise ConnectionError('Failed to connect to node API during session adoption') from exc
+
     def disconnect(self):
         self.make_request("/disconnect", timeout=3)
         self._session_id = None

@@ -1,4 +1,6 @@
 from functools import lru_cache
+import json
+import os
 from threading import Lock
 from typing import TYPE_CHECKING
 
@@ -86,9 +88,10 @@ def add_user(dbuser: "DBUser"):
             ):
                 account.flow = XTLSFlows.NONE
 
-            _add_user_to_inbound(xray.api, inbound_tag, account)  # main core
-            for node in list(xray.nodes.values()):
-                if node.connected and node.started:
+            if xray.config.has_inbound_on(inbound_tag, None):
+                _add_user_to_inbound(xray.api, inbound_tag, account)
+            for node_id, node in list(xray.nodes.items()):
+                if xray.config.has_inbound_on(inbound_tag, node_id) and node.connected and node.started:
                     _add_user_to_inbound(node.api, inbound_tag, account)
 
 
@@ -96,9 +99,11 @@ def remove_user(dbuser: "DBUser"):
     email = f"{dbuser.id}.{dbuser.username}"
 
     for inbound_tag in xray.config.inbounds_by_tag:
-        _remove_user_from_inbound(xray.api, inbound_tag, email)
-        for node in list(xray.nodes.values()):
-            if node.connected and node.started:
+        inbound = xray.config.inbounds_by_tag[inbound_tag]
+        if xray.config.has_inbound_on(inbound_tag, None):
+            _remove_user_from_inbound(xray.api, inbound_tag, email)
+        for node_id, node in list(xray.nodes.items()):
+            if xray.config.has_inbound_on(inbound_tag, node_id) and node.connected and node.started:
                 _remove_user_from_inbound(node.api, inbound_tag, email)
 
 
@@ -132,18 +137,21 @@ def update_user(dbuser: "DBUser"):
             ):
                 account.flow = XTLSFlows.NONE
 
-            _alter_inbound_user(xray.api, inbound_tag, account)  # main core
-            for node in list(xray.nodes.values()):
-                if node.connected and node.started:
+            if xray.config.has_inbound_on(inbound_tag, None):
+                _alter_inbound_user(xray.api, inbound_tag, account)
+            for node_id, node in list(xray.nodes.items()):
+                if xray.config.has_inbound_on(inbound_tag, node_id) and node.connected and node.started:
                     _alter_inbound_user(node.api, inbound_tag, account)
 
     for inbound_tag in xray.config.inbounds_by_tag:
         if inbound_tag in active_inbounds:
             continue
         # remove disabled inbounds
-        _remove_user_from_inbound(xray.api, inbound_tag, email)
-        for node in list(xray.nodes.values()):
-            if node.connected and node.started:
+        inbound = xray.config.inbounds_by_tag[inbound_tag]
+        if xray.config.has_inbound_on(inbound_tag, None):
+            _remove_user_from_inbound(xray.api, inbound_tag, email)
+        for node_id, node in list(xray.nodes.items()):
+            if xray.config.has_inbound_on(inbound_tag, node_id) and node.connected and node.started:
                 _remove_user_from_inbound(node.api, inbound_tag, email)
 
 
@@ -222,6 +230,36 @@ _connecting_nodes = {}
 _restarting_nodes = set()
 _restarting_nodes_lock = Lock()
 
+# Optional one-time handoff during a control-plane upgrade. A protected node
+# never falls back to /connect until its existing session has been adopted.
+_handoff_path = os.environ.get('MARZBAN_NODE_SESSION_HANDOFF')
+_handoff_lock = Lock()
+_handoff_sessions = {}
+if _handoff_path:
+    if os.path.exists(_handoff_path):
+        with open(_handoff_path) as _handoff_file:
+            _handoff_sessions = {int(k): v for k, v in json.load(_handoff_file).items()}
+        if not _handoff_sessions or not all(k > 0 and isinstance(v, str) and v for k, v in _handoff_sessions.items()):
+            raise ValueError('Invalid node session handoff file')
+    elif not os.path.isfile(_handoff_path + '.complete'):
+        raise RuntimeError('Node session handoff file is missing; refusing unsafe reconnect')
+
+
+def _adopt_handoff(node_id, node):
+    with _handoff_lock:
+        session = _handoff_sessions.get(node_id)
+        if session is None:
+            return False
+        if not hasattr(node, 'adopt_session'):
+            raise RuntimeError('Node does not support REST session handoff')
+        node.adopt_session(session)
+        del _handoff_sessions[node_id]
+        if not _handoff_sessions and _handoff_path:
+            marker = os.open(_handoff_path + '.complete', os.O_CREAT | os.O_WRONLY, 0o600)
+            os.close(marker)
+            os.unlink(_handoff_path)
+        return True
+
 
 @threaded_function
 def connect_node(node_id, config=None, reason: str = None):
@@ -240,7 +278,11 @@ def connect_node(node_id, config=None, reason: str = None):
         node = xray.nodes[dbnode.id]
         assert node.connected
     except (KeyError, AssertionError):
-        node = xray.operations.add_node(dbnode)
+        # Do not disconnect a protected session after a transient probe error.
+        if node_id in _handoff_sessions and node_id in xray.nodes:
+            node = xray.nodes[node_id]
+        else:
+            node = xray.operations.add_node(dbnode)
 
     try:
         _connecting_nodes[node_id] = True
@@ -252,10 +294,10 @@ def connect_node(node_id, config=None, reason: str = None):
             reason or "requested by control plane",
         )
 
-        if config is None:
-            config = xray.config.include_db_users()
-
-        node.start(config)
+        if not _adopt_handoff(node_id, node):
+            if config is None:
+                config = xray.config.include_db_users()
+            node.start(config.for_node(node_id))
         version = node.get_version()
         _change_node_status(node_id, NodeStatus.connected, version=version)
         logger.info(
@@ -324,7 +366,7 @@ def restart_node(node_id, config=None, reason: str = None):
             if config is None:
                 config = xray.config.include_db_users()
 
-            node.restart(config)
+            node.restart(config.for_node(node_id))
             logger.info(
                 'Xray core of "%s" node restarted; reason=%s',
                 dbnode.name,

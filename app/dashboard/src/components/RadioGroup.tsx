@@ -391,6 +391,16 @@ const RadioCard: FC<
               </FormControl>
             </VStack>
           )}
+          {title === "hysteria" && isSelected && (
+            <VStack alignItems="flex-start" w="full">
+              <FormControl height="66px">
+                <Text fontSize="sm" pb={1}>{t("password")}</Text>
+                <Input fontSize="xs" size="sm" borderRadius="6px" pl={2} pr={2}
+                  autoComplete="off" placeholder={t("userDialog.generatedByDefault")}
+                  {...form.register("proxies.hysteria.auth")} />
+              </FormControl>
+            </VStack>
+          )}
           {title === "shadowsocks" && isSelected && (
             <VStack alignItems="flex-start" w="full">
               <FormControl height="66px">

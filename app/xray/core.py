@@ -43,12 +43,12 @@ class XRayCore:
         if private_key:
             cmd.extend(['-i', private_key])
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
-        m = re.match(r'Private key: (.+)\nPublic key: (.+)', output)
-        if m:
-            private, public = m.groups()
+        private_match = re.search(r'^Private(?: key|Key):\s*(\S+)', output, re.MULTILINE)
+        public_match = re.search(r'^(?:Public key|PublicKey|Password \(PublicKey\)):\s*(\S+)', output, re.MULTILINE)
+        if private_match and public_match:
             return {
-                "private_key": private,
-                "public_key": public
+                "private_key": private_match.group(1),
+                "public_key": public_match.group(1),
             }
 
     def __capture_process_logs(self):
@@ -106,6 +106,9 @@ class XRayCore:
     def start(self, config: XRayConfig):
         if self.started is True:
             raise RuntimeError("Xray is started already")
+
+        if isinstance(config, XRayConfig):
+            config = config.for_node(None)
 
         if config.get('log', {}).get('logLevel') in ('none', 'error'):
             config['log']['logLevel'] = 'warning'

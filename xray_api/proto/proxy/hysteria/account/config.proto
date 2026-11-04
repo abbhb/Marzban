@@ -1,0 +1,5 @@
+syntax = "proto3";
+package xray.proxy.hysteria.account;
+message Account {
+  string auth = 1;
+}
