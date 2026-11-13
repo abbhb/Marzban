@@ -1,0 +1,6 @@
+[Socket]
+ListenStream=/run/marzban/egress.sock
+SocketMode=0660
+SocketGroup=marzban-socket
+[Install]
+WantedBy=sockets.target

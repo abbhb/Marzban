@@ -1,0 +1,8 @@
+[Unit]
+Description=Check users and refresh daily IPv6 destinations for %i
+[Timer]
+OnBootSec=20s
+OnUnitInactiveSec=30s
+AccuracySec=3s
+[Install]
+WantedBy=timers.target
