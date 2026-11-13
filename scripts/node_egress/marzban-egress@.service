@@ -1,0 +1,7 @@
+[Unit]
+Description=Reconcile IPv6 egress for Marzban node %i
+After=network-online.target docker.service
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/bin/python3 /usr/local/lib/marzban-egress/manage.py --config /etc/marzban-egress/%i/node.json sync

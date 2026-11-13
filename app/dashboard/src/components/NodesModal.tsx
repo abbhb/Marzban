@@ -1,3 +1,4 @@
+import { NodeEgress } from "./NodeEgress";
 import {
   Accordion,
   AccordionButton,
@@ -226,6 +227,7 @@ const NodeAccordion: FC<AccordionInboundType> = ({ toggleAccordion, node }) => {
             </Tooltip>
           }
         />
+        {node.id && <NodeEgress id={node.id} />}
       </AccordionPanel>
     </AccordionItem>
   );

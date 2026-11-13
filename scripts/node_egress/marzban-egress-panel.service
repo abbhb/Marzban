@@ -1,0 +1,8 @@
+[Service]
+User=marzban-egress-panel
+SupplementaryGroups=marzban-socket
+ExecStart=/usr/bin/python3 /usr/local/lib/marzban-egress/panel.py
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
