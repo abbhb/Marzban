@@ -58,6 +58,18 @@ class ConnectionEvidenceTests(unittest.TestCase):
         self.assertEqual("IPv6", records["alice"]["egress_family"])
         self.assertEqual("IPv4", records["bob"]["egress_family"])
 
+    def test_xray_network_enum_values_normalize_and_upgrade_access_logs(self):
+        for network in ("TCP", "UDP"):
+            with self.subTest(network=network):
+                observations = ConnectionObservations()
+                observations.feed(f"from 192.0.2.5:100 accepted {network.lower()}:example.test:443 [vless -> direct] email: 7.alice")
+                self.assertTrue(observations.feed(line(network=network, source="tcp:192.0.2.5:100", outbound="direct")))
+                self.assertEqual(1, len(observations.records))
+                row = observations.records[0]
+                self.assertEqual(network.lower(), row["network"])
+                self.assertEqual("socket", row["evidence"])
+                self.assertEqual("IPv6", row["egress_family"])
+
     def test_plain_access_logs_never_prove_egress_even_for_ip_literal(self):
         observations = ConnectionObservations()
         observations.feed("2026/11/13 10:00:00 from 192.0.2.5:100 accepted tcp:[2001:db8::1]:443 [vless -> direct] email: 7.alice")
