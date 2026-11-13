@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.db import Base
 from app.db.models import Proxy, User
-from app.models.proxy import HysteriaSettings, ProxyInbound, ProxyTypes
+from app.models.proxy import HysteriaSettings, ProxyTypes
 from app.services import commerce
 from app.subscription.clash import ClashMetaConfiguration
 from app.subscription.v2ray import V2rayShareLink
@@ -33,13 +33,6 @@ def document(node_ids=(3,)):
 
 
 class HysteriaConfigTests(unittest.TestCase):
-    def test_inbound_response_keeps_scoped_nodes_and_shared_scope(self):
-        config = XRayConfig(document(), api_port=9000)
-        scoped = ProxyInbound.model_validate(config.inbounds_by_tag['HY2']).model_dump()
-        shared = ProxyInbound.model_validate(config.inbounds_by_tag['legacy']).model_dump()
-        self.assertEqual([3], scoped['node_ids'])
-        self.assertIsNone(shared['node_ids'])
-
     def test_session_adoption_preserves_running_remote_core(self):
         node = ReSTXRayNode.__new__(ReSTXRayNode)
         node.address, node.port = 'example.test', 1

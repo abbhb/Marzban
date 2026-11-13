@@ -12,13 +12,11 @@ import re
 import secrets
 import sqlite3
 import subprocess
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
 from pathlib import Path
 
-from policy import new_mark, render, resolve_list
+from policy import new_mark, render
 
 
 def command(args, data=None):
@@ -237,42 +235,13 @@ class Instance:
             command(["nft", "-f", "-"], "\n".join(script) + "\n")
             self.save("nat_signature", signature() if rows else None)
 
-    def reconcile(self, force_refresh=False):
+    def reconcile(self):
         base_path = self.state / "base.json"
         base = json.loads(base_path.read_text())
         epoch = (self.state / "control.sock").stat().st_ino
         enabled = self.value("enabled", False)
         users = []
-        targets = {}
         if enabled:
-            targets = self.value("targets")
-            if (
-                force_refresh
-                or not targets
-                or targets.get("domain")
-                or targets.get("ip")
-                or self.value("date") != date.today().isoformat()
-            ):
-                try:
-                    targets = resolve_list(
-                        json.loads((self.directory / "targets.json").read_text())
-                    )
-                except (ValueError, OSError) as exc:
-                    if force_refresh:
-                        raise
-                    print(
-                        f"IPv4 alias refresh deferred: {type(exc).__name__}",
-                        file=sys.stderr,
-                    )
-                else:
-                    self.save("targets", targets)
-                    self.save("date", date.today().isoformat())
-            # Domains are resolved at dial time even if alias DNS is unavailable.
-            targets = {
-                "ipv4_aliases": (targets or {}).get("ipv4_aliases", {}),
-                "domain": [],
-                "ip": [],
-            }
             emails = set()
             for tag in self.tags:
                 if base["inbounds"].get(tag) is None:
@@ -289,7 +258,7 @@ class Instance:
                 match = re.fullmatch(r"([1-9][0-9]*)\..+", email)
                 if match:
                     users.append(dict(self.allocate(match[1]), email=email))
-        final, outs = render(base, self.tags if enabled else [], users, targets)
+        final, outs = render(base, self.tags if enabled else [], users)
         guard = self.state / "managed-inbounds.json"
         if enabled and (
             not guard.exists() or json.loads(guard.read_text()) != self.tags
@@ -344,9 +313,6 @@ class Instance:
             "enabled": enabled,
             "domain_strategy": "prefer_ipv6",
             "generation": self.value("generation", 0),
-            # Keep the last confirmed list available for inspection while disabled.
-            "targets": targets if enabled else previous.get("targets"),
-            "list_date": self.value("date") if enabled else previous.get("list_date"),
         }
         if applied != previous:
             self.save("applied", applied)
@@ -354,7 +320,6 @@ class Instance:
             "enabled": enabled,
             "users": len(users),
             "rule_count": len(final) - len(original),
-            "list_date": self.value("date"),
             "verified": True,
         }
 
@@ -363,7 +328,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument(
-        "action", choices=["on", "off", "sync", "refresh", "reset", "status"]
+        "action", choices=["on", "off", "sync", "reset", "status"]
     )
     parser.add_argument("user_id", nargs="?", type=int)
     parser.add_argument("--expected-address", type=ipaddress.IPv6Address)
@@ -396,8 +361,6 @@ def main():
                             "enabled": inst.value("enabled", False),
                             "verified": verified,
                             "domain_strategy": applied.get("domain_strategy"),
-                            "list_date": applied.get("list_date"),
-                            "targets": applied.get("targets"),
                             "users": [
                                 dict(r)
                                 for r in inst.db.execute(
@@ -424,7 +387,7 @@ def main():
                     )
                 inst.save("generation", inst.value("generation", 0) + 1)
                 inst.allocate(str(args.user_id), reset=True)
-            print(json.dumps(inst.reconcile(force_refresh=args.action == "refresh")))
+            print(json.dumps(inst.reconcile()))
 
 
 if __name__ == "__main__":

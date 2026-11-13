@@ -32,8 +32,8 @@ export type HostForm = z.infer<typeof formSchema>;
 export type HostMap = Record<string, Host[]>;
 export type Inbound = { tag: string; protocol: string; network: string; tls: string; port: number | string; node_ids?: number[] | null };
 
-// Older panels omit node_ids from /inbounds. Use the sudo-only core endpoint
-// until the backend is upgraded, then retain only the non-secret scope fields.
+// Use explicit node scope metadata, never infer ownership from IP addresses.
+// Some panels expose it via the sudo-only core configuration endpoint.
 export const fetchInboundScopes = async (signal?: AbortSignal): Promise<Inbound[]> => {
   const options = { signal, timeout: 15000 };
   const groups = await fetch<Record<string, Inbound[]>>("/inbounds", options);

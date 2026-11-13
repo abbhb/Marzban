@@ -1,11 +1,8 @@
 """Compile node-local policies while preserving the original first-match rules."""
 
 import hashlib
-import ipaddress
 import json
-import re
 import secrets
-import socket
 
 
 def new_mark(prefix, occupied):
@@ -27,49 +24,9 @@ def new_mark(prefix, occupied):
             return mark
 
 
-def domain(value):
-    value = value.lower().rstrip(".").encode("idna").decode()
-    if len(value) > 253 or not all(
-        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", p)
-        for p in value.split(".")
-    ):
-        raise ValueError("Invalid domain in egress list")
-    return value
-
-
-def resolve_list(spec):
-    # An IPv4 literal has no universal IPv6 counterpart. Publish only
-    # operator-declared aliases whose current A set contains the original IP.
-    aliases = {}
-    for address, hostname in spec.get("ipv4_aliases", {}).items():
-        source = ipaddress.IPv4Address(address)
-        if not source.is_global:
-            raise ValueError("IPv4 aliases require a public source")
-        hostname = domain(hostname)
-        try:
-            answers = socket.getaddrinfo(
-                hostname, 443, socket.AF_UNSPEC, socket.SOCK_STREAM
-            )
-        except socket.gaierror as exc:
-            if exc.errno in (socket.EAI_NONAME, socket.EAI_NODATA):
-                continue
-            raise
-        ips = {ipaddress.ip_address(a[4][0]) for a in answers}
-        if (
-            source in ips
-            and all(ip.is_global for ip in ips)
-            and any(ip.version == 6 for ip in ips)
-        ):
-            aliases[str(source)] = hostname
-    return {
-        "ipv4_aliases": aliases,
-        # Older dashboards expect both collections in the status response.
-        "domain": [],
-        "ip": [],
-    }
-
-
-def render(base, inbounds, users, targets):
+def render(base, inbounds, users, _legacy_targets=None):
+    # Older launchers may still pass a fourth argument during an upgrade.
+    # It is intentionally ignored: IP literals are never remapped.
     if base["routing"].get("script") or base["routing"].get("balancers"):
         raise ValueError(
             "Custom router scripts and balancers require explicit integration"
@@ -125,22 +82,6 @@ def render(base, inbounds, users, targets):
                     "streamSettings": {"sockopt": sockopt},
                 }
             )
-        for hostname in sorted(set(targets.get("ipv4_aliases", {}).values())):
-            alias_tag = hashlib.sha256(hostname.encode()).hexdigest()[:16]
-            outs.append(
-                {
-                    "tag": tag + "-alias-" + alias_tag,
-                    "protocol": "freedom",
-                    "settings": {"redirect": hostname + ":0"},
-                    "streamSettings": {
-                        "sockopt": {
-                            "mark": user["mark"],
-                            "domainStrategy": "ForceIP",
-                            "happyEyeballs": happy,
-                        }
-                    },
-                }
-            )
     for idx in range(len(rules) + 1):
         if idx in slots:
             for user in users:
@@ -150,26 +91,10 @@ def render(base, inbounds, users, targets):
                     "inboundTag": slots[idx],
                     "user": [user["email"]],
                 }
-                selected = []
-                for address, hostname in sorted(
-                    targets.get("ipv4_aliases", {}).items()
-                ):
-                    alias_tag = hashlib.sha256(hostname.encode()).hexdigest()[:16]
-                    selected.append(
-                        {
-                            **common,
-                            "ip": [address + "/32"],
-                            "network": "tcp",
-                            "outboundTag": tag + "-alias-" + alias_tag,
-                        }
-                    )
-                # Only explicit literal aliases precede the per-user default.
-                selected.extend(
-                    [
-                        {**common, "network": "tcp", "outboundTag": tag},
-                        {**common, "network": "udp", "outboundTag": tag + "-udp"},
-                    ]
-                )
+                selected = [
+                    {**common, "network": "tcp", "outboundTag": tag},
+                    {**common, "network": "udp", "outboundTag": tag + "-udp"},
+                ]
                 for rule in selected:
                     rule["ruleTag"] = (
                         "mz6-"
