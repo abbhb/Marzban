@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fetch } from "service/http";
 
 export const categories = ["basic", "connection", "cascade", "advanced"] as const;
 export type Category = typeof categories[number];
@@ -29,7 +30,19 @@ export const formSchema = z.object({ routes: z.array(z.object({ inbound: z.strin
 export type Host = z.infer<typeof hostSchema>;
 export type HostForm = z.infer<typeof formSchema>;
 export type HostMap = Record<string, Host[]>;
-export type Inbound = { tag: string; protocol: string; network: string; tls: string; port: number | string };
+export type Inbound = { tag: string; protocol: string; network: string; tls: string; port: number | string; node_ids?: number[] | null };
+
+// Older panels omit node_ids from /inbounds. Use the sudo-only core endpoint
+// until the backend is upgraded, then retain only the non-secret scope fields.
+export const fetchInboundScopes = async (signal?: AbortSignal): Promise<Inbound[]> => {
+  const options = { signal, timeout: 15000 };
+  const groups = await fetch<Record<string, Inbound[]>>("/inbounds", options);
+  const inbounds = Object.values(groups).flat();
+  if (inbounds.every(inbound => Object.prototype.hasOwnProperty.call(inbound, "node_ids"))) return inbounds;
+  const core = await fetch<{ inbounds: Array<{ tag: string; "x-marzban-node-ids"?: number[] }> }>("/core/config", options);
+  const scopes = new Map(core.inbounds.map(inbound => [inbound.tag, inbound["x-marzban-node-ids"] || null]));
+  return inbounds.map(inbound => ({ ...inbound, node_ids: scopes.get(inbound.tag) ?? null }));
+};
 
 export const newHost = (): Host => ({
   remark: "", address: "", port: null, path: null, sni: null, host: null,

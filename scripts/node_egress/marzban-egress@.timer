@@ -1,5 +1,5 @@
 [Unit]
-Description=Check users and refresh daily IPv6 destinations for %i
+Description=Reconcile fixed user addresses for the dedicated IPv6 egress %i
 [Timer]
 OnBootSec=20s
 OnUnitInactiveSec=30s

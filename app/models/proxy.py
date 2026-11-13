@@ -221,3 +221,4 @@ class ProxyInbound(BaseModel):
     network: str
     tls: str
     port: Union[int, str]
+    node_ids: Optional[list[int]] = None

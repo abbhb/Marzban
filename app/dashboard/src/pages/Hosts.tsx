@@ -8,13 +8,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AdminShell } from "components/AdminShell";
 import { BootReady } from "components/BootReady";
 import { Footer } from "components/Footer";
+import { NodeType } from "contexts/NodesContext";
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { FieldErrors, FormProvider, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { unstable_useBlocker as useBlocker, useBeforeUnload, useSearchParams } from "react-router-dom";
 import { errorMessage, fetch } from "service/http";
 import { HostEditor } from "./hosts/HostEditor";
-import { Category, HostForm, HostMap, Inbound, categories, categoryFor, endpoint, flattenHosts, formSchema, groupHosts, newHost, normalizeHosts, same } from "./hosts/schema";
+import { Category, HostForm, HostMap, Inbound, categories, categoryFor, endpoint, fetchInboundScopes, flattenHosts, formSchema, groupHosts, newHost, normalizeHosts, same } from "./hosts/schema";
 
 const XhttpProfiles = lazy(() => import("components/XhttpProfiles").then(module => ({ default: module.XhttpProfiles })));
 const panelStyle = { bg: "surface.toolbar", borderWidth: "1px", borderColor: "border.subtle", borderRadius: "2xl" };
@@ -28,6 +29,7 @@ export const Hosts = () => {
   const [xhttpDirty, setXhttpDirty] = useState(false);
   const [baseline, setBaseline] = useState<HostMap>({});
   const [inbounds, setInbounds] = useState<Inbound[]>([]);
+  const [nodes, setNodes] = useState<NodeType[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -58,12 +60,17 @@ export const Hosts = () => {
     setLoading(true); setLoadError("");
     Promise.all([
       fetch<HostMap>("/hosts", { signal: controller.signal, timeout: 15000 }),
-      fetch<Record<string, Inbound[]>>("/inbounds", { signal: controller.signal, timeout: 15000 }),
-    ]).then(([hosts, inboundMap]) => {
+      fetchInboundScopes(controller.signal),
+      fetch<NodeType[]>("/nodes", { signal: controller.signal, timeout: 15000 }),
+    ]).then(([hosts, inboundList, serverNodes]) => {
       const normalized = normalizeHosts(hosts);
-      setBaseline(normalized); form.reset(flattenHosts(normalized));
-      setInbounds(Object.values(inboundMap).flat());
-      setTargetInbound(Object.keys(normalized)[0] || ""); setSelected(0);
+      const flat = flattenHosts(normalized);
+      const requested = params.get("inbound");
+      const initial = requested ? flat.routes.findIndex(row => row.inbound === requested) : -1;
+      setBaseline(normalized); form.reset(flat);
+      setInbounds(inboundList);
+      setNodes(serverNodes);
+      setTargetInbound(requested && requested in normalized ? requested : Object.keys(normalized)[0] || ""); setSelected(initial >= 0 ? initial : 0);
     }).catch(() => {
       if (!controller.signal.aborted) setLoadError(t("hostsPage.loadError"));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -154,7 +161,7 @@ export const Hosts = () => {
         </Box>
       </Alert>}
       <Heading as="h1" size="lg">{t("header.hostSettings")}</Heading>
-      <Text color="fg.muted" mt={2} mb={5}>{t("hostsPage.description")}</Text>
+      <Text color="fg.muted" mt={2} mb={5}>{t("hostsPage.relationshipHelp")}</Text>
       <Tabs index={xhttpTab ? 1 : 0} onChange={changeTab}>
         <TabList><Tab>{t("hostsPage.routes")}{changed.length > 0 && <Badge ms={2} colorScheme="orange">{t("hostsPage.unsaved")}</Badge>}</Tab>
           <Tab>{t("xhttp.title")}{xhttpDirty && <Badge ms={2} colorScheme="orange">{t("hostsPage.unsaved")}</Badge>}</Tab></TabList>
@@ -217,6 +224,14 @@ export const Hosts = () => {
                   </Box>
                   <Box {...panelStyle} flex="1" w="full" minW="0" p={{ base: 4, md: 6 }}>
                     {current ? <>
+                      <Box borderWidth="1px" borderColor="border.subtle" borderRadius="xl" p={4} mb={5}>
+                        <Text fontWeight="semibold" fontSize="sm">{t("hostsPage.relationshipTitle")}</Text>
+                        <Text mt={1} fontSize="sm" overflowWrap="anywhere">{t("hostsPage.inboundName")}: {current.inbound}</Text>
+                        <Text mt={1} fontSize="sm" overflowWrap="anywhere">{t("hostsPage.runScope")}: {inbound?.node_ids?.length
+                          ? inbound.node_ids.map(id => nodes.find(node => node.id === id)?.name || t("hostsPage.unknownNode", { id })).join(" · ")
+                          : t("hostsPage.sharedScope")}</Text>
+                        <Text mt={1} color="fg.muted" fontSize="sm">{t("hostsPage.relationshipNote")}</Text>
+                      </Box>
                       <Flex justify="space-between" gap={3} direction={{ base: "column", md: "row" }} mb={5}>
                         <Box minW="0" flex="1"><Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">{t("hostsPage.editing")} · {current.inbound} · {position + 1}/{peers.length}</Text>
                           <Heading as="h2" size="md" mt={2} overflowWrap="anywhere">{routeLabel(selected)}</Heading>
