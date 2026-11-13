@@ -329,13 +329,17 @@ class Instance:
             addr = row[0]
             if addr in ready and addr not in keep and ready[addr]["prefixlen"] == 128:
                 command(["ip", "-6", "addr", "del", addr + "/128", "dev", self.dev])
+        previous = self.value("applied", {})
         applied = {
             "epoch": epoch,
             "pid": base["pid"],
             "enabled": enabled,
             "generation": self.value("generation", 0),
+            # Keep the last confirmed list available for inspection while disabled.
+            "targets": targets if enabled else previous.get("targets"),
+            "list_date": self.value("date") if enabled else previous.get("list_date"),
         }
-        if applied != self.value("applied"):
+        if applied != previous:
             self.save("applied", applied)
         return {
             "enabled": enabled,
@@ -382,7 +386,8 @@ def main():
                         {
                             "enabled": inst.value("enabled", False),
                             "verified": verified,
-                            "list_date": inst.value("date"),
+                            "list_date": applied.get("list_date"),
+                            "targets": applied.get("targets"),
                             "users": [
                                 dict(r)
                                 for r in inst.db.execute(

@@ -1,4 +1,4 @@
-import { Box, Button, HStack, Select, Switch, Text } from "@chakra-ui/react";
+import { Box, Button, HStack, Select, Stack, Switch, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,11 @@ type Status = {
   enabled: boolean;
   verified: boolean;
   list_date: string | null;
+  targets?: {
+    domain: string[];
+    ip: string[];
+    ipv4_aliases?: Record<string, string>;
+  } | null;
   users: { identity: string; address: string }[];
 };
 
@@ -42,6 +47,26 @@ export function NodeEgress({ id }: { id: number }) {
           <Text>{t("nodeEgress.listDate")} {status.list_date || "—"}</Text>
           <Button size="sm" isDisabled={busy || !status.enabled} onClick={() => update.mutate({action:"refresh"})}>{t("nodeEgress.refresh")}</Button>
         </HStack>
+        <Box as="details" my={3}>
+          <Box as="summary" cursor="pointer" fontSize="sm" fontWeight="medium">
+            {t("nodeEgress.viewList")}
+          </Box>
+          {status.targets ? (
+            <Stack spacing={2} mt={2} fontSize="sm" overflowWrap="anywhere">
+              {(!status.enabled || !status.verified) && <Text>{t("nodeEgress.lastApplied")}</Text>}
+              {([
+                [t("nodeEgress.domainSuffixes"), status.targets.domain.map(domain => domain.replace(/^domain:/, ""))],
+                [t("nodeEgress.ipv4Aliases"), Object.entries(status.targets.ipv4_aliases || {}).map(([ip, host]) => `${ip} → ${host}`)],
+                [t("nodeEgress.ipv6Prefixes"), status.targets.ip],
+              ] as [string, string[]][]).map(([label, entries]) => (
+                <Box key={label}>
+                  <Text fontWeight="semibold">{label} ({entries.length})</Text>
+                  {entries.length > 0 && <Text dir="ltr" textAlign="start" fontFamily="mono">{entries.join(", ")}</Text>}
+                </Box>
+              ))}
+            </Stack>
+          ) : <Text mt={2} fontSize="sm">{t("nodeEgress.noList")}</Text>}
+        </Box>
         <Select aria-label={t("nodeEgress.user")!} placeholder={t("nodeEgress.user")!} value={user}
           onChange={(event) => setUser(event.target.value)}>
           {status.users.map((item) => <option key={item.identity} value={item.identity}>#{item.identity} · {item.address}</option>)}
