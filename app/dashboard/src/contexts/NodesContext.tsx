@@ -2,19 +2,13 @@ import { useQuery } from "react-query";
 import { fetch } from "service/http";
 import { z } from "zod";
 import { create } from "zustand";
-import { FilterUsageType, useDashboard } from "./DashboardContext";
+import type { FilterUsageType } from "./DashboardContext";
 
 export const NodeSchema = z.object({
   name: z.string().min(1),
   address: z.string().min(1),
-  port: z
-    .number()
-    .min(1)
-    .or(z.string().transform((v) => parseFloat(v))),
-  api_port: z
-    .number()
-    .min(1)
-    .or(z.string().transform((v) => parseFloat(v))),
+  port: z.preprocess(value => typeof value === "string" ? Number(value) : value, z.number().int().min(1).max(65535)),
+  api_port: z.preprocess(value => typeof value === "string" ? Number(value) : value, z.number().int().min(1).max(65535)),
   xray_version: z.string().nullable().optional(),
   id: z.number().nullable().optional(),
   status: z
@@ -23,7 +17,7 @@ export const NodeSchema = z.object({
     .optional(),
   message: z.string().nullable().optional(),
   add_as_new_host: z.boolean().optional(),
-  usage_coefficient: z.number().or(z.string().transform((v) => parseFloat(v))),
+  usage_coefficient: z.preprocess(value => typeof value === "string" ? Number(value) : value, z.number().positive().finite()),
 });
 
 export type NodeType = z.infer<typeof NodeSchema>;
@@ -52,11 +46,9 @@ export type NodeStore = {
 };
 
 export const useNodesQuery = () => {
-  const { isEditingNodes } = useDashboard();
   return useQuery({
     queryKey: FetchNodesQueryKey,
     queryFn: useNodes.getState().fetchNodes,
-    refetchInterval: isEditingNodes ? 10000 : undefined,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });

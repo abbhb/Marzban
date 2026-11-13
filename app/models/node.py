@@ -65,6 +65,10 @@ class NodeResponse(Node):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NodeServiceResponse(NodeResponse):
+    inbound_tags: List[str] = Field(default_factory=list)
+
+
 class NodeUsageResponse(BaseModel):
     node_id: Optional[int] = None
     node_name: str

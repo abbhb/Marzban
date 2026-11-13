@@ -1,5 +1,4 @@
 {
-
   "cascade": {
     "title": "Cascaded route",
     "off": "Off, keep the original route",
@@ -844,5 +843,85 @@
   "hostsPage.runScope": "Inbound server scope",
   "hostsPage.unknownNode": "Unknown node #{{id}}",
   "hostsPage.sharedScope": "Not assigned to specific nodes (shared inbound)",
-  "hostsPage.relationshipNote": "The scope comes from the core inbound configuration; the route and management addresses can differ."
+  "hostsPage.relationshipNote": "The scope comes from the core inbound configuration; the route and management addresses can differ.",
+  "nodeServices": {
+    "title": "Service hosts",
+    "description": "Open a host to inspect user connection paths and service settings.",
+    "local": "Panel host",
+    "localDescription": "The Xray service on the panel server",
+    "back": "All service hosts",
+    "search": "Search host name or address",
+    "openConnections": "View connections",
+    "openHosts": "Service hosts and connections",
+    "hostConnections": "Connections on {{name}}",
+    "settings": "Service settings",
+    "inboundCount": "{{count}} inbounds",
+    "noInbounds": "No inbounds are assigned to this host.",
+    "notFound": "This host does not exist or was deleted.",
+    "loadError": "Could not load service hosts. Please retry.",
+    "saveError": "The operation failed. Please retry.",
+    "saved": "Host settings saved",
+    "saveHelp": "Saving reconnects this node.",
+    "reconnectQueued": "Reconnection was queued. Check the node status shortly.",
+    "enabled": "Enable node",
+    "localSettings": "Manage the panel host inbounds and outbounds in Core Settings.",
+    "certificateRetry": "Reload node certificate",
+    "delete": "Delete this host",
+    "deleteHelp": "Deleting {{name}} removes its panel record and disconnects its management session.",
+    "fields": {
+      "name": "Host name",
+      "address": "Management address",
+      "port": "Management port",
+      "api_port": "Xray API port",
+      "usage_coefficient": "Usage coefficient"
+    },
+    "refreshError": "Could not refresh host status. Showing the last result; unsaved settings are retained."
+  },
+  "connections": {
+    "title": "Connections",
+    "description": "Recent connections in real time: user, client entry → IP family used by this host’s successful socket dial.",
+    "pause": "Pause capture",
+    "resume": "Resume capture",
+    "records": "Recent records",
+    "users": "Users",
+    "observed": "Observed egress",
+    "unknown": "Egress unknown",
+    "search": "Search connections",
+    "searchPlaceholder": "User, client IP, target or outbound",
+    "path": "Entry → egress",
+    "allPaths": "All connection paths",
+    "inbound": "Inbound",
+    "allInbounds": "All inbounds",
+    "user": "User",
+    "source": "Client entry",
+    "target": "Requested target",
+    "remote": "Actual dial target",
+    "route": "Inbound → outbound",
+    "time": "Dial time",
+    "local": "Local source (before NAT)",
+    "notObserved": "Not observed",
+    "empty": "No connection records yet",
+    "noMatches": "No matching connections",
+    "emptyHelp": "Keep this page open and start a new connection. Existing long-lived connections are not backfilled.",
+    "scope": "Keeps at most {{count}} recent dial records, not a count of active connections. Observations cover this host’s hop only; the final public egress behind cascades, tunnels or remote NAT is not inferred. UDP records confirm socket creation, not a response from the target.",
+    "observerNeeded": "Waiting for host socket observations",
+    "observerHelp": "Access logs describe requests but cannot confirm egress. Install the connection-observing Xray on this host, then make new connections to see the actual IPv4 / IPv6 path.",
+    "stream": {
+      "connecting": "Connecting to capture",
+      "connected": "Receiving connection records",
+      "paused": "Capture paused",
+      "offline": "Host disconnected",
+      "error": "Capture disconnected",
+      "unauthorized": "Access denied"
+    },
+    "error": {
+      "offline": "This host is disconnected. Retry after it reconnects.",
+      "error": "The capture connection ended. The last received records are retained. Please retry.",
+      "unauthorized": "Your login expired or you do not have permission. Please sign in again."
+    },
+    "evidence": {
+      "socket": "Observed connection",
+      "access_log": "Request; egress unknown"
+    }
+  }
 }

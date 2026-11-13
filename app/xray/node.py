@@ -256,6 +256,7 @@ class ReSTXRayNode:
 
     def _bg_fetch_logs(self):
         while self._logs_queues:
+            ws = None
             try:
                 websocket_url = f"{self._logs_ws_url}?session_id={self._session_id}&interval=0.7"
                 self._ssl_context.load_verify_locations(self.session.verify)
@@ -273,6 +274,9 @@ class ReSTXRayNode:
                         pass
             except Exception:
                 pass
+            finally:
+                if ws is not None:
+                    ws.close()
             time.sleep(2)
 
     @contextmanager
@@ -291,10 +295,8 @@ class ReSTXRayNode:
             yield buf
 
         finally:
-            try:
-                self._logs_queues.remove(buf)
-            except ValueError:
-                pass
+            # Equal (often empty) deques belong to different observers.
+            self._logs_queues[:] = [queue for queue in self._logs_queues if queue is not buf]
             del buf
 
 

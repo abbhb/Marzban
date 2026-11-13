@@ -8,13 +8,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AdminShell } from "components/AdminShell";
 import { BootReady } from "components/BootReady";
 import { Footer } from "components/Footer";
-import { NodeType } from "contexts/NodesContext";
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { FieldErrors, FormProvider, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { unstable_useBlocker as useBlocker, useBeforeUnload, useSearchParams } from "react-router-dom";
+import { Link, unstable_useBlocker as useBlocker, useBeforeUnload, useSearchParams } from "react-router-dom";
 import { errorMessage, fetch } from "service/http";
 import { HostEditor } from "./hosts/HostEditor";
+import { ServiceNode } from "./nodes/types";
 import { Category, HostForm, HostMap, Inbound, categories, categoryFor, endpoint, fetchInboundScopes, flattenHosts, formSchema, groupHosts, newHost, normalizeHosts, same } from "./hosts/schema";
 
 const XhttpProfiles = lazy(() => import("components/XhttpProfiles").then(module => ({ default: module.XhttpProfiles })));
@@ -29,7 +29,7 @@ export const Hosts = () => {
   const [xhttpDirty, setXhttpDirty] = useState(false);
   const [baseline, setBaseline] = useState<HostMap>({});
   const [inbounds, setInbounds] = useState<Inbound[]>([]);
-  const [nodes, setNodes] = useState<NodeType[]>([]);
+  const [nodes, setNodes] = useState<ServiceNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -61,7 +61,7 @@ export const Hosts = () => {
     Promise.all([
       fetch<HostMap>("/hosts", { signal: controller.signal, timeout: 15000 }),
       fetchInboundScopes(controller.signal),
-      fetch<NodeType[]>("/nodes", { signal: controller.signal, timeout: 15000 }),
+      fetch<ServiceNode[]>("/node-services", { signal: controller.signal, timeout: 15000 }),
     ]).then(([hosts, inboundList, serverNodes]) => {
       const normalized = normalizeHosts(hosts);
       const flat = flattenHosts(normalized);
@@ -162,6 +162,7 @@ export const Hosts = () => {
       </Alert>}
       <Heading as="h1" size="lg">{t("header.hostSettings")}</Heading>
       <Text color="fg.muted" mt={2} mb={5}>{t("hostsPage.relationshipHelp")}</Text>
+      <Button as={Link} to="/nodes" variant="outline" size="sm" mb={5}>{t("nodeServices.openHosts")}</Button>
       <Tabs index={xhttpTab ? 1 : 0} onChange={changeTab}>
         <TabList><Tab>{t("hostsPage.routes")}{changed.length > 0 && <Badge ms={2} colorScheme="orange">{t("hostsPage.unsaved")}</Badge>}</Tab>
           <Tab>{t("xhttp.title")}{xhttpDirty && <Badge ms={2} colorScheme="orange">{t("hostsPage.unsaved")}</Badge>}</Tab></TabList>
@@ -231,6 +232,12 @@ export const Hosts = () => {
                           ? inbound.node_ids.map(id => nodes.find(node => node.id === id)?.name || t("hostsPage.unknownNode", { id })).join(" · ")
                           : t("hostsPage.sharedScope")}</Text>
                         <Text mt={1} color="fg.muted" fontSize="sm">{t("hostsPage.relationshipNote")}</Text>
+                        <HStack mt={3} flexWrap="wrap" gap={2}>
+                          {nodes.filter(node => node.inbound_tags.includes(current.inbound)).map(node =>
+                            <Button as={Link} to={`/nodes/${node.id}?inbound=${encodeURIComponent(current.inbound)}`} key={node.id} size="sm" variant="outline" whiteSpace="normal" h="auto" minH="9" py={2}>
+                              {t("nodeServices.hostConnections", { name: node.id === 0 ? t("nodeServices.local") : node.name })}
+                            </Button>)}
+                        </HStack>
                       </Box>
                       <Flex justify="space-between" gap={3} direction={{ base: "column", md: "row" }} mb={5}>
                         <Box minW="0" flex="1"><Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">{t("hostsPage.editing")} · {current.inbound} · {position + 1}/{peers.length}</Text>

@@ -26,11 +26,6 @@ const MgmaLinkModal = lazy(() =>
     default: MgmaLinkModal,
   }))
 );
-const NodesDialog = lazy(() =>
-  import("components/NodesModal").then(({ NodesDialog }) => ({
-    default: NodesDialog,
-  }))
-);
 const NodesUsage = lazy(() =>
   import("components/NodesUsage").then(({ NodesUsage }) => ({
     default: NodesUsage,
@@ -100,7 +95,6 @@ export const Dashboard: FC = () => {
   const showUserDialog = useDashboard(
     (state) => state.isCreatingNewUser || Boolean(state.editingUser)
   );
-  const showNodes = useDashboard((state) => state.isEditingNodes);
   const showNodesUsage = useDashboard((state) => state.isShowingNodesUsage);
   const showCoreSettings = useDashboard((state) => state.isEditingCore);
   const inboundsStatus = useDashboard((state) => state.inboundsStatus);
@@ -141,8 +135,8 @@ export const Dashboard: FC = () => {
         navigate("/hosts", { replace: true });
         return;
       case "nodes":
-        useDashboard.getState().onEditingNodes(true);
-        break;
+        navigate("/nodes", { replace: true });
+        return;
       case "node-usage":
         useDashboard.getState().onShowingNodesUsage(true);
         break;
@@ -190,7 +184,6 @@ export const Dashboard: FC = () => {
           <Suspense fallback={<DeferredDialogFallback />}>
             {showUserDialog && inboundsLoaded ? <UserDialog /> : null}
             {showMgma ? <MgmaLinkModal /> : null}
-            {showNodes ? <NodesDialog /> : null}
             {showNodesUsage ? <NodesUsage /> : null}
             {showCoreSettings ? <CoreSettingsModal /> : null}
             {showSubscriptionSecurity ? <SubscriptionSecurityModal /> : null}
