@@ -1,17 +1,3 @@
 {
-  "domains": {
-    "youtube.com": "www.youtube.com",
-    "youtu.be": "youtu.be",
-    "youtube-nocookie.com": "www.youtube-nocookie.com",
-    "ytimg.com": "i.ytimg.com",
-    "ggpht.com": "yt3.ggpht.com",
-    "google.com": "www.google.com",
-    "googleapis.com": "youtube.googleapis.com",
-    "cloudflare.com": "www.cloudflare.com",
-    "api64.ipify.org": "api64.ipify.org",
-    "wikipedia.org": "www.wikipedia.org"
-  },
-  "include_domains": ["googlevideo.com"],
-  "ipv4_aliases": {"1.1.1.1": "one.one.one.one"},
-  "ipv6_networks": ["2000::/3"]
+  "ipv4_aliases": {"1.1.1.1": "one.one.one.one"}
 }

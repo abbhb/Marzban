@@ -25,13 +25,16 @@ class PolicyTests(unittest.TestCase):
     def test_rules_keep_relative_priority_and_only_match_managed_users(self):
         rules, outs = render(self.base, ["p1", "p2"], self.users, self.targets)
         self.assertEqual(rules[:2], self.base["routing"]["rules"][:2])
-        self.assertEqual(rules[8], self.base["routing"]["rules"][2])
+        self.assertEqual(rules[5], self.base["routing"]["rules"][2])
+        user_rules = [r for r in rules if r.get("user")]
         self.assertEqual(
-            [r["inboundTag"] for r in rules if r.get("user")],
-            [["p1"]] * 5 + [["p2"]] * 5,
+            [r["inboundTag"] for r in user_rules], [["p1"]] * 2 + [["p2"]] * 2
         )
-        self.assertEqual(len({r["ruleTag"] for r in rules if "ruleTag" in r}), 12)
-        self.assertEqual(rules[7]["outboundTag"], "mz6-pending")
+        self.assertEqual([r["network"] for r in user_rules], ["tcp", "udp"] * 2)
+        self.assertTrue(all("domain" not in r and "ip" not in r for r in user_rules))
+        self.assertEqual(user_rules[0]["outboundTag"], outs[0]["tag"])
+        self.assertEqual(user_rules[1]["outboundTag"], outs[1]["tag"])
+        self.assertEqual(rules[4]["outboundTag"], "mz6-pending")
         self.assertEqual(rules[-1]["outboundTag"], "mz6-pending")
         self.assertEqual(outs[0]["streamSettings"]["sockopt"]["mark"], 101)
         self.assertTrue(
@@ -46,10 +49,7 @@ class PolicyTests(unittest.TestCase):
         )
 
     def test_transient_dns_failure_does_not_publish_partial_refresh(self):
-        spec = {
-            "domains": {"a.test": "a.test", "b.test": "b.test"},
-            "ipv6_networks": ["2000::/3"],
-        }
+        spec = {"ipv4_aliases": {"1.1.1.1": "a.test", "8.8.8.8": "b.test"}}
         with (
             patch(
                 "socket.getaddrinfo",
@@ -64,14 +64,11 @@ class PolicyTests(unittest.TestCase):
 
     def test_public_ipv4_alias_requires_matching_a_and_global_aaaa(self):
         spec = {
-            "domains": {"a.test": "a.test"},
-            "ipv6_networks": [],
             "ipv4_aliases": {"1.1.1.1": "one.test", "8.8.8.8": "two.test"},
         }
 
         def lookup(host, *_args):
             values = {
-                "a.test": ["2606:4700::1"],
                 "one.test": ["1.1.1.1", "2606:4700::1"],
                 "two.test": ["1.1.1.1", "2606:4700::2"],
             }[host]
@@ -88,6 +85,21 @@ class PolicyTests(unittest.TestCase):
             out["streamSettings"]["sockopt"]["mark"], self.users[0]["mark"]
         )
         self.assertEqual(rule["network"], "tcp")
+        self.assertLess(
+            rules.index(rule),
+            next(
+                i
+                for i, r in enumerate(rules)
+                if r.get("network") == "tcp" and "ip" not in r
+            ),
+        )
+
+    def test_legacy_domain_list_does_not_trigger_dns_queries(self):
+        with patch("socket.getaddrinfo", side_effect=AssertionError):
+            targets = resolve_list(
+                {"domains": {"old.test": "old.test"}, "ipv6_networks": ["2000::/3"]}
+            )
+        self.assertEqual(targets, {"domain": [], "ip": [], "ipv4_aliases": {}})
 
     def test_mark_exhaustion_and_last_slot(self):
         prefix = 100

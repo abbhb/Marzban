@@ -1,5 +1,9 @@
 {
   "nodeEgress.title": "IPv6 出口",
+  "nodeEgress.preferAll": "所有域名优先使用 IPv6",
+  "nodeEgress.aliasDate": "映射更新日期",
+  "nodeEgress.refreshAliases": "刷新映射",
+  "nodeEgress.noAliases": "暂无 IPv4 双栈映射。",
   "nodeEgress.prefer": "名单内目标优先使用 IPv6",
   "nodeEgress.listDate": "名单更新日期",
   "nodeEgress.viewList": "查看名单",

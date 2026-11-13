@@ -38,29 +38,6 @@ def domain(value):
 
 
 def resolve_list(spec):
-    selected = {domain(item) for item in spec.get("include_domains", [])}
-    results = 0
-    for suffix, sample in spec["domains"].items():
-        suffix, sample = domain(suffix), domain(sample)
-        if sample != suffix and not sample.endswith("." + suffix):
-            raise ValueError("DNS sample is outside the configured suffix")
-        try:
-            answers = socket.getaddrinfo(
-                sample, 443, socket.AF_INET6, socket.SOCK_STREAM
-            )
-        except socket.gaierror as exc:
-            if exc.errno in (socket.EAI_NONAME, socket.EAI_NODATA):
-                results += 1
-                continue
-            raise
-        results += 1
-        if any(ipaddress.ip_address(a[4][0]).is_global for a in answers):
-            selected.add(suffix)
-    if not results or not selected:
-        raise ValueError("Empty DNS refresh")
-    networks = [ipaddress.IPv6Network(n, strict=True) for n in spec["ipv6_networks"]]
-    if any(not n.subnet_of(ipaddress.IPv6Network("2000::/3")) for n in networks):
-        raise ValueError("Only public IPv6 prefixes can be selected")
     # An IPv4 literal has no universal IPv6 counterpart. Publish only
     # operator-declared aliases whose current A set contains the original IP.
     aliases = {}
@@ -86,8 +63,9 @@ def resolve_list(spec):
             aliases[str(source)] = hostname
     return {
         "ipv4_aliases": aliases,
-        "domain": ["domain:" + s for s in sorted(selected)],
-        "ip": sorted({str(n) for n in networks}),
+        # Older dashboards expect both collections in the status response.
+        "domain": [],
+        "ip": [],
     }
 
 
@@ -136,7 +114,6 @@ def render(base, inbounds, users, targets):
         for suffix, strategy in (
             ("", "ForceIP"),
             ("-udp", "ForceIPv6v4"),
-            ("-default", "ForceIPv4v6"),
         ):
             sockopt = {"mark": user["mark"], "domainStrategy": strategy}
             if not suffix:
@@ -173,17 +150,7 @@ def render(base, inbounds, users, targets):
                     "inboundTag": slots[idx],
                     "user": [user["email"]],
                 }
-                selected = [
-                    {
-                        **common,
-                        field: values,
-                        "network": network,
-                        "outboundTag": tag + suffix,
-                    }
-                    for field in ("domain", "ip")
-                    if (values := targets.get(field))
-                    for network, suffix in (("tcp", ""), ("udp", "-udp"))
-                ]
+                selected = []
                 for address, hostname in sorted(
                     targets.get("ipv4_aliases", {}).items()
                 ):
@@ -196,9 +163,13 @@ def render(base, inbounds, users, targets):
                             "outboundTag": tag + "-alias-" + alias_tag,
                         }
                     )
-                # Unlisted domains prefer A. IPv6-only destinations still get the
-                # assigned IPv6, never the interface's shared default address.
-                selected.append({**common, "outboundTag": tag + "-default"})
+                # Only explicit literal aliases precede the per-user default.
+                selected.extend(
+                    [
+                        {**common, "network": "tcp", "outboundTag": tag},
+                        {**common, "network": "udp", "outboundTag": tag + "-udp"},
+                    ]
+                )
                 for rule in selected:
                     rule["ruleTag"] = (
                         "mz6-"

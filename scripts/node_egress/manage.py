@@ -249,6 +249,8 @@ class Instance:
             if (
                 force_refresh
                 or not targets
+                or targets.get("domain")
+                or targets.get("ip")
                 or self.value("date") != date.today().isoformat()
             ):
                 try:
@@ -256,15 +258,21 @@ class Instance:
                         json.loads((self.directory / "targets.json").read_text())
                     )
                 except (ValueError, OSError) as exc:
-                    if force_refresh or targets is None:
+                    if force_refresh:
                         raise
                     print(
-                        f"Retaining previous DNS list: {type(exc).__name__}",
+                        f"IPv4 alias refresh deferred: {type(exc).__name__}",
                         file=sys.stderr,
                     )
                 else:
                     self.save("targets", targets)
                     self.save("date", date.today().isoformat())
+            # Domains are resolved at dial time even if alias DNS is unavailable.
+            targets = {
+                "ipv4_aliases": (targets or {}).get("ipv4_aliases", {}),
+                "domain": [],
+                "ip": [],
+            }
             emails = set()
             for tag in self.tags:
                 if base["inbounds"].get(tag) is None:
@@ -334,6 +342,7 @@ class Instance:
             "epoch": epoch,
             "pid": base["pid"],
             "enabled": enabled,
+            "domain_strategy": "prefer_ipv6",
             "generation": self.value("generation", 0),
             # Keep the last confirmed list available for inspection while disabled.
             "targets": targets if enabled else previous.get("targets"),
@@ -386,6 +395,7 @@ def main():
                         {
                             "enabled": inst.value("enabled", False),
                             "verified": verified,
+                            "domain_strategy": applied.get("domain_strategy"),
                             "list_date": applied.get("list_date"),
                             "targets": applied.get("targets"),
                             "users": [

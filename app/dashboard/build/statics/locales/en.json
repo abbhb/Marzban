@@ -1,5 +1,9 @@
 {
   "nodeEgress.title": "IPv6 egress",
+  "nodeEgress.preferAll": "Prefer IPv6 for all domains",
+  "nodeEgress.aliasDate": "Mappings updated",
+  "nodeEgress.refreshAliases": "Refresh mappings",
+  "nodeEgress.noAliases": "No IPv4 dual-stack mappings.",
   "nodeEgress.prefer": "Prefer IPv6 for listed destinations",
   "nodeEgress.listDate": "Destination list updated",
   "nodeEgress.viewList": "View destination list",

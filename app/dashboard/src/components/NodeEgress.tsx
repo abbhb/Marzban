@@ -8,6 +8,7 @@ type Status = {
   available: boolean;
   enabled: boolean;
   verified: boolean;
+  domain_strategy?: "prefer_ipv6" | null;
   list_date: string | null;
   targets?: {
     domain: string[];
@@ -30,6 +31,7 @@ export function NodeEgress({ id }: { id: number }) {
   });
   const status = query.data;
   const allocation = status?.users?.find((item) => item.identity === user);
+  const allDomains = status?.domain_strategy === "prefer_ipv6";
   const busy = update.isLoading || query.isFetching;
   return <Box borderTopWidth="1px" mt={4} pt={3}>
     <Button size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>{t("nodeEgress.title")}</Button>
@@ -38,32 +40,39 @@ export function NodeEgress({ id }: { id: number }) {
       {(query.isError || update.isError) && <Text color="red.500">{t("nodeEgress.error")}</Text>}
       {status && (status.available ? <>
         <HStack justify="space-between" my={2}>
-          <Text as="label" htmlFor={`egress-${id}`}>{t("nodeEgress.prefer")}</Text>
+          <Text as="label" htmlFor={`egress-${id}`}>{t(allDomains ? "nodeEgress.preferAll" : "nodeEgress.prefer")}</Text>
           <Switch id={`egress-${id}`} isChecked={status.enabled} isDisabled={busy}
             onChange={() => update.mutate({action: status.enabled ? "off" : "on"})}/>
         </HStack>
         {!status.verified && <Text>{t("nodeEgress.pending")}</Text>}
-        <HStack my={2} wrap="wrap">
-          <Text>{t("nodeEgress.listDate")} {status.list_date || "—"}</Text>
-          <Button size="sm" isDisabled={busy || !status.enabled} onClick={() => update.mutate({action:"refresh"})}>{t("nodeEgress.refresh")}</Button>
-        </HStack>
         <Box as="details" my={3}>
           <Box as="summary" cursor="pointer" fontSize="sm" fontWeight="medium">
-            {t("nodeEgress.viewList")}
+            {t(allDomains ? "nodeEgress.ipv4Aliases" : "nodeEgress.viewList")}
           </Box>
+          <HStack my={2} wrap="wrap">
+            <Text>{t(allDomains ? "nodeEgress.aliasDate" : "nodeEgress.listDate")} {status.list_date || "—"}</Text>
+            <Button size="sm" isDisabled={busy || !status.enabled} onClick={() => update.mutate({action:"refresh"})}>
+              {t(allDomains ? "nodeEgress.refreshAliases" : "nodeEgress.refresh")}
+            </Button>
+          </HStack>
           {status.targets ? (
             <Stack spacing={2} mt={2} fontSize="sm" overflowWrap="anywhere">
               {(!status.enabled || !status.verified) && <Text>{t("nodeEgress.lastApplied")}</Text>}
-              {([
-                [t("nodeEgress.domainSuffixes"), status.targets.domain.map(domain => domain.replace(/^domain:/, ""))],
-                [t("nodeEgress.ipv4Aliases"), Object.entries(status.targets.ipv4_aliases || {}).map(([ip, host]) => `${ip} → ${host}`)],
-                [t("nodeEgress.ipv6Prefixes"), status.targets.ip],
-              ] as [string, string[]][]).map(([label, entries]) => (
-                <Box key={label}>
-                  <Text fontWeight="semibold">{label} ({entries.length})</Text>
-                  {entries.length > 0 && <Text dir="ltr" textAlign="start" fontFamily="mono">{entries.join(", ")}</Text>}
-                </Box>
-              ))}
+              {!allDomains && <Box>
+                <Text fontWeight="semibold">{t("nodeEgress.domainSuffixes")} ({status.targets.domain.length})</Text>
+                <Text dir="ltr" fontFamily="mono">{status.targets.domain.map(d => d.replace(/^domain:/, "")).join(", ")}</Text>
+              </Box>}
+              <Box>
+                {!allDomains && <Text fontWeight="semibold">{t("nodeEgress.ipv4Aliases")}</Text>}
+                {Object.entries(status.targets.ipv4_aliases || {}).map(([ip, host]) => (
+                  <Text key={ip} dir="ltr" fontFamily="mono">{ip} → {host}</Text>
+                ))}
+                {!Object.keys(status.targets.ipv4_aliases || {}).length && <Text>{t("nodeEgress.noAliases")}</Text>}
+              </Box>
+              {!allDomains && <Box>
+                <Text fontWeight="semibold">{t("nodeEgress.ipv6Prefixes")} ({status.targets.ip.length})</Text>
+                <Text dir="ltr" fontFamily="mono">{status.targets.ip.join(", ")}</Text>
+              </Box>}
             </Stack>
           ) : <Text mt={2} fontSize="sm">{t("nodeEgress.noList")}</Text>}
         </Box>
