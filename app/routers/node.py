@@ -65,7 +65,7 @@ async def node_connections(node_id: int, websocket: WebSocket, db: Session = Dep
             source = xray.core
             available = source.started
         else:
-            dbnode = crud.get_node(db, node_id)
+            dbnode = crud.get_node_by_id(db, node_id)
             if not dbnode:
                 return await websocket.close(code=4404, reason="Node not found")
             source = xray.nodes.get(node_id)

@@ -3,6 +3,8 @@
 from collections import deque
 from contextlib import contextmanager
 import json
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -10,8 +12,11 @@ from unittest.mock import Mock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from app.db import get_db
+from app.db import Base, get_db
+from app.db.models import Node
 from app.models.node import NodeResponse, NodeStatus
 from app.routers import node as routes
 from app.services.node_connections import ConnectionObservations, endpoint
@@ -109,7 +114,7 @@ class ConnectionStreamTests(unittest.TestCase):
         self.patches = [
             patch.object(routes, "xray", self.xray),
             patch.object(routes.Admin, "get_admin", side_effect=lambda token, db: SimpleNamespace(is_sudo=token == "sudo") if token in ("sudo", "admin") else None),
-            patch.object(routes.crud, "get_node", side_effect=lambda db, node_id: self.node if node_id == 7 else None),
+            patch.object(routes.crud, "get_node_by_id", side_effect=lambda db, node_id: self.node if node_id == 7 else None),
         ]
         for p in self.patches:
             p.start()
@@ -129,7 +134,7 @@ class ConnectionStreamTests(unittest.TestCase):
         with self.client.websocket_connect("/api/node/0/connections") as socket:
             socket.send_json({"token": "sudo"})
             self.assertTrue(socket.receive_json()["observer"])
-        routes.crud.get_node.assert_not_called()
+        routes.crud.get_node_by_id.assert_not_called()
 
     def test_host_streams_do_not_mix_records_from_another_node(self):
         @contextmanager
@@ -196,6 +201,37 @@ class RemoteSubscriptionTests(unittest.TestCase):
         with patch("app.xray.node.create_connection", return_value=socket), patch("app.xray.node.time.sleep"):
             node._bg_fetch_logs()
         socket.close.assert_called_once()
+
+
+class ConnectionDatabaseLookupTests(unittest.TestCase):
+    def test_stream_finds_real_database_node_by_numeric_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            engine = create_engine("sqlite:///" + str(Path(directory) / "nodes.sqlite3"), connect_args={"check_same_thread": False})
+            self.addCleanup(engine.dispose)
+            Base.metadata.create_all(engine)
+            sessions = sessionmaker(bind=engine)
+            with sessions() as db:
+                db.add(Node(id=7, name="US service host", address="example.test", port=62050,
+                            api_port=62051, status=NodeStatus.connected, usage_coefficient=1))
+                db.commit()
+
+            def database():
+                with sessions() as db:
+                    yield db
+
+            @contextmanager
+            def logs():
+                yield deque([line()])
+
+            application = FastAPI()
+            application.include_router(routes.router)
+            application.dependency_overrides[get_db] = database
+            source = SimpleNamespace(get_logs=logs)
+            with patch.object(routes, "xray", SimpleNamespace(nodes={7: source})), \
+                    patch.object(routes.Admin, "get_admin", return_value=SimpleNamespace(is_sudo=True)):
+                with TestClient(application).websocket_connect("/api/node/7/connections") as socket:
+                    socket.send_json({"token": "test-admin"})
+                    self.assertEqual("alice", socket.receive_json()["records"][0]["user"])
 
 
 if __name__ == "__main__":
