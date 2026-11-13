@@ -6,6 +6,7 @@ No remote servers or production accounts are used.
 
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import importlib.util
 import ipaddress
 import json
 import os
@@ -18,6 +19,12 @@ import threading
 import time
 import unittest
 import uuid
+
+# Load the pure consumer without booting the panel or requiring its dependencies.
+consumer_spec = importlib.util.spec_from_file_location(
+    "connection_observations", Path(__file__).resolve().parents[1] / "app/services/node_connections.py")
+consumer = importlib.util.module_from_spec(consumer_spec)
+consumer_spec.loader.exec_module(consumer)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -122,6 +129,15 @@ class ConnectionObserverRuntimeTests(unittest.TestCase):
             rows = [json.loads(line[len("MZCONN "):]) for line in self.log_path.read_text().splitlines() if line.startswith("MZCONN ")]
             rows = [row for row in rows if row.get("event") == "dial"]
             if len(rows) >= expected:
+                observations = consumer.ConnectionObservations()
+                observations.feed(self.log_path.read_text())
+                records = {row["id"]: row for row in observations.records if row["evidence"] == "socket"}
+                self.assertEqual({row["id"] for row in rows}, set(records))
+                for row in rows:
+                    record = records[row["id"]]
+                    self.assertEqual(row["user"], record["identity"])
+                    self.assertEqual(row["network"].lower(), record["network"])
+                    self.assertEqual(consumer.endpoint(row["remote"])[1], record["egress_family"])
                 return rows
             time.sleep(.02)
         self.fail("Missing actual dial observations")

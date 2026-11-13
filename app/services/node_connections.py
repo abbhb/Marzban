@@ -71,7 +71,9 @@ class ConnectionObservations:
                                 "inbound", "outbound", "local", "remote")
                 ):
                     continue
-                if not event["user"] or event["network"] not in ("tcp", "udp"):
+                # Xray's protobuf Network.String() emits uppercase TCP/UDP.
+                network = event["network"].lower()
+                if not event["user"] or network not in ("tcp", "udp"):
                     continue
                 remote_ip, remote_family = endpoint(event["remote"])
                 # Ignore virtual pipe connections; the physical dial has its own event.
@@ -85,7 +87,7 @@ class ConnectionObservations:
                     "user": username(event["user"]), "identity": event["user"],
                     "source": event["source"], "source_ip": source_ip,
                     "source_family": source_family, "target": event["target"],
-                    "network": event["network"], "inbound": event["inbound"],
+                    "network": network, "inbound": event["inbound"],
                     "outbound": event["outbound"], "local": event["local"],
                     "local_ip": local_ip, "remote": event["remote"],
                     "remote_ip": remote_ip, "egress_family": remote_family,
