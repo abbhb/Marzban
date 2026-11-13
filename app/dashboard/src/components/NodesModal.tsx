@@ -1,4 +1,3 @@
-import { NodeEgress } from "./NodeEgress";
 import {
   Accordion,
   AccordionButton,
@@ -71,6 +70,8 @@ import { NodeModalStatusBadge } from "./NodeModalStatusBadge";
 
 import { fetch } from "service/http";
 import { Input } from "./Input";
+import { useNavigate } from "react-router-dom";
+import { fetchInboundScopes, HostMap } from "pages/hosts/schema";
 
 const CustomInput = chakra(Input, {
   baseStyle: {
@@ -96,6 +97,41 @@ const PlusIcon = chakra(HeroIconPlusIcon, {
 type AccordionInboundType = {
   toggleAccordion: () => void;
   node: NodeType;
+};
+
+const NodeInboundSummary: FC<{ node: NodeType }> = ({ node }) => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { onEditingNodes } = useDashboard();
+  const query = useQuery(["node-inbound-summary"], async () => {
+    const [inbounds, hosts] = await Promise.all([
+      fetchInboundScopes(),
+      fetch<HostMap>("/hosts"),
+    ]);
+    return { inbounds, hosts };
+  }, { staleTime: 15000, refetchOnWindowFocus: false });
+  const scoped = query.data?.inbounds.filter(inbound => inbound.node_ids?.includes(node.id || 0)) || [];
+  const shared = query.data?.inbounds.filter(inbound => !inbound.node_ids?.length).length || 0;
+  return <Box borderWidth="1px" borderColor="border.subtle" borderRadius="lg" w="full" p={3} mt={4}>
+    <Text fontWeight="semibold" fontSize="sm">{t("nodes.inboundSummary")}</Text>
+    <Text color="fg.muted" fontSize="sm" mt={1}>{t("nodes.scopeHelp")}</Text>
+    {query.isLoading && <Text fontSize="sm" mt={2}>{t("hostsDialog.loading")}</Text>}
+    {query.isError && <Text fontSize="sm" color="red.500" mt={2}>{t("nodes.inboundLoadError")}</Text>}
+    {query.data && <>
+      {scoped.map(inbound => <Box key={inbound.tag} mt={3}>
+        <Text fontSize="sm" fontWeight="medium" overflowWrap="anywhere">{inbound.tag}</Text>
+        <Text color="fg.muted" fontSize="sm" overflowWrap="anywhere">
+          {(query.data.hosts[inbound.tag] || []).map(host => host.remark).join(" · ") || t("nodes.noHosts")}
+        </Text>
+        <Button mt={1} size="sm" variant="link" onClick={() => {
+          onEditingNodes(false);
+          navigate(`/hosts?inbound=${encodeURIComponent(inbound.tag)}`);
+        }}>{t("nodes.openHosts")}</Button>
+      </Box>)}
+      {!scoped.length && <Text color="fg.muted" fontSize="sm" mt={2}>{t("nodes.noScopedInbounds")}</Text>}
+      {shared > 0 && <Text color="fg.muted" fontSize="sm" mt={3}>{t("nodes.sharedInbounds", { count: shared })}</Text>}
+    </>}
+  </Box>;
 };
 
 const NodeAccordion: FC<AccordionInboundType> = ({ toggleAccordion, node }) => {
@@ -227,7 +263,7 @@ const NodeAccordion: FC<AccordionInboundType> = ({ toggleAccordion, node }) => {
             </Tooltip>
           }
         />
-        {node.id && <NodeEgress id={node.id} />}
+        {node.id && <NodeInboundSummary node={node} />}
       </AccordionPanel>
     </AccordionItem>
   );

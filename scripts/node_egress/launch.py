@@ -66,7 +66,7 @@ if __name__ == "__main__":
         os.replace(f.name, STATE / "base.json")
         guard = STATE / "managed-inbounds.json"
         if guard.exists():
-            rules, pending = render(snapshot, json.loads(guard.read_text()), [], {})
+            rules, pending = render(snapshot, json.loads(guard.read_text()), [])
             config["routing"]["rules"] = rules
             config["outbounds"].extend(pending)
         # Unlinked file is inherited as stdin, no credentials written to a named file.
