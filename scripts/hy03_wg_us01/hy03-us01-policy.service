@@ -1,0 +1,11 @@
+[Unit]
+Description=Fail-closed policy for HY03 WireGuard exit via US01
+Before=wg-quick@wg-us01.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hy03-us01-policy
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
