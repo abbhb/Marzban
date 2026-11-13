@@ -23,6 +23,7 @@ const Dashboard = lazy(() =>
     import("./Dashboard").then(({ Dashboard }) => ({ default: Dashboard }))
 );
 const Hosts = lazy(() => import("./Hosts").then(({ Hosts }) => ({ default: Hosts })));
+const Nodes = lazy(() => import("./Nodes").then(({ Nodes }) => ({ default: Nodes })));
 const AdminError = lazy(() =>
     import("./AdminError").then(({ AdminError }) => ({ default: AdminError }))
 );
@@ -115,6 +116,10 @@ export const preloadInitialRoute = async () => {
     if (path === "/hosts") {
         if (!getAuthToken()) return import("./Login");
         return import("./Hosts");
+    }
+    if (path === "/nodes" || path.startsWith("/nodes/")) {
+        if (!getAuthToken()) return import("./Login");
+        return import("./Nodes");
     }
     if (path === "/commerce") {
         if (!getAuthToken()) return import("./Login");
@@ -214,6 +219,11 @@ const fetchPortalLoader = async ({ request }: LoaderFunctionArgs) => {
         throw error;
     }
 };
+const fetchSudoAdminLoader = async (args: LoaderFunctionArgs) => {
+    const admin = await fetchAdminLoader(args);
+    if (!admin.is_sudo) throw redirect("/");
+    return admin;
+};
 export const router = createHashRouter([
     {
         path: "/",
@@ -230,6 +240,18 @@ export const router = createHashRouter([
             if (!admin.is_sudo) throw redirect("/");
             return admin;
         },
+    },
+    {
+        path: "/nodes/",
+        element: routeElement(Nodes, false),
+        errorElement: routeElement(AdminError),
+        loader: fetchSudoAdminLoader,
+    },
+    {
+        path: "/nodes/:nodeId",
+        element: routeElement(Nodes, false),
+        errorElement: routeElement(AdminError),
+        loader: fetchSudoAdminLoader,
     },
     {
         path: "/commerce/",

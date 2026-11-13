@@ -1,5 +1,4 @@
 {
-
   "cascade": {
     "title": "级联线路",
     "off": "关闭，保持原线路",
@@ -845,5 +844,85 @@
   "hostsPage.runScope": "入站运行范围",
   "hostsPage.unknownNode": "未知节点 #{{id}}",
   "hostsPage.sharedScope": "未指定节点（共享入站）",
-  "hostsPage.relationshipNote": "运行范围来自核心入站配置；线路地址和节点管理地址不必相同。"
+  "hostsPage.relationshipNote": "运行范围来自核心入站配置；线路地址和节点管理地址不必相同。",
+  "nodeServices": {
+    "title": "服务主机",
+    "description": "点进一台主机，查看这台主机上用户的连接路径和服务设置。",
+    "local": "面板本机",
+    "localDescription": "面板所在服务器上的 Xray 服务",
+    "back": "全部服务主机",
+    "search": "搜索主机名称或地址",
+    "openConnections": "查看连接",
+    "openHosts": "服务主机与连接",
+    "hostConnections": "查看 {{name}} 的连接",
+    "settings": "服务设置",
+    "inboundCount": "{{count}} 个入站",
+    "noInbounds": "这台主机没有分配入站。",
+    "notFound": "主机不存在或已删除。",
+    "loadError": "服务主机加载失败，请重试。",
+    "saveError": "操作失败，请重试。",
+    "saved": "主机设置已保存",
+    "saveHelp": "保存后会重新连接该节点。",
+    "reconnectQueued": "已提交重连任务，请稍后查看节点状态。",
+    "enabled": "启用节点",
+    "localSettings": "面板本机的入站与出站配置请在内核设置中管理。",
+    "certificateRetry": "重新加载节点证书",
+    "delete": "删除这台主机",
+    "deleteHelp": "删除 {{name}} 会移除面板中的节点记录并断开管理连接。",
+    "fields": {
+      "name": "主机名称",
+      "address": "管理地址",
+      "port": "管理端口",
+      "api_port": "Xray API 端口",
+      "usage_coefficient": "流量计费系数"
+    },
+    "refreshError": "主机状态刷新失败，正在显示上次结果；未保存的设置仍然保留。"
+  },
+  "connections": {
+    "title": "连接信息",
+    "description": "实时展示最近发生的连接：用户、客户端入口 → 当前主机实际拨号使用的 IP 协议。IPv4 / IPv6 以成功建立的套接字为准。",
+    "pause": "暂停采集",
+    "resume": "继续采集",
+    "records": "最近连接记录",
+    "users": "涉及用户",
+    "observed": "已采集实际出口",
+    "unknown": "出口待采集",
+    "search": "搜索连接",
+    "searchPlaceholder": "用户名、客户端 IP、目标或出站",
+    "path": "入口 → 出口",
+    "allPaths": "全部连接路径",
+    "inbound": "入站",
+    "allInbounds": "全部入站",
+    "user": "用户",
+    "source": "客户端入口",
+    "target": "请求目标",
+    "remote": "实际拨号目标",
+    "route": "入站 → 出站",
+    "time": "拨号时间",
+    "local": "本地源地址（NAT 前）",
+    "notObserved": "尚未采集",
+    "empty": "暂时没有连接记录",
+    "noMatches": "没有符合筛选条件的记录",
+    "emptyHelp": "保持此页打开并发起新连接。已有长连接不会自动补录。",
+    "scope": "最多保留最近 {{count}} 条记录；这是拨号记录，不代表当前在线连接数。只观测当前主机这一跳，级联、隧道和远端 NAT 后的公网出口不由本页推断。UDP 记录表示创建套接字，不证明目标已响应。",
+    "observerNeeded": "等待主机侧实际出口数据",
+    "observerHelp": "普通访问日志只提供请求信息，无法确认实际出口。主机需使用带连接采集的 Xray；启用后发起新连接即可看到实际 IPv4 / IPv6。",
+    "stream": {
+      "connecting": "正在连接采集服务",
+      "connected": "正在接收连接记录",
+      "paused": "采集已暂停",
+      "offline": "主机未连接",
+      "error": "采集连接已断开",
+      "unauthorized": "无查看权限"
+    },
+    "error": {
+      "offline": "这台主机尚未连接。恢复主机连接后重试。",
+      "error": "采集连接已中断，列表保留最后收到的记录。请重试。",
+      "unauthorized": "登录已失效或当前账号没有查看权限，请重新登录。"
+    },
+    "evidence": {
+      "socket": "实际连接",
+      "access_log": "请求记录，出口未知"
+    }
+  }
 }

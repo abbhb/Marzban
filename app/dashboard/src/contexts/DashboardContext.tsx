@@ -42,7 +42,6 @@ type DashboardStateType = {
   inboundsStatus: "idle" | "loading" | "success" | "error";
   loading: boolean;
   filters: FilterType;
-  isEditingNodes: boolean;
   isShowingNodesUsage: boolean;
   isResetingAllUsage: boolean;
   resetUsageUser: User | null;
@@ -59,7 +58,6 @@ type DashboardStateType = {
   createUser: (user: UserCreate) => Promise<void>;
   editUser: (user: UserModify) => Promise<void>;
   fetchUserUsage: (user: User, query: FilterUsageType) => Promise<void>;
-  onEditingNodes: (isEditingNodes: boolean) => void;
   onShowingNodesUsage: (isShowingNodesUsage: boolean) => void;
   resetDataUsage: (user: User) => Promise<void>;
   revokeSubscription: (user: User) => Promise<void>;
@@ -132,7 +130,6 @@ export const useDashboard = create(
     },
     loading: true,
     isResetingAllUsage: false,
-    isEditingNodes: false,
     isShowingNodesUsage: false,
     resetUsageUser: null,
     revokeSubscriptionUser: null,
@@ -199,9 +196,6 @@ export const useDashboard = create(
           delete query[key as keyof FilterUsageType];
       }
       return fetch(`/user/${body.username}/usage`, { method: "GET", query });
-    },
-    onEditingNodes: (isEditingNodes: boolean) => {
-      set({ isEditingNodes });
     },
     onShowingNodesUsage: (isShowingNodesUsage: boolean) => {
       set({ isShowingNodesUsage });

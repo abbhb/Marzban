@@ -97,7 +97,8 @@ const Navigation = ({
       : item.tab
       ? location.pathname.replace(/\/+$/, "") === "/commerce" &&
         activeCommerceTab === item.tab
-      : (location.pathname.replace(/\/+$/, "") || "/") === item.path && !activePanel;
+      : ((location.pathname.replace(/\/+$/, "") || "/") === item.path ||
+          (item.path === "/nodes" && location.pathname.startsWith("/nodes/"))) && !activePanel;
 
     return (
       <Button
@@ -237,9 +238,8 @@ export const AdminShell = ({ children }: AdminShellProps) => {
               },
               {
                 icon: SquaresPlusIcon,
-                label: t("header.nodeSettings"),
-                path: "/",
-                panel: "nodes",
+                label: t("nodeServices.title"),
+                path: "/nodes",
               },
               {
                 icon: ChartPieIcon,
