@@ -11,6 +11,8 @@
 
 > This fork adds MGMA short-lived subscription URLs, latest-token-only invalidation, China/custom CIDR source policies, and a self-service portal with invitation-only registration, wallet balance, globally visible plans, one effective subscription, traffic visibility, and MGMA issuance. See the [Chinese MGMA deployment and security guide](docs/MGMA.zh-CN.md) and [portal commerce design](docs/PORTAL-COMMERCE.zh-CN.md).
 
+Node ingress addresses, XHTTP uplink/downlink paths, per-user IPv6 egress, and WireGuard routes are recorded in the [network topology guide](docs/NODE-NETWORK-TOPOLOGY.zh-CN.md).
+
 <p align="center">
     Unified GUI Censorship Resistant Solution Powered by <a href="https://github.com/XTLS/Xray-core">Xray</a>
 </p>

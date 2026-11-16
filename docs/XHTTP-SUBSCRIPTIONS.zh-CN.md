@@ -59,6 +59,11 @@ ALPN。由 NGINX 终止 TLS 时，核心入站可以只监听本地 HTTP；对�
 保留管理员设置的成员顺序。策略组、
 规则及节点转接引用会同步更新；节点凭据、地址和监听配置不变，不增加文案占位节点。
 
+固定 IPv6 上行、固定 IPv6 下行、CDN 的 IPv6 回源和按用户固定 IPv6 出口分开管理。
+多个方案仍共用同一后端入站与用户身份；`[ipv6]` 名称或 IPv6 接入地址不会自动启用
+按用户出口。当前 P1 与 XHTTP 各方案的固定入口、实际后端、出口策略及待对齐项，见
+[节点入口与出口总览](NODE-NETWORK-TOPOLOGY.zh-CN.md)。
+
 `xhttpSettings` 中的 `path`、`mode`、POST 参数、`xmux` 和 `downloadSettings`
 会转换为 Mihomo 的 `xhttp-opts`。除 `host`、`path`、`mode` 外，这些客户端选项
 也可以放在 `extra` 中；设置 `extra` 时，与 Xray 一致，以其内容替换其他外层选项。
