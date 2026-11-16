@@ -317,6 +317,15 @@ server {
 
 
 # 文档
+
+本 fork 的节点网络记录：
+
+- [节点入口、出口与按用户 IPv6 策略总览](docs/NODE-NETWORK-TOPOLOGY.zh-CN.md)
+- [HY03 IPv6 优先与用户固定出口维护](docs/NODE-IPV6-EGRESS.zh-CN.md)
+- [XHTTP 上下行与 IPv6 接入方案](docs/XHTTP-SUBSCRIPTIONS.zh-CN.md)
+- [HY03 经 WireGuard 从 US01 出口](docs/HY03-WG-US01.zh-CN.md)
+- [连接信息采集原理与观测范围](docs/HOST-CONNECTIONS.zh-CN.md)
+
 [Marzban 文档](https://gozargah.github.io/marzban) 提供了所有必要的入门指南，支持三种语言：波斯语、英语和俄语。要全面覆盖项目的各个方面，这些文档需要大量的工作。我们欢迎并感谢您的贡献，以帮助我们改进文档。您可以在这个 [GitHub 仓库](https://github.com/Gozargah/gozargah.github.io) 中进行贡献。
 
 
